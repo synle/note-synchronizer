@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "es6",
+    "module": "commonjs",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "strict": true,
+    "outDir": "./build",
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": false,
+    "declaration": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "isolatedModules": false,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "baseUrl": ".",
+    "paths": {
+      "src/*": ["src/*", "*"]
+    }
+  },
+  "exclude": ["node_modules"],
+  "include": ["src/**/*"]
+}
