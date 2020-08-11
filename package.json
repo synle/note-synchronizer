@@ -1,0 +1,37 @@
+{
+  "name": "notesynchronizer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "clean": "rm -rf caches/gmail.threads*  processing/* processed/*",
+    "prestart": "mkdir -p caches processing processed && npm run format:js && clear",
+    "start": "npx ts-node index.ts",
+    "process": "npm run prestart && npx ts-node process.ts",
+    "playground": "npm run prestart && npx ts-node playground.test.ts",
+    "test": "npm run prestart && npx ts-node index.ts && npx ts-node process.ts",
+    "format": "npm run format:js && npm run format:data",
+    "format:data": "npx prettier --parser json --write **/*.data",
+    "format:js": "npx prettier --write **/*.js **/*.ts && npx prettier --parser json --write *.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/synle/noteSynchronizer.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/synle/noteSynchronizer/issues"
+  },
+  "homepage": "https://github.com/synle/noteSynchronizer#readme",
+  "dependencies": {
+    "dotenv": "^8.2.0",
+    "googleapis": "^39.2.0",
+    "js-base64": "^3.4.5",
+    "jsdom": "^16.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^14.0.27",
+    "typescript": "^3.9.7"
+  }
+}
