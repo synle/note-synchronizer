@@ -5,14 +5,10 @@ const jsdom = require("jsdom");
 const readline = require("readline");
 const { google } = require("googleapis");
 
-import { Email, Headers } from "src/types";
-
-const useCache = true;
+import { Email, Headers, DatabaseResponse } from "src/types";
+import * as Models from "./modelsSchema";
 
 const { JSDOM } = jsdom;
-
-const GMAIL_CACHE_PATH = "./caches";
-export const GMAIL_TO_PROCESS_PATH = "./processing"; // store all the messages to be process
 
 let gmail;
 
@@ -118,23 +114,29 @@ function _getThreads(pageToken) {
   });
 }
 
-function _getMessagesByThreadId(id): Promise<Email[]> {
-  return new Promise((resolve, reject) => {
-    const filePath = `${GMAIL_CACHE_PATH}/gmail.thread.${id}.data`;
-    try {
-      if (useCache) {
-        return resolve(JSON.parse(fs.readFileSync(filePath)));
-      }
-    } catch (e) {
-      // not in cache
+function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
+  let foundInCached = false;
+  return new Promise(async (resolve, reject) => {
+    // get from databases
+    const matchedEmailsResponse: DatabaseResponse<
+      Email
+    >[] = await Models.Email.findAll({
+      where: {
+        threadId: targetThreadId,
+      },
+    });
+    if (matchedEmailsResponse.length > 0) {
+      foundInCached = true;
+      return resolve(matchedEmailsResponse.map((r) => r.dataValues));
     }
 
+    // get from gmail api
     gmail.users.threads.get(
       {
         userId: "me",
-        id,
+        id: targetThreadId,
       },
-      (err, res) => {
+      async (err, res) => {
         if (err) reject("The API returned an error: " + err);
         else {
           const messagesToReturn: Email[] = [];
@@ -143,14 +145,14 @@ function _getMessagesByThreadId(id): Promise<Email[]> {
             const { id, threadId } = message;
 
             let body = "";
-            let attachments = [];
+            let attachments: Attachment[] = [];
             if (message.payload.parts) {
               for (let part of message.payload.parts) {
                 const { mimeType } = part;
 
                 switch (mimeType) {
                   case "text/plain":
-                    body = _decodeGmailMessage(part.body.data);
+                    body = _parseGmailMessage(part.body.data);
                     break;
                   default:
                     const attachmentId = part.body.attachmentId;
@@ -167,7 +169,7 @@ function _getMessagesByThreadId(id): Promise<Email[]> {
                 }
               }
             } else if (message.payload.body) {
-              body = _decodeGmailMessage(message.payload.body.data);
+              body = _parseGmailMessage(message.payload.body.data);
             }
 
             const headers: Headers = _getHeaders(message.payload.headers || []);
@@ -178,24 +180,62 @@ function _getMessagesByThreadId(id): Promise<Email[]> {
 
             const bcc = _parseEmailAddressList(headers.bcc);
 
+            const subject = (headers.subject || "").trim();
+
+            const date = new Date(headers.date).getTime();
+
             messagesToReturn.push({
               id,
               threadId,
+              from,
               body,
               attachments,
               headers,
-              from,
               to,
               bcc,
-              date: new Date(headers.date).getTime(),
+              date,
+              subject,
             });
           }
 
-          fs.writeFileSync(filePath, JSON.stringify(messagesToReturn, null, 2));
           resolve(messagesToReturn);
         }
       }
     );
+  }).then((messages) => {
+    if (foundInCached !== true) {
+      // store into the db
+      for (let message of messages) {
+        // save to db
+        Models.Email.create({
+          id: message.id,
+          threadId: message.threadId,
+          from: message.from,
+          subject: message.subject || null,
+          body: message.body || null,
+          to: message.to.join(",") || null,
+          bcc: message.bcc.join(",") || null,
+          date: message.date,
+          attachmentIds:
+            message.attachments
+              .map((attachment) => attachment.attachmentId)
+              .join(",") || null,
+          content: JSON.stringify(message, null, 2),
+        }).catch((err) => {
+          console.error(
+            "> Insert Failed",
+            `threadId=${message.threadId}`,
+            `id=${message.id}`,
+            message.subject,
+            message.body.substr(0, 30)
+          );
+
+          console.log(err);
+        });
+      }
+    }
+
+    return messages;
   });
 }
 
@@ -223,15 +263,6 @@ function _parseEmailAddress(emailAddress) {
 }
 
 async function getThreadsToProcess() {
-  const filePath = `${GMAIL_CACHE_PATH}/gmail.threads.data`;
-  try {
-    if (useCache) {
-      return JSON.parse(fs.readFileSync(filePath));
-    }
-  } catch (e) {
-    // not in cache
-  }
-
   let pageToLookAt = process.env.GMAIL_PAGES_TO_CRAWL || 1;
   let pageToken = "";
   let allThreads = [];
@@ -244,44 +275,29 @@ async function getThreadsToProcess() {
     pageToLookAt--;
   }
 
-  // cache it
-  fs.writeFileSync(
-    filePath,
-    JSON.stringify(
-      allThreads.map((r) => {
-        delete r.snippet; // clean up the data
-        return r;
-      }),
-      null,
-      2
-    )
-  );
-
   return allThreads;
 }
 
-export function _decodeGmailMessage(bodyData) {
+export function _parseGmailMessage(bodyData) {
   let result = "";
   const decodedBody = base64.decode(
     bodyData.replace(/-/g, "+").replace(/_/g, "/")
   );
-  const dom = new JSDOM(decodedBody);
-  result = dom.window.document.body.textContent
-    .replace("\r", "\n")
-    .split(/[ ]/)
-    .map((r) => r.trim())
-    .filter((r) => !!r)
-    .join(" ")
-    .split("\n")
-    .map((r) => r.trim())
-    .filter((r) => !!r)
-    .join("\n")
-    .trim();
-
-  if (!result) {
-    result = decodedBody;
-  }
-  return result;
+  try {
+    const dom = new JSDOM(decodedBody);
+    result = dom.window.document.body.textContent
+      .replace("\r", "\n")
+      .split(/[ ]/)
+      .map((r) => r.trim())
+      .filter((r) => !!r)
+      .join(" ")
+      .split("\n")
+      .map((r) => r.trim())
+      .filter((r) => !!r)
+      .join("\n")
+      .trim();
+  } catch (e) {}
+  return result || decodedBody;
 }
 
 function _getHeaders(headers) {
@@ -310,16 +326,7 @@ async function processEmails(gmail) {
     }
 
     // search for the thread
-    const messages = await _getMessagesByThreadId(thread.id);
-
-    for (let message of messages) {
-      totalMsgCount++;
-
-      fs.writeFileSync(
-        `${GMAIL_TO_PROCESS_PATH}/to_process.${message.id}.data`,
-        JSON.stringify(message, null, 2)
-      );
-    }
+    const _messages = await _getMessagesByThreadId(thread.id);
   }
 
   console.log("Total Messages:", totalMsgCount);
