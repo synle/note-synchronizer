@@ -28,7 +28,9 @@
     "dotenv": "^8.2.0",
     "googleapis": "^39.2.0",
     "js-base64": "^3.4.5",
-    "jsdom": "^16.4.0"
+    "jsdom": "^16.4.0",
+    "sequelize-typescript-decorators": "^2.0.3",
+    "sqlite3": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "^14.0.27",

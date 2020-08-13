@@ -30,3 +30,4 @@ credentials.json
 .env
 token.json
 *.data
+*.sqlite
