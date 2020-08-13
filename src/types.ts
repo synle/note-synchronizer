@@ -33,8 +33,13 @@ export interface Attachment {
 export interface Email {
   id: string;
   threadId: string;
-  body: string;
-  attachments: Attachment[];
+  body?: string;
+  attachments?: Attachment[];
   headers: Headers;
   date: number;
+}
+
+export interface DatabaseResponse<T> {
+  dataValues: T;
+  [propName: string]: any;
 }

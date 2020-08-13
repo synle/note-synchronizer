@@ -6,13 +6,13 @@
   "scripts": {
     "clean": "rm -rf caches/gmail.threads*  processing/* processed/*",
     "prestart": "mkdir -p caches processing processed && npm run format:js && clear",
-    "start": "npx ts-node index.ts",
-    "process": "npm run prestart && npx ts-node process.ts",
-    "playground": "npm run prestart && npx ts-node playground.test.ts",
-    "test": "npm run prestart && npx ts-node index.ts && npx ts-node process.ts",
+    "start": "ts-node index.ts",
+    "process": "npm run prestart && ts-node process.ts",
+    "playground": "npm run prestart && ts-node playground.test.ts",
+    "test": "npm run prestart && ts-node index.ts && ts-node process.ts",
     "format": "npm run format:js && npm run format:data",
-    "format:data": "npx prettier --parser json --write **/*.data",
-    "format:js": "npx prettier --write **/*.js **/*.ts && npx prettier --parser json --write *.json"
+    "format:data": "prettier --parser json --write **/*.data",
+    "format:js": "prettier --write **/*.js **/*.ts && prettier --parser json --write *.json"
   },
   "repository": {
     "type": "git",
@@ -29,11 +29,13 @@
     "googleapis": "^39.2.0",
     "js-base64": "^3.4.5",
     "jsdom": "^16.4.0",
-    "sequelize-typescript-decorators": "^2.0.3",
+    "sequelize-typescript-decorators": "^2.1",
     "sqlite3": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "^14.0.27",
+    "prettier": "^2.0.5",
+    "ts-node": "^8.10.2",
     "typescript": "^3.9.7"
   }
 }

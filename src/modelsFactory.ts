@@ -9,9 +9,9 @@ export default async () => {
   const dbConnectionString = process.env.DB_URL || "";
   const sequelize = new Sequelize("note_synchronize", "username", "password", {
     dialect: "sqlite",
-    storage: "./database.sqlite",
+    storage: dbConnectionString,
+    logging: false,
   });
-
 
   const models = Object.keys(AllModelMaps).map(
     (modelName) => AllModelMaps[modelName]
