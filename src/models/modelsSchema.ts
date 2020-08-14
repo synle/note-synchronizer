@@ -94,3 +94,9 @@ export class Email extends Model {
   })
   public Attachments!: any[];
 }
+
+
+export default {
+  Attachment,
+  Email,
+}

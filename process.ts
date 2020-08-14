@@ -2,10 +2,9 @@
 require("dotenv").config();
 const fs = require("fs");
 
-import initDatabase from "./src/modelsFactory";
-
 import { Email, DatabaseResponse, Attachment } from "./src/types";
-import * as Models from "./src/modelsSchema";
+import initDatabase from "./src/models/modelsFactory";
+import * as Models from "./src/models/modelsSchema";
 
 const myEmails = (process.env.MY_EMAIL || "").split("|||");
 const mySignatureTokens = (process.env.MY_SIGNATURE || "").split("|||");

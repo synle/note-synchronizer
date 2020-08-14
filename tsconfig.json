@@ -17,10 +17,7 @@
     "isolatedModules": false,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "baseUrl": ".",
-    "paths": {
-      "src/*": ["src/*", "*"]
-    }
+    "baseUrl": "./src"
   },
   "exclude": ["node_modules"],
   "include": ["src/**/*"]
