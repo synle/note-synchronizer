@@ -29,7 +29,7 @@
     "googleapis": "^39.2.0",
     "js-base64": "^3.4.5",
     "jsdom": "^16.4.0",
-    "sequelize-typescript-decorators": "^2.1.4",
+    "sequelize-typescript-decorators": "^2.1.7",
     "sqlite3": "^5.0.0"
   },
   "devDependencies": {

@@ -10,8 +10,9 @@ import {
   Headers,
   DatabaseResponse,
   GmailAttachmentResponse,
-} from "src/types";
-import * as Models from "./modelsSchema";
+} from "../types";
+import Models from "../models/modelsSchema";
+import { rejects } from "assert";
 
 const { JSDOM } = jsdom;
 
@@ -19,13 +20,15 @@ let gmail;
 
 // google crawler
 // If modifying these scopes, delete token.json.
-const SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
+const SCOPES = [
+  "https://www.googleapis.com/auth/gmail.readonly",
+
+];
 // The file token.json stores the user's access and refresh tokens, and is
 // created automatically when the authorization flow completes for the first
 // time.
 const GMAIL_TOKEN_PATH = "token.json";
 const GMAIL_CREDENTIALS_PATH = "credentials.json";
-
 const GMAIL_ATTACHMENT_PATH = "./attachments";
 
 // core apis
@@ -82,6 +85,21 @@ function _getThreadEmails(targetThreadId) {
       }
     );
   });
+}
+
+function _getAttachment(messageId, attachmentId){
+  return new Promise((resolve, rejects) => {
+    gmail.users.messages.attachments
+      .get({
+        id: attachmentId,
+        messageId,
+        userId: "me",
+      })
+      .then((res, err) => {
+        if (err) reject("The API returned an error: " + err);
+        resolve(res.data.data);
+      });
+  })
 }
 
 // crawler start
@@ -239,7 +257,7 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
           `threadId=${message.threadId}`,
           `id=${message.id}`,
           message.subject,
-          message.body.substr(0, 30)
+          (message.body|| '').substr(0, 30)
         );
 
         console.log(err);
@@ -337,28 +355,19 @@ export function _parseGmailMessage(bodyData) {
   return result || decodedBody;
 }
 
-export function _parseGmailAttachment(
+export async function _parseGmailAttachment(
   messageId,
   attachment: GmailAttachmentResponse
 ) {
-  return new Promise((resolve, reject) => {
-    gmail.users.messages.attachments
-      .get({
-        id: attachment.attachmentId,
-        messageId,
-        userId: "me",
-      })
-      .then((res, err) => {
-        const data = res.data.data.replace(/-/g, "+").replace(/_/g, "/");
-        const newFilePath = `${GMAIL_ATTACHMENT_PATH}/${messageId}.${attachment.fileName}`;
+  const attachmentResponse = await _getAttachment(messageId, attachment.attachmentId);
+  const data = attachmentResponse.replace(/-/g, "+").replace(/_/g, "/");
+  const newFilePath = `${GMAIL_ATTACHMENT_PATH}/${messageId}.${attachment.fileName}`;
 
-        fs.writeFileSync(newFilePath, data, "base64", function (err) {
-          console.log(err);
-        });
-
-        resolve(newFilePath);
-      });
+  fs.writeFileSync(newFilePath, data, "base64", function (err) {
+    console.log(err);
   });
+
+  return newFilePath;
 }
 
 function _getHeaders(headers) {

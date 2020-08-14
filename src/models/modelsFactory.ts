@@ -1,6 +1,6 @@
 import { Sequelize } from "sequelize";
 import { initDatabase } from "sequelize-typescript-decorators";
-import * as AllModelMaps from "./modelsSchema";
+import Models from "./modelsSchema";
 
 /**
  * this routine will initialize the database, please only run this once per all...
@@ -13,8 +13,8 @@ export default async () => {
     logging: false,
   });
 
-  const models = Object.keys(AllModelMaps).map(
-    (modelName) => AllModelMaps[modelName]
+  const models = Object.keys(Models).map(
+    (modelName) => Models[modelName]
   );
 
   await initDatabase(sequelize, models);
