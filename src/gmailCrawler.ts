@@ -21,13 +21,71 @@ const SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
 const GMAIL_TOKEN_PATH = "token.json";
 const GMAIL_CREDENTIALS_PATH = "credentials.json";
 
+// core apis
+/**
+ * Lists the labels in the user's account.
+ */
+function _listLabels() {
+  return new Promise((resolve, reject) => {
+    gmail.users.labels.list(
+      {
+        userId: "me",
+      },
+      (err, res) => {
+        if (err) return reject("The API returned an error: " + err);
+        resolve(res.data.labels);
+      }
+    );
+  });
+}
+
+/**
+ * api to get the list of threads
+ * @param pageToken
+ */
+function _getThreads(pageToken) {
+  return new Promise((resolve, reject) => {
+    gmail.users.threads.list(
+      {
+        userId: "me",
+        pageToken,
+      },
+      (err, res) => {
+        if (err) reject("The API returned an error: " + err);
+        else resolve(res.data);
+      }
+    );
+  });
+}
+
+/**
+ * get a list of emails by threads
+ * @param targetThreadId
+ */
+function _getThreadEmails(targetThreadId) {
+  return new Promise((resolve, reject) => {
+    gmail.users.threads.get(
+      {
+        userId: "me",
+        id: targetThreadId,
+      },
+      (err, res) => {
+        if (err) reject("The API returned an error: " + err);
+        resolve(res.data);
+      }
+    );
+  });
+}
+
+// crawler start
+
 /**
  * Create an OAuth2 client with the given credentials, and then execute the
  * given callback function.
  * @param {Object} credentials The authorization client credentials.
  * @param {function} callback The callback to call with the authorized client.
  */
-function authorize(credentials, callback) {
+function _authorize(credentials, callback) {
   const { client_secret, client_id, redirect_uris } = credentials.installed;
   const oAuth2Client = new google.auth.OAuth2(
     client_id,
@@ -37,7 +95,7 @@ function authorize(credentials, callback) {
 
   // Check if we have previously stored a token.
   fs.readFile(GMAIL_TOKEN_PATH, (err, token) => {
-    if (err) return getNewToken(oAuth2Client, callback);
+    if (err) return _getNewToken(oAuth2Client, callback);
     oAuth2Client.setCredentials(JSON.parse(token));
     callback(oAuth2Client);
   });
@@ -49,7 +107,7 @@ function authorize(credentials, callback) {
  * @param {google.auth.OAuth2} oAuth2Client The OAuth2 client to get token for.
  * @param {getEventsCallback} callback The callback for the authorized client.
  */
-function getNewToken(oAuth2Client, callback) {
+function _getNewToken(oAuth2Client, callback) {
   const authUrl = oAuth2Client.generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
@@ -75,45 +133,9 @@ function getNewToken(oAuth2Client, callback) {
 }
 
 /**
- * Lists the labels in the user's account.
- *
- * @param {google.auth.OAuth2} auth An authorized OAuth2 client.
+ * api to get the list of message by a thread id
+ * @param targetThreadId
  */
-function listLabels() {
-  gmail.users.labels.list(
-    {
-      userId: "me",
-    },
-    (err, res) => {
-      if (err) return console.log("The API returned an error: " + err);
-      const labels = res.data.labels;
-      if (labels.length) {
-        console.log("Labels:");
-        labels.forEach((label) => {
-          console.log(`- ${label.name}`);
-        });
-      } else {
-        console.log("No labels found.");
-      }
-    }
-  );
-}
-
-function _getThreads(pageToken) {
-  return new Promise((resolve, reject) => {
-    gmail.users.threads.list(
-      {
-        userId: "me",
-        pageToken,
-      },
-      (err, res) => {
-        if (err) reject("The API returned an error: " + err);
-        else resolve(res.data);
-      }
-    );
-  });
-}
-
 function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
   let foundInCached = false;
   return new Promise(async (resolve, reject) => {
@@ -131,77 +153,66 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
     }
 
     // get from gmail api
-    gmail.users.threads.get(
-      {
-        userId: "me",
-        id: targetThreadId,
-      },
-      async (err, res) => {
-        if (err) reject("The API returned an error: " + err);
-        else {
-          const messagesToReturn: Email[] = [];
-          const { messages } = res.data;
-          for (let message of messages) {
-            const { id, threadId } = message;
+    const messagesToReturn: Email[] = [];
+    const { messages } = await _getThreadEmails(targetThreadId);
+    for (let message of messages) {
+      const { id, threadId } = message;
 
-            let body = "";
-            let attachments: Attachment[] = [];
-            if (message.payload.parts) {
-              for (let part of message.payload.parts) {
-                const { mimeType } = part;
+      let body = "";
+      let attachments: Attachment[] = [];
+      if (message.payload.parts) {
+        for (let part of message.payload.parts) {
+          const { mimeType } = part;
 
-                switch (mimeType) {
-                  case "text/plain":
-                    body = _parseGmailMessage(part.body.data);
-                    break;
-                  default:
-                    const attachmentId = part.body.attachmentId;
-                    const fileName = part.filename;
+          switch (mimeType) {
+            case "text/plain":
+              body = _parseGmailMessage(part.body.data);
+              break;
+            default:
+              const attachmentId = part.body.attachmentId;
+              const fileName = part.filename;
 
-                    if (attachmentId && fileName) {
-                      attachments.push({
-                        mimeType,
-                        attachmentId,
-                        fileName,
-                      });
-                    }
-                    break;
-                }
+              if (attachmentId && fileName) {
+                attachments.push({
+                  mimeType,
+                  attachmentId,
+                  fileName,
+                });
               }
-            } else if (message.payload.body) {
-              body = _parseGmailMessage(message.payload.body.data);
-            }
-
-            const headers: Headers = _getHeaders(message.payload.headers || []);
-
-            const from = _parseEmailAddress(headers.from);
-
-            const to = _parseEmailAddressList(headers.to || "");
-
-            const bcc = _parseEmailAddressList(headers.bcc);
-
-            const subject = (headers.subject || "").trim();
-
-            const date = new Date(headers.date).getTime();
-
-            messagesToReturn.push({
-              id,
-              threadId,
-              from,
-              body,
-              attachments,
-              headers,
-              to,
-              bcc,
-              date,
-              subject,
-            });
+              break;
           }
-
-          resolve(messagesToReturn);
         }
+      } else if (message.payload.body) {
+        body = _parseGmailMessage(message.payload.body.data);
       }
-    );
+
+      const headers: Headers = _getHeaders(message.payload.headers || []);
+
+      const from = _parseEmailAddress(headers.from);
+
+      const to = _parseEmailAddressList(headers.to || "");
+
+      const bcc = _parseEmailAddressList(headers.bcc);
+
+      const subject = (headers.subject || "").trim();
+
+      const date = new Date(headers.date).getTime();
+
+      messagesToReturn.push({
+        id,
+        threadId,
+        from,
+        body,
+        attachments,
+        headers,
+        to,
+        bcc,
+        date,
+        subject,
+      });
+    }
+
+    resolve(messagesToReturn);
   }).then((messages) => {
     if (foundInCached !== true) {
       // store into the db
@@ -239,6 +250,10 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
   });
 }
 
+/**
+ * parse a list of emails
+ * @param emailAddressesAsString
+ */
 function _parseEmailAddressList(emailAddressesAsString) {
   return (emailAddressesAsString || "")
     .split(/[ ]/)
@@ -254,6 +269,10 @@ function _parseEmailAddressList(emailAddressesAsString) {
     .filter((email) => !!email && email.includes("@"));
 }
 
+/**
+ * parse a single email
+ * @param emailAddress
+ */
 function _parseEmailAddress(emailAddress) {
   return emailAddress
     .match(/<?[a-zA-Z0-9-_\.]+@[a-zA-Z0-9-_\.]+>?/)[0]
@@ -262,8 +281,12 @@ function _parseEmailAddress(emailAddress) {
     .trim();
 }
 
-async function getThreadsToProcess() {
-  let pageToLookAt = process.env.GMAIL_PAGES_TO_CRAWL || 1;
+/**
+ * get a list of threads to process
+ */
+async function _getThreadsToProcess(
+  pageToLookAt = process.env.GMAIL_PAGES_TO_CRAWL || 1
+) {
   let pageToken = "";
   let allThreads = [];
   while (pageToLookAt > 0) {
@@ -278,6 +301,10 @@ async function getThreadsToProcess() {
   return allThreads;
 }
 
+/**
+ * parse gmail email body
+ * @param bodyData
+ */
 export function _parseGmailMessage(bodyData) {
   let result = "";
   const decodedBody = base64.decode(
@@ -307,8 +334,8 @@ function _getHeaders(headers) {
   }, {});
 }
 
-async function processEmails(gmail) {
-  const allThreads = await getThreadsToProcess();
+async function _processEmails(gmail) {
+  const allThreads = await _getThreadsToProcess();
   const totalThreadCount = allThreads.length;
   console.log("Total Threads:", totalThreadCount);
 
@@ -332,18 +359,27 @@ async function processEmails(gmail) {
   console.log("Total Messages:", totalMsgCount);
 }
 
-export function init(onAfterInitFunc) {
+/**
+ * api used to init to be called to get the gmail api setup
+ * @param onAfterInitFunc
+ */
+export const init = (onAfterInitFunc) => {
   // Load client secrets from a local file.
   fs.readFile(GMAIL_CREDENTIALS_PATH, (err, content) => {
     if (err) return console.log("Error loading client secret file:", err);
     // Authorize a client with credentials, then call the Gmail API.
-    authorize(JSON.parse(content), function (auth) {
+    _authorize(JSON.parse(content), function (auth) {
       gmail = google.gmail({ version: "v1", auth });
       onAfterInitFunc(gmail);
     });
   });
+};
+
+/**
+ * entry point to start work
+ */
+function _doWork() {
+  init(_processEmails);
 }
 
-export default function _doWork() {
-  init(processEmails);
-}
+export default _doWork;
