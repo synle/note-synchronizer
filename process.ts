@@ -4,8 +4,7 @@ const fs = require("fs");
 
 import initDatabase from "./src/modelsFactory";
 
-import { Email } from "./src/types";
-import { Email, DatabaseResponse } from "./src/types";
+import { Email, DatabaseResponse, Attachment } from "./src/types";
 import * as Models from "./src/modelsSchema";
 
 const myEmails = (process.env.MY_EMAIL || "").split("|||");
@@ -18,7 +17,14 @@ async function _doWork() {
 
   const matchedEmailsResponse: DatabaseResponse<
     Email
-  >[] = await Models.Email.findAll();
+  >[] = await Models.Email.findAll({
+    include: [
+      {
+        model: Models.Attachment,
+        required: false,
+      },
+    ],
+  });
 
   const totalMessageCount = matchedEmailsResponse.length;
   console.log("Total Files To Process:", matchedEmailsResponse.length);
@@ -36,11 +42,11 @@ async function _doWork() {
     }
 
 
-    const email: Email = JSON.parse(matchedEmailsResponse[i].dataValues.content);
+    const email: Email = matchedEmailsResponse[i].dataValues;
 
-    const { theadId, id, body, from, bcc, to } = email;
-    const { subject } = email.headers;
-    const toEmailList = bcc.concat(to);
+    const { theadId, id, body, from, bcc, to, subject } = email;
+    const toEmailList = (bcc || '').split(',').concat((to || '').split(','));
+    const attachments : Attachment[] = email.Attachments.map(a => a.dataValues);
 
     try {
       if (
