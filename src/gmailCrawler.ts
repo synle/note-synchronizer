@@ -5,7 +5,12 @@ const jsdom = require("jsdom");
 const readline = require("readline");
 const { google } = require("googleapis");
 
-import { Email, Headers, DatabaseResponse } from "src/types";
+import {
+  Email,
+  Headers,
+  DatabaseResponse,
+  GmailAttachmentResponse,
+} from "src/types";
 import * as Models from "./modelsSchema";
 
 const { JSDOM } = jsdom;
@@ -20,6 +25,8 @@ const SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
 // time.
 const GMAIL_TOKEN_PATH = "token.json";
 const GMAIL_CREDENTIALS_PATH = "credentials.json";
+
+const GMAIL_ATTACHMENT_PATH = "./attachments";
 
 // core apis
 /**
@@ -154,12 +161,13 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
     // get from gmail api
     const messagesToReturn: Email[] = [];
+    const allAttachments = [];
     const { messages } = await _getThreadEmails(targetThreadId);
     for (let message of messages) {
       const { id, threadId } = message;
 
       let body = "";
-      let attachments: Attachment[] = [];
+      let attachments: GmailAttachmentResponse[] = [];
       if (message.payload.parts) {
         for (let part of message.payload.parts) {
           const { mimeType } = part;
@@ -173,10 +181,22 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
               const fileName = part.filename;
 
               if (attachmentId && fileName) {
-                attachments.push({
+                const attachment = {
                   mimeType,
                   attachmentId,
                   fileName,
+                };
+                const attachmentPath = await _parseGmailAttachment(
+                  id,
+                  attachment
+                );
+
+                allAttachments.push({
+                  id: attachment.attachmentId,
+                  messageId: id,
+                  mimeType: attachment.mimeType,
+                  fileName: attachment.fileName,
+                  path: attachmentPath,
                 });
               }
               break;
@@ -190,7 +210,7 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
       const from = _parseEmailAddress(headers.from);
 
-      const to = _parseEmailAddressList(headers.to || "");
+      const to = _parseEmailAddressList(headers.to);
 
       const bcc = _parseEmailAddressList(headers.bcc);
 
@@ -201,52 +221,42 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
       messagesToReturn.push({
         id,
         threadId,
-        from,
-        body,
-        attachments,
-        headers,
-        to,
-        bcc,
+        from: from || null,
+        body: body || null,
+        headers: JSON.stringify(headers),
+        to: to.join(",") || null,
+        bcc: bcc.join(",") || null,
         date,
-        subject,
+        subject: subject || null,
+      });
+    }
+
+    // store the messages
+    for (let message of messagesToReturn) {
+      await Models.Email.create(message).catch((err) => {
+        console.error(
+          "> Insert Message Failed",
+          `threadId=${message.threadId}`,
+          `id=${message.id}`,
+          message.subject,
+          message.body.substr(0, 30)
+        );
+
+        console.log(err);
+      });
+    }
+
+    // save attachments
+    for (let attachment of allAttachments) {
+      Models.Attachment.create(attachment).catch((err) => {
+        console.error(
+          "> Insert Attachment Failed",
+          JSON.stringify(attachment, null, 2)
+        );
       });
     }
 
     resolve(messagesToReturn);
-  }).then((messages) => {
-    if (foundInCached !== true) {
-      // store into the db
-      for (let message of messages) {
-        // save to db
-        Models.Email.create({
-          id: message.id,
-          threadId: message.threadId,
-          from: message.from,
-          subject: message.subject || null,
-          body: message.body || null,
-          to: message.to.join(",") || null,
-          bcc: message.bcc.join(",") || null,
-          date: message.date,
-          attachmentIds:
-            message.attachments
-              .map((attachment) => attachment.attachmentId)
-              .join(",") || null,
-          content: JSON.stringify(message, null, 2),
-        }).catch((err) => {
-          console.error(
-            "> Insert Failed",
-            `threadId=${message.threadId}`,
-            `id=${message.id}`,
-            message.subject,
-            message.body.substr(0, 30)
-          );
-
-          console.log(err);
-        });
-      }
-    }
-
-    return messages;
   });
 }
 
@@ -325,6 +335,30 @@ export function _parseGmailMessage(bodyData) {
       .trim();
   } catch (e) {}
   return result || decodedBody;
+}
+
+export function _parseGmailAttachment(
+  messageId,
+  attachment: GmailAttachmentResponse
+) {
+  return new Promise((resolve, reject) => {
+    gmail.users.messages.attachments
+      .get({
+        id: attachment.attachmentId,
+        messageId,
+        userId: "me",
+      })
+      .then((res, err) => {
+        const data = res.data.data.replace(/-/g, "+").replace(/_/g, "/");
+        const newFilePath = `${GMAIL_ATTACHMENT_PATH}/${messageId}.${attachment.fileName}`;
+
+        fs.writeFileSync(newFilePath, data, "base64", function (err) {
+          console.log(err);
+        });
+
+        resolve(newFilePath);
+      });
+  });
 }
 
 function _getHeaders(headers) {

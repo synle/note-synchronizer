@@ -23,7 +23,7 @@ export interface Headers {
   [propName: string]: any;
 }
 
-export interface Attachment {
+export interface GmailAttachmentResponse {
   fileName: string;
   attachmentId: string;
   mimeType: string;
@@ -33,10 +33,22 @@ export interface Attachment {
 export interface Email {
   id: string;
   threadId: string;
-  body?: string;
-  attachments?: Attachment[];
-  headers: Headers;
+  from: string;
+  body: string;
+  headers: string;
+  to: string;
+  bcc: string;
+  subject: string;
   date: number;
+  Attachments: DatabaseResponse<Attachment>[];
+}
+
+export interface Attachment {
+  id: string;
+  messageId: string;
+  mimeType: string;
+  fileName: string;
+  path: string;
 }
 
 export interface DatabaseResponse<T> {

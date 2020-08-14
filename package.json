@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "clean": "rm -rf caches/gmail.threads*  processing/* processed/*",
-    "prestart": "mkdir -p caches processing processed && npm run format:js && clear",
+    "clean": "rm -rf attachments/* processed/*",
+    "prestart": "mkdir -p attachments processed && npm run format:js && clear",
     "start": "ts-node index.ts",
     "process": "npm run prestart && ts-node process.ts",
     "playground": "npm run prestart && ts-node playground.test.ts",
@@ -29,7 +29,7 @@
     "googleapis": "^39.2.0",
     "js-base64": "^3.4.5",
     "jsdom": "^16.4.0",
-    "sequelize-typescript-decorators": "^2.1",
+    "sequelize-typescript-decorators": "^2.1.4",
     "sqlite3": "^5.0.0"
   },
   "devDependencies": {

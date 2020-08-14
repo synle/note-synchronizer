@@ -32,6 +32,7 @@ token.json
 *.data
 *.sqlite
 .vscode
-*.jpg
-*.png
-database.sqlite-journal
+attachments
+*.sqlite-journal
+*.sql
+processed

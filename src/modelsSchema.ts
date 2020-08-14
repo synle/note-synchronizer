@@ -8,6 +8,39 @@ import {
 
 import { DataTypes, Model } from "sequelize";
 
+@table("attachments", {
+  timestamps: false,
+})
+@index([
+  {
+    unique: false,
+    fields: ["messageId"],
+  },
+  {
+    unique: false,
+    fields: ["fileName"],
+  },
+])
+export class Attachment extends Model {
+  @attribute(Attachment, {
+    allowNull: false,
+    primaryKey: true,
+  })
+  public id!: string;
+
+  @attribute(Attachment, { allowNull: false })
+  public messageId!: string;
+
+  @attribute(Attachment, { allowNull: false })
+  public mimeType!: string;
+
+  @attribute(Attachment, { allowNull: false })
+  public fileName!: string;
+
+  @attribute(Attachment, { allowNull: false })
+  public path!: string;
+}
+
 @table("emails", {
   timestamps: false,
 })
@@ -22,8 +55,6 @@ import { DataTypes, Model } from "sequelize";
   },
 ])
 export class Email extends Model {
-  static as = "Emails";
-
   @attribute(Email, {
     allowNull: false,
     primaryKey: true,
@@ -49,11 +80,17 @@ export class Email extends Model {
   public subject!: string;
 
   @attribute(Email)
-  public date!: string;
+  public date!: number;
 
   @attribute(Email)
-  public attachmentIds!: string;
+  public headers!: string;
 
-  @attribute(Email)
-  public content!: string;
+  @relationship(Email, {
+    relationship: Relationship.hasMany,
+    sourceKey: "id",
+    foreignModel: Attachment,
+    foreignKey: "messageId",
+    as: "attachments",
+  })
+  public Attachments!: any[];
 }
