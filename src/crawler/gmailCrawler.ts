@@ -17,13 +17,14 @@ import { rejects } from "assert";
 const { JSDOM } = jsdom;
 
 let gmail;
+let drive;
+let docs;
 
 // google crawler
 // If modifying these scopes, delete token.json.
-const SCOPES = [
-  "https://www.googleapis.com/auth/gmail.readonly",
-
-];
+const SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+  .concat(["https://www.googleapis.com/auth/drive"])
+  .concat(["https://www.googleapis.com/auth/documents"]);
 // The file token.json stores the user's access and refresh tokens, and is
 // created automatically when the authorization flow completes for the first
 // time.
@@ -42,7 +43,9 @@ function _listLabels() {
         userId: "me",
       },
       (err, res) => {
-        if (err) return reject("The API returned an error: " + err);
+        if (err) {
+          return reject(err.response.data);
+        }
         resolve(res.data.labels);
       }
     );
@@ -61,8 +64,10 @@ function _getThreads(pageToken) {
         pageToken,
       },
       (err, res) => {
-        if (err) reject("The API returned an error: " + err);
-        else resolve(res.data);
+        if (err) {
+          return reject(err.response.data);
+        }
+        resolve(res.data);
       }
     );
   });
@@ -80,14 +85,16 @@ function _getThreadEmails(targetThreadId) {
         id: targetThreadId,
       },
       (err, res) => {
-        if (err) reject("The API returned an error: " + err);
+        if (err) {
+          return reject(err.response.data);
+        }
         resolve(res.data);
       }
     );
   });
 }
 
-function _getAttachment(messageId, attachmentId){
+function _getAttachment(messageId, attachmentId) {
   return new Promise((resolve, rejects) => {
     gmail.users.messages.attachments
       .get({
@@ -96,10 +103,54 @@ function _getAttachment(messageId, attachmentId){
         userId: "me",
       })
       .then((res, err) => {
-        if (err) reject("The API returned an error: " + err);
+        if (err) {
+          return reject(err.response.data);
+        }
         resolve(res.data.data);
       });
-  })
+  });
+}
+
+function _uploadFileToDrive(resource, media) {
+  return new Promise((resolve, reject) => {
+    drive.files.create(
+      {
+        resource,
+        media,
+        fields: "id",
+      },
+      function (err, res) {
+        if (err) {
+          return reject(err.response.data);
+        }
+        resolve(res.data);
+      }
+    );
+  });
+}
+
+function _searchFileInFolder(name, parentFolderId) {
+  const q = `name='${name.replace(
+    "'",
+    "\\'"
+  )}' AND trashed=false AND parents in '${parentFolderId}'`;
+
+  return new Promise((resolve, reject) => {
+    drive.files.list(
+      {
+        q,
+        fields: "nextPageToken, files(id, name)",
+        spaces: "drive",
+        // pageToken: pageToken,
+      },
+      function (err, res) {
+        if (err) {
+          return reject(err.response.data);
+        }
+        resolve(res.data.files);
+      }
+    );
+  });
 }
 
 // crawler start
@@ -257,7 +308,7 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
           `threadId=${message.threadId}`,
           `id=${message.id}`,
           message.subject,
-          (message.body|| '').substr(0, 30)
+          (message.body || "").substr(0, 30)
         );
 
         console.log(err);
@@ -336,7 +387,7 @@ async function _getThreadsToProcess(
 export function _parseGmailMessage(bodyData) {
   let result = "";
   const decodedBody = base64.decode(
-    bodyData.replace(/-/g, "+").replace(/_/g, "/")
+    (bodyData || "").replace(/-/g, "+").replace(/_/g, "/")
   );
   try {
     const dom = new JSDOM(decodedBody);
@@ -359,7 +410,10 @@ export async function _parseGmailAttachment(
   messageId,
   attachment: GmailAttachmentResponse
 ) {
-  const attachmentResponse = await _getAttachment(messageId, attachment.attachmentId);
+  const attachmentResponse = await _getAttachment(
+    messageId,
+    attachment.attachmentId
+  );
   const data = attachmentResponse.replace(/-/g, "+").replace(/_/g, "/");
   const newFilePath = `${GMAIL_ATTACHMENT_PATH}/${messageId}.${attachment.fileName}`;
 
@@ -406,17 +460,78 @@ async function _processEmails(gmail) {
  * api used to init to be called to get the gmail api setup
  * @param onAfterInitFunc
  */
-export const init = (onAfterInitFunc) => {
-  // Load client secrets from a local file.
-  fs.readFile(GMAIL_CREDENTIALS_PATH, (err, content) => {
-    if (err) return console.log("Error loading client secret file:", err);
-    // Authorize a client with credentials, then call the Gmail API.
-    _authorize(JSON.parse(content), function (auth) {
-      gmail = google.gmail({ version: "v1", auth });
-      onAfterInitFunc(gmail);
+export const init = (onAfterInitFunc = () => {}) => {
+  return new Promise((resolve, reject) => {
+    // Load client secrets from a local file.
+    fs.readFile(GMAIL_CREDENTIALS_PATH, (err, content) => {
+      if (err) return reject("Error loading client secret file:" + err);
+      // Authorize a client with credentials, then call the Gmail API.
+      _authorize(JSON.parse(content), function (auth) {
+        gmail = google.gmail({ version: "v1", auth });
+        drive = google.drive({ version: "v3", auth });
+        docs = google.docs({ version: "v1", auth });
+
+        onAfterInitFunc(gmail, drive);
+        resolve();
+      });
     });
   });
 };
+
+export async function uploadFile(
+  name,
+  mimeType,
+  localPath,
+  date,
+  parentFolderId = process.env.NOTE_GDRIVE_FOLDER_ID
+) {
+  mimeType = mimeType.toLowerCase();
+  switch (mimeType) {
+    case "text/plain":
+    case "text/xml":
+    case "application/xml":
+    case "application/json":
+      mimeType = "text/plain";
+      break;
+  }
+
+  let mimeTypeToUse = "";
+  if (["text/csv", "application/vnd.ms-excel"].includes(mimeType)) {
+    mimeTypeToUse = "application/vnd.google-apps.spreadsheet";
+  } else if (
+    [
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "text/plain",
+    ].includes(mimeType)
+  ) {
+    mimeTypeToUse = "application/vnd.google-apps.document";
+  } else if (
+    [
+      "application/vnd.ms-powerpoint",
+      // "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ].includes(mimeType)
+  ) {
+    mimeTypeToUse = "application/vnd.google-apps.presentation";
+  } else {
+    mimeTypeToUse = mimeType;
+  }
+
+  const resource = {
+    name,
+    parents: [parentFolderId],
+    mimeType: mimeTypeToUse,
+  };
+
+  const media = {
+    mimeType,
+    body: fs.createReadStream(localPath),
+  };
+
+  const matchedFiles = await _searchFileInFolder(resource.name, parentFolderId);
+  if (matchedFiles.length === 0) {
+    return _uploadFileToDrive(resource, media);
+  }
+}
 
 /**
  * entry point to start work

@@ -13,9 +13,7 @@ export default async () => {
     logging: false,
   });
 
-  const models = Object.keys(Models).map(
-    (modelName) => Models[modelName]
-  );
+  const models = Object.keys(Models).map((modelName) => Models[modelName]);
 
   await initDatabase(sequelize, models);
 };
