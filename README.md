@@ -1,3 +1,10 @@
 Note Synchronizer
 ================
-Synchronize Gmail Notes and will be pushed to Google Drive or as part of Google Keep Notes
+
+Crawled Gmail Notes and push them to Google Drive
+
+## Stack
+- Node JS
+- Gmail API
+- Google Drive API
+

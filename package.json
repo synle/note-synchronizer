@@ -12,7 +12,7 @@
     "test": "npm run prestart && ts-node index.ts && ts-node process.ts",
     "format": "npm run format:js && npm run format:data",
     "format:data": "prettier --parser json --write **/*.data",
-    "format:js": "prettier --write **/*.js **/*.ts && prettier --parser json --write *.json"
+    "format:js": "prettier --write **/**/*.js **/**/*.ts && prettier --parser json --write *.json"
   },
   "repository": {
     "type": "git",
@@ -29,6 +29,7 @@
     "googleapis": "^39.2.0",
     "js-base64": "^3.4.5",
     "jsdom": "^16.4.0",
+    "moment": "^2.27.0",
     "sequelize-typescript-decorators": "^2.1.7",
     "sqlite3": "^5.0.0"
   },
