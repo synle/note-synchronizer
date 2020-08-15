@@ -60,36 +60,39 @@ async function _doWork() {
       body = body.trim();
       subject = subject.trim()
 
-      // if content contains the ignored patterns, then skip this
+      // ignored if content contains the ignored patterns
       if (ignoredTokens.some(ignoredToken => body.includes(ignoredToken))) {
         console.log('> Ignored: ', subject);
-        continue;
+        continue;// skipped
       }
 
-      const localPath = `${PROCESSED_EMAIL_PREFIX_PATH}/processed.${email.id}.data`;
-
-      const fileContent = `${subject}\n${id}/${threadId}\n\n${body || ""}`;
-
-      fs.writeFileSync(localPath, fileContent.trim());
-
       // upload the doc itself
-      const docFileName = subject;
-      try {
-        await uploadFile(
-          docFileName,
-          "text/plain",
-          localPath,
-          process.env.NOTE_GDRIVE_FOLDER_ID
-        );
-      } catch (e) {
-        console.error(
-          "> Error - Failed to upload original note: ",
-          threadId,
-          id,
-          docFileName,
-          localPath,
-          JSON.stringify(e, null, 2)
-        );
+      // only log email if there're some content
+      if(body.length === 0){
+        const localPath = `${PROCESSED_EMAIL_PREFIX_PATH}/processed.${email.id}.data`;
+
+        const fileContent = `${subject}\n${id}/${threadId}\n\n${body || ""}`;
+
+        fs.writeFileSync(localPath, fileContent.trim());
+
+        const docFileName = subject;
+        try {
+          await uploadFile(
+            docFileName,
+            "text/plain",
+            localPath,
+            process.env.NOTE_GDRIVE_FOLDER_ID
+          );
+        } catch (e) {
+          console.error(
+            "> Error - Failed to upload original note: ",
+            threadId,
+            id,
+            docFileName,
+            localPath,
+            JSON.stringify(e, null, 2)
+          );
+        }
       }
 
       // then upload the associated attachments
