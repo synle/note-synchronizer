@@ -1,7 +1,7 @@
 // @ts-nocheck
 require("dotenv").config();
 
-import fs from 'fs';
+import fs from "fs";
 
 import { init, _decodeGmailMessage } from "./src/crawler/gmailCrawler";
 import initDatabase from "./src/models/modelsFactory";
@@ -9,9 +9,20 @@ import * as Models from "./src/models/modelsSchema";
 import { Email, DatabaseResponse } from "./src/types";
 import { init as initGoogleApi, uploadFile } from "./src/crawler/gmailCrawler";
 
+async function _doWork() {
+  await initDatabase();
 
+  const messagesFromDatabase = await Models.RawContent.findAll({
+    where: {
+      messageId: "173f022b07dcffbb",
+    },
+  });
+  if (messagesFromDatabase && messagesFromDatabase.length > 0) {
+    const threadMessages = messagesFromDatabase.map((message) =>
+      JSON.parse(message.dataValues.rawApiResponse)
+    );
+  }
 
-async function _doWork(){
   //  get drive files
   //  init(
   //    function(gmail, drive){
@@ -38,22 +49,18 @@ async function _doWork(){
   //  )
 
   // upload file
-  init(
-    async function(gmail, drive){
-      try {
-        await uploadFile(
-          "aaa2.docx",
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          `./attachments/Aaa.docx`,
-          process.env.NOTE_GDRIVE_FOLDER_ID
-        );
-      } catch (e) {
-        console.error(
-          JSON.stringify(e, null, 2)
-        );
-      }
-    }
-  );
+  // init(async function (gmail, drive) {
+  //   try {
+  //     await uploadFile(
+  //       "aaa2.docx",
+  //       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  //       `./attachments/Aaa.docx`,
+  //       process.env.NOTE_GDRIVE_FOLDER_ID
+  //     );
+  //   } catch (e) {
+  //     console.error(JSON.stringify(e, null, 2));
+  //   }
+  // });
 
   // upload file
   // init(
@@ -85,7 +92,6 @@ async function _doWork(){
   //   }
   // );
 
-
   // get email thread by id
   // init(
   //   function(gmail){
@@ -102,7 +108,6 @@ async function _doWork(){
   //     );
   //   }
   // )
-
 
   // // set up db
   // await initDatabase();
@@ -128,4 +133,4 @@ async function _doWork(){
   // console.log(matchedEmails[0], matchedEmails.length);
 }
 
-_doWork()
+_doWork();
