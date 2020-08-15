@@ -5,6 +5,7 @@ const fs = require("fs");
 const { JSDOM } = require("jsdom");
 const readline = require("readline");
 const { google } = require("googleapis");
+const moment = require("moment");
 
 import {
   Email,
@@ -13,7 +14,6 @@ import {
   GmailAttachmentResponse,
 } from "../types";
 import Models from "../models/modelsSchema";
-import { rejects } from "assert";
 
 let gmail;
 let drive;
@@ -129,7 +129,7 @@ function _uploadFileToDrive(resource, media) {
 
 function _searchFileInFolder(name, parentFolderId) {
   const q = `name='${name.replace(
-    "'",
+    /'/g,
     "\\'"
   )}' AND trashed=false AND parents in '${parentFolderId}'`;
 
@@ -143,7 +143,10 @@ function _searchFileInFolder(name, parentFolderId) {
       },
       function (err, res) {
         if (err) {
-          return reject(err.response.data);
+          return reject({
+            ...err.response.data,
+            q,
+          });
         }
         resolve(res.data.files);
       }
@@ -229,43 +232,91 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
     // get from gmail api
     const messagesToReturn: Email[] = [];
     const allAttachments = [];
-    const { messages } = await _getThreadEmails(targetThreadId);
-    for (let message of messages) {
+
+    let threadMessages;
+    let foundFromDb = false;
+
+    // attempting at getting the emails from the database
+    try {
+      const messagesFromDatabase = await Models.RawContent.findAll({
+        where: {
+          threadId: targetThreadId,
+        },
+      });
+      if (messagesFromDatabase && messagesFromDatabase.length > 0) {
+        threadMessages = messagesFromDatabase.map((message) =>
+          JSON.parse(message.dataValues.rawApiResponse)
+        );
+        foundFromDb = true;
+      }
+    } catch (e) {}
+
+    // get emails from the database
+    if (!threadMessages) {
+      const { messages } = await _getThreadEmails(targetThreadId);
+      threadMessages = messages;
+    }
+
+    for (let message of threadMessages) {
       const { id, threadId } = message;
+
+      // store raw content
+      if (foundFromDb !== true) {
+        await Models.RawContent.create({
+          messageId: id,
+          threadId: threadId,
+          rawApiResponse: JSON.stringify(message),
+        });
+      }
 
       let rawBody = "";
       if (message.payload.parts) {
         for (let part of message.payload.parts) {
           const { mimeType } = part;
 
-          switch (mimeType) {
-            case "text/plain":
-              rawBody = _parseGmailMessage(part.body.data);
-              break;
-            default:
-              const attachmentId = part.body.attachmentId;
-              const fileName = part.filename;
+          const attachmentId = part.body.attachmentId;
+          const fileName = part.filename;
 
-              if (attachmentId && fileName) {
-                const attachment = {
-                  mimeType,
-                  attachmentId,
-                  fileName,
-                };
-                const attachmentPath = await _parseGmailAttachment(
-                  id,
-                  attachment
+          if (attachmentId && fileName) {
+            // is attachment
+            const attachment = {
+              mimeType,
+              attachmentId,
+              fileName,
+            };
+            const attachmentPath = await _parseGmailAttachment(id, attachment);
+
+            if (attachmentPath) {
+              allAttachments.push({
+                id: attachment.attachmentId,
+                messageId: id,
+                mimeType: attachment.mimeType,
+                fileName: attachment.fileName,
+                path: attachmentPath,
+              });
+            }
+          } else {
+            // regular file
+            switch (mimeType) {
+              default:
+                console.log(
+                  "> Unsupported mimeType",
+                  `threadId=${message.threadId}`,
+                  `id=${message.id}`,
+                  mimeType
                 );
+                break;
 
-                allAttachments.push({
-                  id: attachment.attachmentId,
-                  messageId: id,
-                  mimeType: attachment.mimeType,
-                  fileName: attachment.fileName,
-                  path: attachmentPath,
-                });
-              }
-              break;
+              case "text/plain":
+                if (!rawBody) {
+                  // only store the rawbody if it's not already defined
+                  rawBody = part.body.data;
+                }
+                break;
+              case "text/html":
+                rawBody = _parseGmailMessage(part.body.data);
+                break;
+            }
           }
         }
       } else if (message.payload.body) {
@@ -289,7 +340,7 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
         parseHtmlBodyWithoutParser(rawBody) ||
         rawBody; // attempt at using one of the parser
 
-      messagesToReturn.push({
+      const messageToUse = {
         id,
         threadId,
         from: from || null,
@@ -300,12 +351,12 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
         bcc: bcc.join(",") || null,
         date,
         subject: subject || null,
-      });
-    }
+      };
 
-    // store the messages
-    for (let message of messagesToReturn) {
-      await Models.Email.create(message).catch((err) => {
+      messagesToReturn.push(messageToUse);
+
+      // store the message itself
+      await Models.Email.create(messageToUse).catch((err) => {
         console.error(
           "> Insert Message Failed",
           `threadId=${message.threadId}`,
@@ -366,21 +417,57 @@ function _parseEmailAddress(emailAddress) {
 /**
  * get a list of threads to process
  */
-async function _getThreadsToProcess(
-  pageToLookAt = process.env.GMAIL_PAGES_TO_CRAWL || 1
-) {
+async function _getThreadsToProcess() {
+  let pageToLookAt = process.env.GMAIL_PAGES_TO_CRAWL || 1;
+  console.log("> Total Pages of Threads to crawl: ", pageToLookAt);
+
+  const filePath = `./gmail.threads.data`;
+  try {
+    return JSON.parse(fs.readFileSync(filePath));
+  } catch (e) {
+    // not in cache
+    console.log("> Not found in cache, start fetching thread list");
+  }
+
   let pageToken = "";
   let allThreads = [];
+
   while (pageToLookAt > 0) {
-    const { threads, nextPageToken, resultSizeEstimate } = await _getThreads(
-      pageToken
-    );
+    const { threads, nextPageToken } = await _getThreads(pageToken);
     allThreads = [...allThreads, ...threads];
     pageToken = nextPageToken;
     pageToLookAt--;
+
+    if (pageToLookAt % 25 === 0 && pageToLookAt > 0) {
+      console.log(`> ${pageToLookAt} pages of threads left`);
+    } else if (pageToLookAt === 0) {
+      console.log(`> Done get thread list`);
+    }
   }
 
+  // remove things we don't need
+  allThreads = allThreads.map((r) => r.id);
+
+  // cache it
+  fs.writeFileSync(filePath, JSON.stringify(allThreads, null, 2));
+
   return allThreads;
+}
+
+/**
+ * remove all script and styles
+ * @param string
+ */
+export function _cleanHtml(string) {
+  return string
+    .replace(
+      /<style( type="[a-zA-Z/+]+")?>[a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/>?&~+]+<\/style>/gi,
+      ""
+    )
+    .replace(
+      /<script( type="[a-zA-Z/+]+")?>[a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/>?&~+]+<\/script>/gi,
+      ""
+    );
 }
 
 /**
@@ -396,7 +483,7 @@ export function _parseGmailMessage(bodyData) {
 export function parseHtmlBodyWithoutParser(html) {
   let body = html || "";
   try {
-    const dom = new JSDOM(html);
+    const dom = new JSDOM(_cleanHtml(html));
     body = dom.window.document.body.textContent;
   } catch (e) {}
 
@@ -419,8 +506,8 @@ export function parseHtmlBodyWithoutParser(html) {
 
 export function parseHtmlBody(html) {
   try {
-    const dom = new JSDOM(html);
-    return newJSDOM(
+    const dom = new JSDOM(_cleanHtml(html));
+    return new JSDOM(
       new Readability(dom.window.document).parse().content
     ).window.document.body.textContent.trim();
   } catch (e) {}
@@ -437,18 +524,35 @@ export async function _parseGmailAttachment(
   messageId,
   attachment: GmailAttachmentResponse
 ) {
-  const attachmentResponse = await _getAttachment(
-    messageId,
-    attachment.attachmentId
-  );
-  const data = attachmentResponse.replace(/-/g, "+").replace(/_/g, "/");
   const newFilePath = `${GMAIL_ATTACHMENT_PATH}/${messageId}.${attachment.fileName}`;
 
-  fs.writeFileSync(newFilePath, data, "base64", function (err) {
-    console.log(err);
-  });
+  // check if the attachment already been downloaded
+  let hasDownloaded = false;
+  try {
+    if (fs.existsSync(newFilePath)) {
+      hasDownloaded = true;
+    }
+  } catch (e) {}
 
-  return newFilePath;
+  if (hasDownloaded !== true) {
+    // console.log("> Download attachment: ", newFilePath);
+
+    // if not, then download from upstream
+    const attachmentResponse = await _getAttachment(
+      messageId,
+      attachment.attachmentId
+    );
+    const data = attachmentResponse.replace(/-/g, "+").replace(/_/g, "/");
+
+    fs.writeFileSync(newFilePath, data, "base64", function (err) {
+      console.log(err);
+    });
+
+    return newFilePath;
+  } else {
+    // console.log("> Skipped attachment: ", newFilePath);
+    return null; // null indicated that we don't need to download, and ignored this entry entirely
+  }
 }
 
 function _getHeaders(headers) {
@@ -459,27 +563,31 @@ function _getHeaders(headers) {
 }
 
 async function _processEmails(gmail) {
-  const allThreads = await _getThreadsToProcess();
-  const totalThreadCount = allThreads.length;
+  const threadIds = await _getThreadsToProcess();
+  const totalThreadCount = threadIds.length;
   console.log("Total Threads:", totalThreadCount);
 
   let totalMsgCount = 0;
   let processedThreadCount = 0;
-  for (let thread of allThreads) {
-    processedThreadCount++;
-
+  for (let threadId of threadIds) {
     const percentDone = (
       (processedThreadCount / totalThreadCount) *
       100
     ).toFixed(2);
-    if (processedThreadCount % 100 === 0 || percentDone % 20 === 0) {
+
+    if (
+      processedThreadCount % 1000 === 0 ||
+      percentDone % 20 === 0
+    ) {
       console.log(
         `> ${percentDone}% (${processedThreadCount} / ${totalThreadCount})`
       );
     }
+    processedThreadCount++;
 
     // search for the thread
-    const _messages = await _getMessagesByThreadId(thread.id);
+    const _messages = await _getMessagesByThreadId(threadId);
+    totalMsgCount += _messages.length;
   }
 
   console.log("Total Messages:", totalMsgCount);
@@ -510,7 +618,8 @@ export async function uploadFile(
   name,
   mimeType,
   localPath,
-  date,
+  description,
+  dateEpochTime,
   parentFolderId = process.env.NOTE_GDRIVE_FOLDER_ID
 ) {
   mimeType = mimeType.toLowerCase();
@@ -530,6 +639,7 @@ export async function uploadFile(
     [
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "text/plain",
+      "text/html",
     ].includes(mimeType)
   ) {
     mimeTypeToUse = "application/vnd.google-apps.document";
@@ -544,10 +654,18 @@ export async function uploadFile(
     mimeTypeToUse = mimeType;
   }
 
-  const resource = {
+  const createdTime = moment.utc(dateEpochTime).format("YYYY-MM-DDTHH:mm:ssZ");
+  const modifiedTime = moment.utc().format("YYYY-MM-DDTHH:mm:ssZ");
+
+  // refer to this link for more metadata
+  // https://developers.google.com/drive/api/v3/reference/files/create
+  const fileGDriveMetadata = {
     name,
     parents: [parentFolderId],
     mimeType: mimeTypeToUse,
+    modifiedTime,
+    createdTime,
+    description,
   };
 
   const media = {
@@ -555,9 +673,12 @@ export async function uploadFile(
     body: fs.createReadStream(localPath),
   };
 
-  const matchedFiles = await _searchFileInFolder(resource.name, parentFolderId);
+  const matchedFiles = await _searchFileInFolder(
+    fileGDriveMetadata.name,
+    parentFolderId
+  );
   if (matchedFiles.length === 0) {
-    return _uploadFileToDrive(resource, media);
+    return _uploadFileToDrive(fileGDriveMetadata, media);
   }
 }
 

@@ -8,6 +8,9 @@ import {
 
 import { DataTypes, Model } from "sequelize";
 
+/**
+ * this is where we store all the attachments
+ */
 @table("attachments", {
   timestamps: false,
 })
@@ -20,11 +23,16 @@ import { DataTypes, Model } from "sequelize";
     unique: false,
     fields: ["fileName"],
   },
+  {
+    unique: false,
+    fields: ["path"],
+  },
 ])
 export class Attachment extends Model {
   @attribute(Attachment, {
     allowNull: false,
     primaryKey: true,
+    unique: true,
   })
   public id!: string;
 
@@ -41,6 +49,36 @@ export class Attachment extends Model {
   public path!: string;
 }
 
+/**
+ * this is a raw content response returned from the GMAIL API
+ */
+@table("raw_contents", {
+  timestamps: false,
+})
+@index([
+  {
+    unique: false,
+    fields: ["threadId"],
+  },
+])
+export class RawContent extends Model {
+  @attribute(RawContent, {
+    allowNull: false,
+    primaryKey: true,
+    unique: true,
+  })
+  public messageId!: string;
+
+  @attribute(RawContent, { allowNull: false })
+  public threadId!: string;
+
+  @attribute(RawContent, { type: DataTypes.TEXT, allowNull: false })
+  public rawApiResponse!: string;
+}
+
+/**
+ * this is the email
+ */
 @table("emails", {
   timestamps: false,
 })
@@ -58,6 +96,7 @@ export class Email extends Model {
   @attribute(Email, {
     allowNull: false,
     primaryKey: true,
+    unique: true,
   })
   public id!: string;
 
@@ -98,7 +137,17 @@ export class Email extends Model {
   public Attachments!: any[];
 }
 
+export const ModelsNotes = {
+  Attachment,
+  Email,
+};
+
+export const ModelsRaw = {
+  RawContent,
+};
+
 export default {
   Attachment,
   Email,
+  RawContent,
 };

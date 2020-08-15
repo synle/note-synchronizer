@@ -5,7 +5,7 @@ import initDatabase from "./src/models/modelsFactory";
 
 import gmailCrawler from "./src/crawler/gmailCrawler";
 
-async function _doWork(){
+async function _doWork() {
   await initDatabase();
   gmailCrawler();
 }
