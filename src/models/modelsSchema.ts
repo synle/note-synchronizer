@@ -73,8 +73,11 @@ export class Email extends Model {
   @attribute(Email)
   public bcc!: string;
 
-  @attribute(Email)
+  @attribute(Email, { type: DataTypes.TEXT })
   public body!: string;
+
+  @attribute(Email, { type: DataTypes.TEXT })
+  public rawBody!: string;
 
   @attribute(Email)
   public subject!: string;
