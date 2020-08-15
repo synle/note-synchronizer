@@ -4,7 +4,7 @@ import axios from "axios";
 import fs from 'fs';
 import { Email, DatabaseResponse, Attachment } from "./src/types";
 import initDatabase from "./src/models/modelsFactory";
-import * as Models from "./src/models/modelsSchema";
+import Models from "./src/models/modelsSchema";
 import {
   init as initGoogleApi,
   uploadFile,

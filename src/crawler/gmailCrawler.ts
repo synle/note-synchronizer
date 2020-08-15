@@ -320,7 +320,7 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
     // save attachments
     for (let attachment of allAttachments) {
-      Models.Attachment.create(attachment).catch((err) => {
+      await Models.Attachment.create(attachment).catch((err) => {
         console.error(
           "> Insert Attachment Failed",
           JSON.stringify(attachment, null, 2)

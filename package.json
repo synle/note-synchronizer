@@ -12,7 +12,7 @@
     "test": "npm run prestart && ts-node index.ts && ts-node process.ts",
     "format": "npm run format:js && npm run format:data",
     "format:data": "prettier --parser json --write **/*.data",
-    "format:js": "prettier --write **/**/*.js **/**/*.ts && prettier --parser json --write *.json"
+    "format:js": "prettier --write **/**/*.js **/**/*.ts *.md && prettier --parser json --write *.json"
   },
   "repository": {
     "type": "git",
