@@ -1,7 +1,8 @@
 // @ts-nocheck
-const base64 = require("js-base64").Base64;
+const { Readability } = require("@mozilla/readability");
+const { Base64 } = require("js-base64");
 const fs = require("fs");
-const jsdom = require("jsdom");
+const { JSDOM } = require("jsdom");
 const readline = require("readline");
 const { google } = require("googleapis");
 
@@ -14,17 +15,14 @@ import {
 import Models from "../models/modelsSchema";
 import { rejects } from "assert";
 
-const { JSDOM } = jsdom;
-
 let gmail;
 let drive;
-let docs;
 
 // google crawler
 // If modifying these scopes, delete token.json.
-const SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
-  .concat(["https://www.googleapis.com/auth/drive"])
-  .concat(["https://www.googleapis.com/auth/documents"]);
+const SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"].concat([
+  "https://www.googleapis.com/auth/drive",
+]);
 // The file token.json stores the user's access and refresh tokens, and is
 // created automatically when the authorization flow completes for the first
 // time.
@@ -235,15 +233,14 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
     for (let message of messages) {
       const { id, threadId } = message;
 
-      let body = "";
-      let attachments: GmailAttachmentResponse[] = [];
+      let rawBody = "";
       if (message.payload.parts) {
         for (let part of message.payload.parts) {
           const { mimeType } = part;
 
           switch (mimeType) {
             case "text/plain":
-              body = _parseGmailMessage(part.body.data);
+              rawBody = _parseGmailMessage(part.body.data);
               break;
             default:
               const attachmentId = part.body.attachmentId;
@@ -272,7 +269,7 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
           }
         }
       } else if (message.payload.body) {
-        body = _parseGmailMessage(message.payload.body.data);
+        rawBody = _parseGmailMessage(message.payload.body.data);
       }
 
       const headers: Headers = _getHeaders(message.payload.headers || []);
@@ -287,11 +284,17 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
       const date = new Date(headers.date).getTime();
 
+      const body =
+        parseHtmlBody(rawBody) ||
+        parseHtmlBodyWithoutParser(rawBody) ||
+        rawBody; // attempt at using one of the parser
+
       messagesToReturn.push({
         id,
         threadId,
         from: from || null,
         body: body || null,
+        rawBody: rawBody || null,
         headers: JSON.stringify(headers),
         to: to.join(",") || null,
         bcc: bcc.join(",") || null,
@@ -308,7 +311,7 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
           `threadId=${message.threadId}`,
           `id=${message.id}`,
           message.subject,
-          (message.body || "").substr(0, 30)
+          err
         );
 
         console.log(err);
@@ -385,13 +388,20 @@ async function _getThreadsToProcess(
  * @param bodyData
  */
 export function _parseGmailMessage(bodyData) {
-  let result = "";
-  const decodedBody = base64.decode(
+  return Base64.decode(
     (bodyData || "").replace(/-/g, "+").replace(/_/g, "/")
-  );
+  ).trim();
+}
+
+export function parseHtmlBodyWithoutParser(html) {
+  let body = html || "";
   try {
-    const dom = new JSDOM(decodedBody);
-    result = dom.window.document.body.textContent
+    const dom = new JSDOM(html);
+    body = dom.window.document.body.textContent;
+  } catch (e) {}
+
+  try {
+    return body
       .replace("\r", "\n")
       .split(/[ ]/)
       .map((r) => r.trim())
@@ -402,8 +412,25 @@ export function _parseGmailMessage(bodyData) {
       .filter((r) => !!r)
       .join("\n")
       .trim();
+  } catch (e) {
+    return body;
+  }
+}
+
+export function parseHtmlBody(html) {
+  try {
+    const dom = new JSDOM(html);
+    return newJSDOM(
+      new Readability(dom.window.document).parse().content
+    ).window.document.body.textContent.trim();
   } catch (e) {}
-  return result || decodedBody;
+}
+
+export function parseHtmlTitle(html) {
+  try {
+    const dom = new JSDOM(html);
+    return dom.window.document.title.trim();
+  } catch (e) {}
 }
 
 export async function _parseGmailAttachment(
@@ -445,8 +472,10 @@ async function _processEmails(gmail) {
       (processedThreadCount / totalThreadCount) *
       100
     ).toFixed(2);
-    if (processedThreadCount % 500 === 0 || percentDone % 20 === 0) {
-      console.log(`> ${percentDone}%`);
+    if (processedThreadCount % 100 === 0 || percentDone % 20 === 0) {
+      console.log(
+        `> ${percentDone}% (${processedThreadCount} / ${totalThreadCount})`
+      );
     }
 
     // search for the thread
@@ -469,7 +498,6 @@ export const init = (onAfterInitFunc = () => {}) => {
       _authorize(JSON.parse(content), function (auth) {
         gmail = google.gmail({ version: "v1", auth });
         drive = google.drive({ version: "v3", auth });
-        docs = google.docs({ version: "v1", auth });
 
         onAfterInitFunc(gmail, drive);
         resolve();

@@ -1,10 +1,16 @@
 // @ts-nocheck
 require("dotenv").config();
+import axios from "axios";
 import fs from 'fs';
 import { Email, DatabaseResponse, Attachment } from "./src/types";
 import initDatabase from "./src/models/modelsFactory";
 import * as Models from "./src/models/modelsSchema";
-import {init as initGoogleApi, uploadFile} from './src/crawler/gmailCrawler';
+import {
+  init as initGoogleApi,
+  uploadFile,
+  parseHtmlBody,
+  parseHtmlTitle,
+} from "./src/crawler/gmailCrawler";
 
 const myEmails = (process.env.MY_EMAIL || "").split("|||");
 const mySignatureTokens = (process.env.MY_SIGNATURE || "").split("|||");
@@ -13,6 +19,27 @@ const ignoredTokens = (process.env.IGNORED_TOKEN || "").split("|||");
 const PROCESSED_EMAIL_PREFIX_PATH = "./processed";
 
 const used_mime_type = {};
+
+function _isStringUrl(string){
+  const REGEX_URL = /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/
+
+  return (string.match(REGEX_URL) || []).length > 0;
+}
+
+
+async function _crawlUrl(url){
+  const response = await axios(url).catch((err) => console.log(err));
+  if (response.status !== 200) {
+    console.log("Error occurred while fetching data");
+    return;
+  }
+  const rawHtmlBody = response.data;
+
+  return {
+    subject: parseHtmlTitle(rawHtmlBody),
+    body: parseHtmlBody(rawHtmlBody),
+  };
+}
 
 async function _doWork() {
   await initDatabase();
@@ -51,24 +78,37 @@ async function _doWork() {
     const toEmailList = (bcc || '').split(',').concat((to || '').split(','));
     const attachments : Attachment[] = email.Attachments.map(a => a.dataValues);
 
+
+    subject = (subject || '').trim();
+    body = (body || '').trim();
+
     if (
       myEmails.some((myEmail) => from.includes(myEmail)) &&
       myEmails.some((myEmail) =>
         toEmailList.some((toEmail) => toEmail.includes(myEmail))
       )
     ) {
-      body = body.trim();
-      subject = subject.trim()
+      if (_isStringUrl(subject)){
+        // if subject is a url
+        const urlToCrawl = subject;
+
+        // crawl the URL for title
+        const websiteRes = await _crawlUrl(urlToCrawl);
+
+        body = `${urlToCrawl}\n\n${websiteRes.body}`;
+        subject = websiteRes.subject;
+      } else {
+      }
 
       // ignored if content contains the ignored patterns
-      if (ignoredTokens.some(ignoredToken => body.includes(ignoredToken))) {
-        console.log('> Ignored: ', subject);
+      if (ignoredTokens.some(ignoredToken => body.toLowerCase().includes(ignoredToken))) {
+        console.log('> Skipped due to Ignored Pattern: ', subject);
         continue;// skipped
       }
 
       // upload the doc itself
       // only log email if there're some content
-      if(body.length === 0){
+      if(body.length > 0){
         const localPath = `${PROCESSED_EMAIL_PREFIX_PATH}/processed.${email.id}.data`;
 
         const fileContent = `${subject}\n${id}/${threadId}\n\n${body || ""}`;

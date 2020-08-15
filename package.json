@@ -25,6 +25,8 @@
   },
   "homepage": "https://github.com/synle/noteSynchronizer#readme",
   "dependencies": {
+    "@mozilla/readability": "^0.3.0",
+    "axios": "^0.19.2",
     "dotenv": "^8.2.0",
     "googleapis": "^39.2.0",
     "js-base64": "^3.4.5",

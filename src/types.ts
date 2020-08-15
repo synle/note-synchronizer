@@ -35,6 +35,7 @@ export interface Email {
   threadId: string;
   from: string;
   body: string;
+  rawBody: string;
   headers: string;
   to: string;
   bcc: string;
