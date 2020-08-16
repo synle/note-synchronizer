@@ -37,6 +37,9 @@ export class Attachment extends Model {
   public id!: string;
 
   @attribute(Attachment, { allowNull: false })
+  public threadId!: string;
+
+  @attribute(Attachment, { allowNull: false })
   public messageId!: string;
 
   @attribute(Attachment, { allowNull: false })
@@ -47,6 +50,9 @@ export class Attachment extends Model {
 
   @attribute(Attachment, { allowNull: false })
   public path!: string;
+
+  @attribute(Attachment, { type: DataTypes.TEXT })
+  public headers!: string;
 }
 
 /**
@@ -122,9 +128,12 @@ export class Email extends Model {
   public subject!: string;
 
   @attribute(Email)
-  public date!: number;
+  public rawSubject!: string;
 
   @attribute(Email)
+  public date!: number;
+
+  @attribute(Email, { type: DataTypes.TEXT })
   public headers!: string;
 
   @relationship(Email, {

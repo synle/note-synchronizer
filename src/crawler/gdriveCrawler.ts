@@ -1,18 +1,9 @@
 // @ts-nocheck
 require("dotenv").config();
-import axios from "axios";
 import fs from "fs";
 import { Email, DatabaseResponse, Attachment } from "../types";
-import initDatabase from "../models/modelsFactory";
 import Models from "../models/modelsSchema";
-import { JSDOM } from "jsdom";
-import {
-  initGoogleApi,
-  createDriveFolder,
-  uploadFile,
-  parseHtmlBody,
-  parseHtmlTitle,
-} from "../crawler/gmailCrawler";
+import { createDriveFolder, uploadFile } from "../crawler/gmailCrawler";
 
 import { logger } from "../loggers";
 
@@ -23,33 +14,7 @@ const ignoredTokens = (process.env.IGNORED_TOKEN || "").split("|||");
 
 const PROCESSED_EMAIL_PREFIX_PATH = "./processed";
 
-const REGEX_URL = /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/;
-
-function _isStringUrl(string) {
-  return (string.match(REGEX_URL) || []).length > 0;
-}
-
-function _extractUrlFromString(string) {
-  return string.match(REGEX_URL)[0];
-}
-
-async function _crawlUrl(url) {
-  try {
-    const response = await axios(url).catch((err) => logger.debug(err));
-    if (!response || response.status !== 200) {
-      logger.error("> Error crawlUrl: ", url, response && response.status);
-      return;
-    }
-    const rawHtmlBody = response.data;
-
-    return {
-      subject: parseHtmlTitle(rawHtmlBody) || "",
-      body: rawHtmlBody,
-    };
-  } catch (e) {
-    logger.error("> Error crawlUrl: ", url);
-  }
-}
+const MINIMUM_IMAGE_SIZE_IN_BITS = 30000;
 
 function _sanitizeFileName(string) {
   return string
@@ -102,7 +67,7 @@ async function _processMessages(messagesToProcess) {
     }
     countProcessedMessages++;
 
-    let { threadId, id, body, rawBody, from, bcc, to, subject, date } = email;
+    let { threadId, id, body, from, bcc, to, subject, date } = email;
     const toEmailList = (bcc || "").split(",").concat((to || "").split(","));
     const attachments: Attachment[] = (email.Attachments || [])
       .map((a) => a.dataValues)
@@ -110,20 +75,15 @@ async function _processMessages(messagesToProcess) {
         // only use attachments that is not small images
         const attachmentStats = fs.statSync(attachment.path);
         return (
-          attachmentStats.size < 30000 &&
+          attachmentStats.size < MINIMUM_IMAGE_SIZE_IN_BITS &&
           attachment.mimeType.includes("images/") === 0
         );
       });
 
     subject = (subject || "").trim();
 
-    body = body || "";
-    for (let signature of mySignatureTokens) {
-      body = body.replace(signature, "");
-    }
-    body = body.trim();
+    body = (body || "").trim();
 
-    rawBody = (rawBody || "").trim();
     let docFileName = subject;
 
     const isEmailSentToMySelf =
@@ -135,35 +95,6 @@ async function _processMessages(messagesToProcess) {
     const hasSomeAttachments = attachments.length > 0;
 
     if (isEmailSentToMySelf || hasSomeAttachments) {
-      if (_isStringUrl(subject)) {
-        // if subject is a url
-        const urlToCrawl = _extractUrlFromString(subject);
-
-        // crawl the URL for title
-        logger.debug(`> Crawling subject with url: id=${id} ${urlToCrawl}`);
-        const websiteRes = await _crawlUrl(urlToCrawl);
-
-        if (websiteRes && websiteRes.subject) {
-          subject = (websiteRes.subject || "").trim();
-          body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr />${websiteRes.body}`.trim();
-        }
-      } else if (body.length < 255 && _isStringUrl(body)) {
-        // if body is a url
-        const urlToCrawl = _extractUrlFromString(body);
-        if (urlToCrawl) {
-          // crawl the URL for title
-          logger.debug(`> Crawling body with url: id=${id} ${urlToCrawl}`);
-          const websiteRes = await _crawlUrl(urlToCrawl);
-          if (websiteRes && websiteRes.subject) {
-            subject = `${subject} - ${websiteRes.subject || ""}`.trim();
-            body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr />${websiteRes.body}`.trim();
-          }
-        }
-      } else {
-        // anything else use raw body
-        body = rawBody;
-      }
-
       // ignored if content contains the ignored patterns
       if (
         ignoredTokens.some((ignoredToken) =>
