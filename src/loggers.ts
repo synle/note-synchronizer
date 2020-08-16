@@ -2,12 +2,15 @@ const winston = require("winston");
 const { format } = require("winston");
 const { combine, timestamp, label, printf } = format;
 
-const prettyJson = format.printf((info) => {
-  if (info.message.constructor === Object) {
-    info.message = JSON.stringify(info.message, null, 4);
-  }
-  return `[${info.level}]: ${info.message}`;
-});
+// polyfill for console.log
+// var logger = { debug: console.log, info: console.log, error: console.log }
+
+// const prettyJson = format.printf((info) => {
+//   if (info.message.constructor === Object) {
+//     info.message = JSON.stringify(info.message, null, 4);
+//   }
+//   return `[${info.level}]: ${info.message}`;
+// });
 
 export const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || "debug", // https://github.com/winstonjs/winston#logging-levels
@@ -28,6 +31,7 @@ export const logger = winston.createLogger({
       filename: "./logs/log_error.data",
       level: "error",
     }),
+    // log all things
     new winston.transports.File({
       filename: "./logs/log_combined.data",
       level: "debug",
@@ -36,7 +40,11 @@ export const logger = winston.createLogger({
 });
 
 process.on("unhandledRejection", (reason, p) => {
-  logger.error(
-    `Unhandled Rejection at: Promise: ${JSON.stringify(reason, null, 2)}`
-  );
+  if (reason && reason["stack"]) {
+    logger.error(`Unhandled Rejection at: Promise:\n${reason["stack"]}`);
+  } else {
+    logger.error(
+      `Unhandled Rejection at: Promise: ${JSON.stringify(reason, null, 2)}`
+    );
+  }
 });

@@ -1,6 +1,7 @@
 // @ts-nocheck
 const { Readability } = require("@mozilla/readability");
 const { Base64 } = require("js-base64");
+import axios from "axios";
 const fs = require("fs");
 const { JSDOM } = require("jsdom");
 const readline = require("readline");
@@ -20,6 +21,10 @@ import { logger } from "../loggers";
 let gmail;
 let drive;
 
+const useInMemoryCache = true;
+
+const mySignatureTokens = (process.env.MY_SIGNATURE_TOKEN || "").split("|||");
+
 enum MimeTypeEnum {
   APP_JSON = "application/json",
   APP_GOOGLE_DOCUMENT = "application/vnd.google-apps.document",
@@ -27,9 +32,11 @@ enum MimeTypeEnum {
   APP_GOOGLE_PRESENTATION = "application/vnd.google-apps.presentation",
   APP_GOOGLE_SPREADSHEET = "application/vnd.google-apps.spreadsheet",
   APP_MS_XLS = "application/vnd.ms-excel",
+  APP_MS_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // TODO: confirm
   APP_MS_PPT = "application/vnd.ms-powerpoint",
   APP_MS_PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  APP_MS_WORD_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  APP_MS_DOC = "application/msword", // TODO: confirm
+  APP_MS_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   APP_XML = "application/xml",
   IMAGE_GIF = "image/gif",
   IMAGE_JPEG = "image/jpeg",
@@ -42,6 +49,7 @@ enum MimeTypeEnum {
   TEXT_PLAIN = "text/plain",
   TEXT_X_AMP_HTML = "text/x-amp-html",
   TEXT_XML = "text/xml",
+  TEXT_CSV = "text/csv",
 }
 
 // google crawler
@@ -71,6 +79,7 @@ function _listLabels() {
       },
       (err, res) => {
         if (err) {
+          logger.error(`API Failed ${JSON.stringify(err)}`);
           return reject(err.response.data);
         }
         resolve(res.data.labels);
@@ -92,6 +101,7 @@ function _getThreads(pageToken) {
       },
       (err, res) => {
         if (err) {
+          logger.error(`API Failed ${JSON.stringify(err)}`);
           return reject(err.response.data);
         }
         resolve(res.data);
@@ -113,6 +123,7 @@ function _getThreadEmails(targetThreadId) {
       },
       (err, res) => {
         if (err) {
+          logger.error(`API Failed ${JSON.stringify(err)}`);
           return reject(err.response.data);
         }
         resolve(res.data);
@@ -131,6 +142,7 @@ function _getAttachment(messageId, attachmentId) {
       })
       .then((res, err) => {
         if (err) {
+          logger.error(`API Failed ${JSON.stringify(err)}`);
           return reject(err.response.data);
         }
         resolve(res.data.data);
@@ -148,6 +160,7 @@ function _createFileInDrive(resource, media) {
       },
       function (err, res) {
         if (err) {
+          logger.error(`API Failed ${JSON.stringify(err)}`);
           return reject(err.response.data);
         }
         resolve(res.data);
@@ -166,6 +179,7 @@ function _updateFileInDrive(fileId, resource, media) {
       },
       function (err, res) {
         if (err) {
+          logger.error(`API Failed ${JSON.stringify(err)}`);
           return reject(err.response.data);
         }
         resolve(res.data);
@@ -183,12 +197,41 @@ function _createFolderInDrive(resource) {
       },
       function (err, res) {
         if (err) {
+          logger.error(`API Failed ${JSON.stringify(err)}`);
           return reject(err.response.data);
         }
         resolve(res.data);
       }
     );
   });
+}
+
+const REGEX_URL = /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/;
+
+function _isStringUrl(string) {
+  return (string.match(REGEX_URL) || []).length > 0;
+}
+
+function _extractUrlFromString(string) {
+  return string.match(REGEX_URL)[0];
+}
+
+async function _crawlUrl(url) {
+  try {
+    const response = await axios(url).catch((err) => logger.debug(err));
+    if (!response || response.status !== 200) {
+      logger.debug(`Error crawlUrl: ${url} ${JSON.stringify(response)}`);
+      return;
+    }
+    const rawHtmlBody = response.data;
+
+    return {
+      subject: parseHtmlTitle(rawHtmlBody) || "",
+      body: rawHtmlBody,
+    };
+  } catch (e) {
+    logger.debug(`Error crawlUrl: ${url} ${e}`);
+  }
 }
 
 function _sanatizeGoogleQuery(string) {
@@ -312,56 +355,59 @@ function _flattenGmailPayloadParts(initialParts) {
  */
 export function _processMessagesByThreadId(
   targetThreadId,
-  inMemoryMapForMessages = {}
+  inMemoryMapForMessages
 ): Promise<Email[]> {
   return new Promise(async (resolve, reject) => {
     // get from gmail api
-    const messagesToReturn: Email[] = [];
     const attachments = [];
 
     let threadMessages;
     let foundFromDb = false;
 
-    logger.debug(`> Working on thread: ${targetThreadId}`);
+    logger.debug(`Working on thread: ${targetThreadId}`);
 
-    // attempting at getting it from the in memory map
     try {
-      threadMessages = inMemoryMapForMessages[targetThreadId];
-      foundFromDb = true;
-      logger.debug(
-        `> Threads Result from Memory: threadMessages${messagesFromDatabase.length}`
-      );
-    } catch (e) {}
-
-    // attempting at getting the emails from the database
-    try {
-      const messagesFromDatabase = await Models.RawContent.findAll({
-        where: {
-          threadId: targetThreadId,
-        },
-      });
-
-      logger.debug(`> Threads Result from DB: ${messagesFromDatabase.length}`);
-
-      if (messagesFromDatabase && messagesFromDatabase.length > 0) {
-        threadMessages = messagesFromDatabase.map((message) =>
-          JSON.parse(message.dataValues.rawApiResponse)
-        );
+      // attempting at getting it from the in memory map
+      if (inMemoryMapForMessages && inMemoryMapForMessages.length > 0) {
+        threadMessages = inMemoryMapForMessages;
         foundFromDb = true;
+        logger.debug(
+          `Threads Result from Memory: threadMessages=${threadMessages.length}`
+        );
       }
-    } catch (e) {}
 
-    // get emails from the database
-    if (!threadMessages) {
-      const { messages } = await _getThreadEmails(targetThreadId);
+      // attempting at getting the emails from the database
+      if (!threadMessages) {
+        const messagesFromDatabase = await Models.RawContent.findAll({
+          where: {
+            threadId: targetThreadId,
+          },
+        });
 
-      logger.debug(`> Threads Result from API: ${messages.length}`);
+        logger.debug(`Threads Result from DB: ${messagesFromDatabase.length}`);
 
-      threadMessages = messages;
+        if (messagesFromDatabase && messagesFromDatabase.length > 0) {
+          threadMessages = messagesFromDatabase.map((message) =>
+            JSON.parse(message.dataValues.rawApiResponse)
+          );
+          foundFromDb = true;
+        }
+      }
+
+      // get emails from the database
+      if (!threadMessages) {
+        const { messages } = await _getThreadEmails(targetThreadId);
+
+        logger.debug(`Threads Result from API: ${messages.length}`);
+
+        threadMessages = messages;
+      }
+    } catch (e) {
+      logger.error(`Cannot fetch thread : threadId=${targetThreadId} : ${e}`);
     }
 
     logger.debug(
-      `> Found and start processing ${threadMessages.length} messages`
+      `Found and start processing ${threadMessages.length} messages`
     );
 
     // persist things into the raw content db...
@@ -374,160 +420,239 @@ export function _processMessagesByThreadId(
           messageId: id,
           threadId: threadId,
           rawApiResponse: JSON.stringify(message),
-        }).catch(() => {});
+        }).catch((err) => {
+          logger.error(
+            `Insert raw content failed threadId=${threadId} id=${id} ${err}`
+          );
+        });
       }
     }
 
     // start processing
     for (let message of threadMessages) {
-      const { id, threadId } = message;
-      const messageDate = message.internalDate;
+      try {
+        const { id, threadId } = message;
+        const messageDate = message.internalDate;
 
-      let rawBody = "";
-      const parts = _flattenGmailPayloadParts(message.payload);
-      if (parts && parts.length > 0) {
-        for (let part of parts) {
-          const { mimeType, partId } = part;
+        let rawBody = "";
+        const parts = _flattenGmailPayloadParts(message.payload);
+        if (parts && parts.length > 0) {
+          for (let part of parts) {
+            const { mimeType, partId } = part;
 
-          const { size, attachmentId, data } = part.body;
-          const fileName = part.filename;
+            const { size, attachmentId, data } = part.body;
+            const fileName = part.filename;
 
-          logger.debug(`> Parsing Part of Message: ${partId} - ${mimeType}`);
+            logger.debug(
+              `Parsing Part of Message: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`
+            );
 
-          if (size === 0) {
-            // no body or data
-            continue;
-          } else if (attachmentId) {
-            logger.debug(`> Parsing Message Attachment: ${mimeType}`);
+            if (size === 0) {
+              // no body or data
+              logger.debug(
+                `Skipped Part: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`
+              );
+              continue;
+            } else if (attachmentId) {
+              logger.debug(
+                `Parsing Message Attachment: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`
+              );
 
-            // is attachment, then download it
-            const attachment = {
-              mimeType,
-              attachmentId,
-              fileName,
-            };
-            const attachmentPath = await _parseGmailAttachment(id, attachment);
+              // is attachment, then download it
+              const attachment = {
+                mimeType,
+                attachmentId,
+                fileName,
+              };
+              const attachmentPath = await _parseGmailAttachment(
+                id,
+                attachment
+              );
 
-            if (attachmentPath) {
               attachments.push({
                 id: attachment.attachmentId,
+                threadId,
                 messageId: id,
                 mimeType: attachment.mimeType,
                 fileName: attachment.fileName,
                 path: attachmentPath,
+                headers: JSON.stringify(_getHeaders(part.headers || [])),
               });
-            }
-          } else {
-            // regular file
-            logger.debug(`> Parse Message: ${mimeType}`);
-            switch (mimeType) {
-              case "multipart/alternative":
-              case "multipart/related":
-                logger.info(
-                  "> Unsupported mimeType",
-                  `threadId=${message.threadId}`,
-                  `id=${message.id}`,
-                  mimeType
-                );
-                break;
+            } else {
+              // regular file
+              logger.debug(`Parse Message: ${mimeType}`);
+              switch (mimeType) {
+                case "multipart/alternative":
+                case "multipart/related":
+                  logger.error(
+                    `Unsupported mimetype threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`
+                  );
+                  break;
 
-              default:
-              case "image/png":
-              case "image/jpg":
-              case "image/jpeg":
-              case "image/gif":
-                const inlineFileName =
-                  fileName || `parts.${threadId}.${id}.${partId}`;
+                default:
+                case "image/png":
+                case "image/jpg":
+                case "image/jpeg":
+                case "image/gif":
+                  const inlineFileName =
+                    fileName || `parts.${threadId}.${id}.${partId}`;
 
-                const newFilePath = `${GMAIL_ATTACHMENT_PATH}/${inlineFileName}`;
-                _saveBase64DataToFile(newFilePath, data);
+                  const newFilePath = `${GMAIL_ATTACHMENT_PATH}/${inlineFileName}`;
+                  _saveBase64DataToFile(newFilePath, data);
 
-                attachments.push({
-                  id: inlineFileName,
-                  messageId: id,
-                  mimeType: mimeType,
-                  fileName: inlineFileName,
-                  path: newFilePath,
-                });
-                break;
+                  attachments.push({
+                    id: inlineFileName,
+                    threadId,
+                    messageId: id,
+                    mimeType: mimeType,
+                    fileName: inlineFileName,
+                    path: newFilePath,
+                    headers: JSON.stringify(_getHeaders(part.headers || [])),
+                  });
+                  break;
 
-              case "text/plain":
-                if (!rawBody) {
-                  // only store the rawbody if it's not already defined
+                case "text/plain":
+                  if (!rawBody) {
+                    // only store the rawbody if it's not already defined
+                    rawBody = _parseGmailMessage(data);
+                  }
+                  break;
+
+                case "text/x-amp-html":
+                case "text/html":
                   rawBody = _parseGmailMessage(data);
-                }
-                break;
-
-              case "text/x-amp-html":
-              case "text/html":
-                rawBody = _parseGmailMessage(data);
-                break;
+                  break;
+              }
             }
           }
         }
+
+        const headers: Headers = _getHeaders(message.payload.headers || []);
+
+        const from = _parseEmailAddress(headers.from) || headers.from;
+
+        const to = _parseEmailAddressList(headers.to);
+
+        const bcc = _parseEmailAddressList(headers.bcc);
+
+        const rawSubject = (headers.subject || "").trim();
+
+        const date = new Date(headers.date).getTime() || messageDate;
+
+        // see if we need to handle further fetching from here
+        // here we might face body of a url or subject of a url
+        let subject = rawSubject;
+        let body =
+          parseHtmlBody(rawBody) ||
+          parseHtmlBodyWithoutParser(rawBody) ||
+          rawBody; // attempt at using one of the parser;
+
+        // trim the signatures
+        for (let signature of mySignatureTokens) {
+          body = body.replace(signature, "");
+        }
+        body = body.trim();
+
+        if (_isStringUrl(subject)) {
+          // if subject is a url
+          const urlToCrawl = _extractUrlFromString(subject);
+
+          // crawl the URL for title
+          logger.debug(`Crawling subject with url: id=${id} ${urlToCrawl}`);
+          const websiteRes = await _crawlUrl(urlToCrawl);
+
+          if (websiteRes && websiteRes.subject) {
+            subject = (websiteRes.subject || "").trim();
+            body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr />${websiteRes.body}`.trim();
+          } else {
+            logger.debug(`Crawl failed for id=${id} url${urlToCrawl}`);
+            body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr /><h2>404_Page_Not_Found</h2>`.trim();
+          }
+        } else if (body.length < 255 && _isStringUrl(body)) {
+          // if body is a url
+          const urlToCrawl = _extractUrlFromString(body);
+          if (urlToCrawl) {
+            // crawl the URL for title
+            logger.debug(`Crawling body with url: id=${id} ${urlToCrawl}`);
+            const websiteRes = await _crawlUrl(urlToCrawl);
+            if (websiteRes && websiteRes.subject) {
+              subject = `${subject} - ${websiteRes.subject || ""}`.trim();
+              body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr />${websiteRes.body}`.trim();
+            } else {
+              logger.debug(`Crawl failed for id=${id} url${urlToCrawl}`);
+              body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr /><h2>404_Page_Not_Found</h2>`.trim();
+            }
+          }
+        } else {
+          body = rawBody;
+        }
+
+        const messageToUse = {
+          id,
+          threadId,
+          from: from || null,
+          body: body || null,
+          rawBody: rawBody || null,
+          subject: subject || null,
+          rawSubject: rawSubject || null,
+          headers: JSON.stringify(headers),
+          to: to.join(",") || null,
+          bcc: bcc.join(",") || null,
+          date,
+        };
+
+        // store the message itself
+        logger.debug(
+          `Saving message: threadId=${threadId} id=${id} subject=${subject}`
+        );
+        await Models.Email.create(messageToUse).catch((err) => {
+          // attempt to do update
+          logger.debug(
+            `Inserting email failed, trying updating threadId=${threadId} id=${id} ${err}`
+          );
+          return Models.Email.update(messageToUse, {
+            where: {
+              id: messageToUse.id,
+            },
+          }).catch((err) => {
+            logger.error(
+              `Upsert email failed threadId=${threadId} id=${id} ${err}`
+            );
+          });
+        });
+      } catch (err) {
+        logger.error(
+          `Failed to process threadId=${threadId} id=${id}   error=${err}`
+        );
       }
-
-      const headers: Headers = _getHeaders(message.payload.headers || []);
-
-      const from = _parseEmailAddress(headers.from);
-
-      const to = _parseEmailAddressList(headers.to);
-
-      const bcc = _parseEmailAddressList(headers.bcc);
-
-      const subject = (headers.subject || "").trim();
-
-      const date = new Date(headers.date).getTime() || messageDate;
-
-      const body =
-        parseHtmlBody(rawBody) ||
-        parseHtmlBodyWithoutParser(rawBody) ||
-        rawBody; // attempt at using one of the parser
-
-      const messageToUse = {
-        id,
-        threadId,
-        from: from || null,
-        body: body || null,
-        rawBody: rawBody || null,
-        headers: JSON.stringify(headers),
-        to: to.join(",") || null,
-        bcc: bcc.join(",") || null,
-        date,
-        subject: subject || null,
-      };
-
-      messagesToReturn.push(messageToUse);
-
-      // store the message itself
-      logger.debug(
-        `> Saving message: threadId=${threadId} id=${id} subject=${subject}`
-      );
-      await Models.Email.create(messageToUse).catch((err) => {
-        // attempt to do update
-        return Models.Email.update(messageToUse, {
-          where: {
-            id: messageToUse.id,
-          },
-        }).catch((err) => {});
-      });
     }
 
     // save attachments
-    logger.debug(`> Saving ${attachments.length} attachments`);
+    logger.debug(
+      `Saving ${attachments.length} attachments threadId=${targetThreadId}`
+    );
     for (let attachment of attachments) {
       // note we don't block sql database here...
-      await Models.Attachment.create(attachment).catch((err) => {
+      Models.Attachment.create(attachment).catch((err) => {
         // attempt to do update
+        logger.debug(
+          `Insert attachment failed, trying to do update instead threadId=${attachment.threadId} id=${attachment.messageId} attachmentId=${attachment.id} ${err}`
+        );
         return Models.Attachment.update(attachment, {
           where: {
             id: attachment.id,
           },
-        }).catch((err) => {});
+        }).catch((err) => {
+          logger.error(
+            `Upsert email attachment failed threadId=${attachment.threadId} id=${attachment.messageId} attachmentId=${attachment.id} ${err}`
+          );
+        });
       });
     }
 
-    resolve(messagesToReturn);
+    logger.debug(`Done processing threadId=${targetThreadId}`);
+
+    resolve(threadMessages.length);
   });
 }
 
@@ -536,14 +661,20 @@ export function _processMessagesByThreadId(
  * @param emailAddressesAsString
  */
 function _parseEmailAddressList(emailAddressesAsString) {
-  return (emailAddressesAsString || "")
-    .split(/[ ]/)
+  emailAddressesAsString = (emailAddressesAsString || "").toLowerCase();
+  return emailAddressesAsString
+    .split(/[ ]/g)
     .filter((email) => !!email)
     .map((emailAddress) => {
-      try {
-        return _parseEmailAddress(emailAddress);
-      } catch (e) {
-        return emailAddress;
+      if (emailAddress.includes("@")) {
+        try {
+          return _parseEmailAddress(emailAddress);
+        } catch (e) {
+          logger.error(
+            `Cannot parse email address list: ${emailAddress} : ${e}`
+          );
+          return emailAddress;
+        }
       }
     })
     .filter((email) => !!email && email.includes("@"));
@@ -554,11 +685,16 @@ function _parseEmailAddressList(emailAddressesAsString) {
  * @param emailAddress
  */
 function _parseEmailAddress(emailAddress) {
-  return emailAddress
-    .match(/<?[a-zA-Z0-9-_\.]+@[a-zA-Z0-9-_\.]+>?/)[0]
-    .replace(/<?>?/g, "")
-    .toLowerCase()
-    .trim();
+  try {
+    return emailAddress
+      .match(/<?[a-zA-Z0-9-_\.]+@[a-zA-Z0-9-_\.]+>?/)[0]
+      .replace(/<?>?/g, "")
+      .toLowerCase()
+      .trim();
+  } catch (e) {
+    logger.error(`Cannot parse email: ${emailAddress}`);
+    return null;
+  }
 }
 
 /**
@@ -575,8 +711,6 @@ async function _getThreadIdsToProcess() {
 }
 
 async function _pollNewEmailThreads() {
-  const crawlFromLastToken = process.env.GMAIL_USE_LAST_PAGE_TOKEN === "true";
-
   let countPageProcessed = 0;
   let pageToken = "";
   let threadIds = [];
@@ -588,23 +722,18 @@ async function _pollNewEmailThreads() {
     logger.info("> Not found in cache, start fetching thread list");
   }
 
-  if (crawlFromLastToken !== true) {
-    logger.info("> Return email threads from cache");
-    return threadIds;
-  } else {
-    try {
-      pageToken = fs
-        .readFileSync(GMAIL_PATH_THREAD_LIST_TOKEN, "UTF-8")
-        .split("\n")
-        .map((r) => r.trim())
-        .filter((r) => !!r);
-      pageToken = pageToken[pageToken.length - 1] || "";
-    } catch (e) {}
-  }
+  try {
+    pageToken = fs
+      .readFileSync(GMAIL_PATH_THREAD_LIST_TOKEN, "UTF-8")
+      .split("\n")
+      .map((r) => r.trim())
+      .filter((r) => !!r);
+    pageToken = pageToken[pageToken.length - 1] || "";
+  } catch (e) {}
 
   let countTotalPagesToCrawl = process.env.GMAIL_PAGES_TO_CRAWL || 1;
   logger.info(
-    `> Crawl list of email threads: maxPages=${countTotalPagesToCrawl} lastToken=${pageToken}`
+    `Crawl list of email threads: maxPages=${countTotalPagesToCrawl} lastToken=${pageToken}`
   );
 
   let allThreads = [];
@@ -624,11 +753,11 @@ async function _pollNewEmailThreads() {
       fs.appendFileSync(GMAIL_PATH_THREAD_LIST_TOKEN, nextPageToken + "\n");
 
       if (countPageProcessed % 25 === 0 && countPageProcessed > 0) {
-        logger.info(`> ${countPageProcessed} pages crawled so far`);
+        logger.info(`${countPageProcessed} pages crawled so far`);
       }
     } catch (e) {
       logger.error(
-        `> Failed to get thread list pageToken=${pageToken}  error=${e}`
+        `Failed to get thread list pageToken=${pageToken}  error=${e}`
       );
       break;
     }
@@ -735,7 +864,7 @@ export async function _parseGmailAttachment(
   } catch (e) {}
 
   if (hasDownloaded !== true) {
-    // logger.info("> Download attachment: ", newFilePath);
+    logger.debug(`Download Gmail attachment from API: ${newFilePath}`);
 
     // if not, then download from upstream
     const attachmentResponse = await _getAttachment(
@@ -747,8 +876,8 @@ export async function _parseGmailAttachment(
 
     return newFilePath;
   } else {
-    // logger.info("> Skipped attachment: ", newFilePath);
-    return null; // null indicated that we don't need to download, and ignored this entry entirely
+    logger.debug(`Skipped Downloading attachment: ${newFilePath}`);
+    return newFilePath; // null indicated that we don't need to download, and ignored this entry entirely
   }
 }
 
@@ -763,7 +892,7 @@ function _saveBase64DataToFile(newFilePath, base64Data) {
       }
     );
   } catch (e) {
-    logger.info("> Error cannot save binary: ", newFilePath);
+    logger.error(`Error cannot save binary: ${newFilePath}`);
   }
 }
 
@@ -774,11 +903,11 @@ function _getHeaders(headers) {
   }, {});
 }
 
-async function _processEmails(threadIds) {
+async function _processEmails(threadIds, inMemoryLookupContent = {}) {
   threadIds = [].concat(threadIds || []);
 
   const countTotalThreads = threadIds.length;
-  logger.info("Total Threads:", countTotalThreads);
+  logger.info(`Total Threads: ${countTotalThreads}`);
 
   let totalMsgCount = 0;
   let countProcessedThread = 0;
@@ -789,18 +918,21 @@ async function _processEmails(threadIds) {
     ).toFixed(2);
 
     if (
-      countProcessedThread % 250 === 0 ||
+      countProcessedThread % 100 === 0 ||
       (percentDone % 20 === 0 && percentDone > 0)
     ) {
       logger.info(
-        `> ${percentDone}% (${countProcessedThread} / ${countTotalThreads})`
+        `${percentDone}% (${countProcessedThread} / ${countTotalThreads})`
       );
     }
     countProcessedThread++;
 
     // search for the thread
-    const _messages = await _processMessagesByThreadId(threadId);
-    totalMsgCount += _messages.length;
+    const processedMessageCount = await _processMessagesByThreadId(
+      threadId,
+      inMemoryLookupContent[threadId]
+    );
+    totalMsgCount += processedMessageCount;
   }
 
   logger.info(`Total Messages: ${totalMsgCount}`);
@@ -816,32 +948,37 @@ export async function uploadFile(
 ) {
   mimeType = mimeType.toLowerCase();
   switch (mimeType) {
-    case "text/plain":
-    case "text/xml":
-    case "application/xml":
-    case "application/json":
-      mimeType = "text/plain";
+    case MimeTypeEnum.TEXT_PLAIN:
+    case MimeTypeEnum.TEXT_XML:
+    case MimeTypeEnum.APP_XML:
+    case MimeTypeEnum.APP_JSON:
+      mimeType = MimeTypeEnum.TEXT_PLAIN;
       break;
   }
 
   let mimeTypeToUse = "";
-  if (["text/csv", "application/vnd.ms-excel"].includes(mimeType)) {
-    mimeTypeToUse = "application/vnd.google-apps.spreadsheet";
-  } else if (
+  if (
     [
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "text/plain",
-      "text/html",
+      MimeTypeEnum.TEXT_CSV,
+      MimeTypeEnum.APP_MS_XLS,
+      MimeTypeEnum.APP_MS_XLSX,
     ].includes(mimeType)
   ) {
-    mimeTypeToUse = "application/vnd.google-apps.document";
+    mimeTypeToUse = MimeTypeEnum.APP_GOOGLE_SPREADSHEET;
   } else if (
     [
-      "application/vnd.ms-powerpoint",
-      // "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      MimeTypeEnum.APP_MS_DOC,
+      MimeTypeEnum.APP_MS_DOCX,
+      MimeTypeEnum.TEXT_PLAIN,
+      MimeTypeEnum.TEXT_X_AMP_HTML,
+      MimeTypeEnum.TEXT_HTML,
     ].includes(mimeType)
   ) {
-    mimeTypeToUse = "application/vnd.google-apps.presentation";
+    mimeTypeToUse = MimeTypeEnum.APP_GOOGLE_DOCUMENT;
+  } else if (
+    [MimeTypeEnum.APP_MS_PPT, MimeTypeEnum.APP_MS_PPTX].includes(mimeType)
+  ) {
+    mimeTypeToUse = MimeTypeEnum.APP_GOOGLE_PRESENTATION;
   } else {
     mimeTypeToUse = mimeType;
   }
@@ -884,7 +1021,7 @@ export async function uploadFile(
 }
 
 export async function createDriveFolder(name, description, parentFolderId) {
-  const mimeType = "application/vnd.google-apps.folder";
+  const mimeType = MimeTypeEnum.APP_GOOGLE_FOLDER;
 
   const matchedResults = await _searchGoogleDrive(name, mimeType);
   if (matchedResults.length === 0) {
@@ -935,27 +1072,28 @@ export async function doGmailWorkForAllItems() {
   const threadIds = await _getThreadIdsToProcess();
 
   // attempting at getting the emails from the database
-  logger.info(`Constructing in-memory lookup for messages`);
   let inMemoryLookupContent = {};
-  try {
-    const messagesFromDatabase = await Models.RawContent.findAll({});
+  if (useInMemoryCache) {
+    logger.info(`Constructing in-memory lookup for messages`);
+    try {
+      const messagesFromDatabase = await Models.RawContent.findAll({});
+      if (messagesFromDatabase && messagesFromDatabase.length > 0) {
+        messagesFromDatabase.forEach((message) => {
+          inMemoryLookupContent[message.threadId] =
+            inMemoryLookupContent[message.threadId] || [];
+          inMemoryLookupContent[message.threadId].push(
+            JSON.parse(message.dataValues.rawApiResponse)
+          );
+        });
+      }
+    } catch (e) {}
 
-    if (messagesFromDatabase && messagesFromDatabase.length > 0) {
-      messagesFromDatabase.forEach((message) => {
-        inMemoryLookupContent[message.threadId] =
-          inMemoryLookupContent[message.threadId] || [];
-        inMemoryLookupContent[message.threadId].push(
-          JSON.parse(message.dataValues.rawApiResponse)
-        );
-      });
-    }
-  } catch (e) {}
-
-  logger.info(
-    `Size of in-memory lookup for messages: ${
-      Object.keys(inMemoryLookupContent).length
-    }`
-  );
+    logger.info(
+      `Size of in-memory lookup for messages: ${
+        Object.keys(inMemoryLookupContent).length
+      }`
+    );
+  }
 
   return _processEmails(threadIds, inMemoryLookupContent);
 }
