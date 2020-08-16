@@ -77,28 +77,30 @@ async function _init() {
 }
 
 async function _processMessages(messagesToProcess) {
-  const totalMessageCount = messagesToProcess.length;
-  logger.debug(" > Total Messages To Process:", totalMessageCount);
+  const countTotalMessages = messagesToProcess.length;
+  logger.info(
+    `> Total Messages To Sync with Google Drive: ${countTotalMessages}`
+  );
 
-  let processedMessageCount = 0;
+  let countProcessedMessages = 0;
 
   for (let messageToProcess of messagesToProcess) {
     const email: Email = messageToProcess.dataValues;
 
     const percentDone = (
-      (processedMessageCount / totalMessageCount) *
+      (countProcessedMessages / countTotalMessages) *
       100
     ).toFixed(2);
     if (
       percentDone === 0 ||
       percentDone % 20 === 0 ||
-      processedMessageCount % 100 === 0
+      countProcessedMessages % 100 === 0
     ) {
       logger.debug(
-        `> ${percentDone}% (${processedMessageCount}/${totalMessageCount})`
+        `> ${percentDone}% (${countProcessedMessages}/${countTotalMessages})`
       );
     }
-    processedMessageCount++;
+    countProcessedMessages++;
 
     let { threadId, id, body, rawBody, from, bcc, to, subject, date } = email;
     const toEmailList = (bcc || "").split(",").concat((to || "").split(","));
@@ -138,7 +140,7 @@ async function _processMessages(messagesToProcess) {
         const urlToCrawl = _extractUrlFromString(subject);
 
         // crawl the URL for title
-        logger.debug(" > Crawling subject with url", id, urlToCrawl);
+        logger.debug(`> Crawling subject with url: id=${id} ${urlToCrawl}`);
         const websiteRes = await _crawlUrl(urlToCrawl);
 
         if (websiteRes && websiteRes.subject) {
@@ -150,7 +152,7 @@ async function _processMessages(messagesToProcess) {
         const urlToCrawl = _extractUrlFromString(body);
         if (urlToCrawl) {
           // crawl the URL for title
-          logger.debug(" > Crawling body with url", id, urlToCrawl);
+          logger.debug(`> Crawling body with url: id=${id} ${urlToCrawl}`);
           const websiteRes = await _crawlUrl(urlToCrawl);
           if (websiteRes && websiteRes.subject) {
             subject = `${subject} - ${websiteRes.subject || ""}`.trim();
@@ -171,7 +173,7 @@ async function _processMessages(messagesToProcess) {
           subject.toLowerCase().includes(ignoredToken)
         )
       ) {
-        logger.debug(" > Skipped due to Ignored Pattern: ", subject);
+        logger.debug(`> Skipped due to Ignored Pattern: ${subject}`);
 
         continue; // skipped
       }
@@ -248,8 +250,10 @@ async function _processMessages(messagesToProcess) {
   }
 }
 
-export async function doWorkForAllItems() {
+export async function doGdriveWorkForAllItems() {
   await _init();
+
+  logger.info(`doGdriveWorkForAllItems`);
 
   const matchedResults: DatabaseResponse<Email>[] = await Models.Email.findAll({
     where: {},
@@ -268,10 +272,10 @@ export async function doWorkForAllItems() {
  * entry point to start work on a single item
  * @param targetThreadId
  */
-export async function doWorkSingle(targetThreadId) {
+export async function doGdriveWorkByThreadIds(targetThreadId) {
   await _init();
 
-  logger.debug(`Processing thread=${targetThreadId}`);
+  logger.info(`doGdriveWorkByThreadIds threadId=${targetThreadId}`);
 
   const matchedResults: DatabaseResponse<Email>[] = await Models.Email.findAll({
     where: {
