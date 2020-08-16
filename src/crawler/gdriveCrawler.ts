@@ -7,12 +7,14 @@ import initDatabase from "../models/modelsFactory";
 import Models from "../models/modelsSchema";
 import { JSDOM } from "jsdom";
 import {
-  initGoogleApi as initGoogleApi,
+  initGoogleApi,
   createDriveFolder,
   uploadFile,
   parseHtmlBody,
   parseHtmlTitle,
 } from "../crawler/gmailCrawler";
+
+import { logger } from "../loggers";
 
 let noteDestinationFolderId;
 const myEmails = (process.env.MY_EMAIL || "").split("|||");
@@ -33,9 +35,9 @@ function _extractUrlFromString(string) {
 
 async function _crawlUrl(url) {
   try {
-    const response = await axios(url).catch((err) => console.log(err));
+    const response = await axios(url).catch((err) => logger.debug(err));
     if (!response || response.status !== 200) {
-      console.error("> Error crawlUrl: ", url, response && response.status);
+      logger.error("> Error crawlUrl: ", url, response && response.status);
       return;
     }
     const rawHtmlBody = response.data;
@@ -45,24 +47,38 @@ async function _crawlUrl(url) {
       body: rawHtmlBody,
     };
   } catch (e) {
-    console.error("> Error crawlUrl: ", url);
+    logger.error("> Error crawlUrl: ", url);
   }
 }
 
 function _sanitizeFileName(string) {
-  return string.replace("|", "");
+  return string
+    .replace("|", " ")
+    .replace("[", " ")
+    .replace("]", " ")
+    .replace(".", " ")
+    .replace("-", " ")
+    .replace("_", " ")
+    .replace("_", " ")
+    .split(" ")
+    .filter((r) => r && r.length > 0)
+    .join(" ");
 }
 
-async function _init(){
+async function _init() {
   noteDestinationFolderId = await createDriveFolder(
     process.env.NOTE_DESTINATION_FOLDER_NAME,
     "Note Synchronizer Destination Folder"
+  );
+
+  logger.debug(
+    `ID for Google Drive Note Sync Folder: ${noteDestinationFolderId}`
   );
 }
 
 async function _processMessages(messagesToProcess) {
   const totalMessageCount = messagesToProcess.length;
-  console.log(" > Total Messages To Process:", totalMessageCount);
+  logger.debug(" > Total Messages To Process:", totalMessageCount);
 
   let processedMessageCount = 0;
 
@@ -78,7 +94,7 @@ async function _processMessages(messagesToProcess) {
       percentDone % 20 === 0 ||
       processedMessageCount % 100 === 0
     ) {
-      console.log(
+      logger.debug(
         `> ${percentDone}% (${processedMessageCount}/${totalMessageCount})`
       );
     }
@@ -122,7 +138,7 @@ async function _processMessages(messagesToProcess) {
         const urlToCrawl = _extractUrlFromString(subject);
 
         // crawl the URL for title
-        console.log(" > Crawling subject with url", id, urlToCrawl);
+        logger.debug(" > Crawling subject with url", id, urlToCrawl);
         const websiteRes = await _crawlUrl(urlToCrawl);
 
         if (websiteRes && websiteRes.subject) {
@@ -134,7 +150,7 @@ async function _processMessages(messagesToProcess) {
         const urlToCrawl = _extractUrlFromString(body);
         if (urlToCrawl) {
           // crawl the URL for title
-          console.log(" > Crawling body with url", id, urlToCrawl);
+          logger.debug(" > Crawling body with url", id, urlToCrawl);
           const websiteRes = await _crawlUrl(urlToCrawl);
           if (websiteRes && websiteRes.subject) {
             subject = `${subject} - ${websiteRes.subject || ""}`.trim();
@@ -155,7 +171,8 @@ async function _processMessages(messagesToProcess) {
           subject.toLowerCase().includes(ignoredToken)
         )
       ) {
-        console.log(" > Skipped due to Ignored Pattern: ", subject);
+        logger.debug(" > Skipped due to Ignored Pattern: ", subject);
+
         continue; // skipped
       }
 
@@ -164,7 +181,7 @@ async function _processMessages(messagesToProcess) {
       if (body.length > 0) {
         const localPath = `${PROCESSED_EMAIL_PREFIX_PATH}/processed.${email.id}.data`;
 
-        docFileName = subject;
+        docFileName = _sanitizeFileName(subject);
 
         try {
           const fileContent = `
@@ -177,8 +194,10 @@ async function _processMessages(messagesToProcess) {
           ${body}`.trim();
           fs.writeFileSync(localPath, fileContent.trim());
 
+          logger.debug(`> Upload original note file ${docFileName}`);
+
           await uploadFile(
-            _sanitizeFileName(docFileName),
+            docFileName,
             "text/html",
             localPath,
             `ThreadId=${threadId} MessageId=${id} Main Email`,
@@ -186,13 +205,10 @@ async function _processMessages(messagesToProcess) {
             noteDestinationFolderId
           );
         } catch (e) {
-          console.error(
-            "> Error - Failed to upload original note: ",
-            threadId,
-            id,
-            docFileName,
-            localPath,
-            JSON.stringify(e, null, 2)
+          logger.error(
+            ` > Error - Failed ot original note - ThreadId=${threadId} MessageId=${id} attachmentName=${docFileName} ${
+              attachment.mimeType
+            } ${JSON.stringify(e, null, 2)}`
           );
         }
       }
@@ -201,17 +217,17 @@ async function _processMessages(messagesToProcess) {
       let AttachmentIdx = 0;
       for (let attachment of attachments) {
         AttachmentIdx++;
-        const attachmentName = `${docFileName} - #${AttachmentIdx} - ${attachment.fileName}`;
+        const attachmentName = _sanitizeFileName(
+          `${docFileName} - #${AttachmentIdx} - ${attachment.fileName}`
+        );
 
-        console.log(
-          " > Upload Attachment",
-          attachmentName,
-          attachment.mimeType
+        logger.debug(
+          ` > Upload Attachment ThreadId=${threadId} MessageId=${id} attachmentName=${attachmentName} ${attachment.mimeType}`
         );
 
         try {
           await uploadFile(
-            _sanitizeFileName(attachmentName),
+            attachmentName,
             attachment.mimeType,
             attachment.path,
             `ThreadId=${threadId} MessageId=${id} Attachment #${AttachmentIdx}`,
@@ -219,16 +235,15 @@ async function _processMessages(messagesToProcess) {
             noteDestinationFolderId
           );
         } catch (e) {
-          console.error(
-            "> Error - Failed to upload attachment: ",
-            threadId,
-            id,
-            attachmentName,
-            attachment.path,
-            JSON.stringify(e, null, 2)
+          logger.error(
+            ` > Error - Failed ot upload attachment - ThreadId=${threadId} MessageId=${id} attachmentName=${attachmentName} ${
+              attachment.mimeType
+            } ${JSON.stringify(e, null, 2)}`
           );
         }
       }
+    } else {
+      logger.debug(`Skipped thread=${threadId} id=${id} subject=${subject}`);
     }
   }
 }
@@ -236,9 +251,7 @@ async function _processMessages(messagesToProcess) {
 export async function doWorkForAllItems() {
   await _init();
 
-  const matchedResults: DatabaseResponse<
-    Email
-  >[] = await Models.Email.findAll({
+  const matchedResults: DatabaseResponse<Email>[] = await Models.Email.findAll({
     where: {},
     include: [
       {
@@ -251,17 +264,16 @@ export async function doWorkForAllItems() {
   await _processMessages(matchedResults);
 }
 
-
 /**
  * entry point to start work on a single item
  * @param targetThreadId
  */
-export function doWorkSingle(targetThreadId) {
+export async function doWorkSingle(targetThreadId) {
   await _init();
 
-  const matchedResults: DatabaseResponse<
-    Email
-  >[] = await Models.Email.findAll({
+  logger.debug(`Processing thread=${targetThreadId}`);
+
+  const matchedResults: DatabaseResponse<Email>[] = await Models.Email.findAll({
     where: {
       threadId: targetThreadId,
     },
@@ -275,5 +287,3 @@ export function doWorkSingle(targetThreadId) {
 
   await _processMessages(matchedResults);
 }
-
-_doWork();
