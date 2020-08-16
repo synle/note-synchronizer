@@ -127,11 +127,26 @@ function _uploadFileToDrive(resource, media) {
   });
 }
 
-function _searchFileInFolder(name, parentFolderId) {
-  const q = `name='${name.replace(
-    /'/g,
-    "\\'"
-  )}' AND trashed=false AND parents in '${parentFolderId}'`;
+function _sanatizeGoogleQuery(string){
+  return (string || '').replace(/'/g, "\\'");
+}
+
+function _searchGoogleDrive(name, parentFolderId, mimeType) {
+  const queries = [];
+
+  queries.push(`trashed=false`);
+
+  queries.push(`name='${_sanatizeGoogleQuery(name)}'`);
+
+  if (parentFolderId) {
+    queries.push(`parents in '${_sanatizeGoogleQuery(parentFolderId)}'`);
+  }
+
+  if(mimeType){
+    queries.push(`mimeType='${_sanatizeGoogleQuery(mimeType)}'`);
+  }
+
+  const q = queries.join(" AND ");
 
   return new Promise((resolve, reject) => {
     drive.files.list(
@@ -209,26 +224,30 @@ function _getNewToken(oAuth2Client, callback) {
   });
 }
 
+function _flattenGmailPayloadParts(initialParts) {
+  const res = [];
+
+  let stack = [initialParts];
+
+  while (stack.length > 0) {
+    const target = stack.pop();
+    const { parts, ...rest } = target;
+    res.push(rest);
+
+    if (parts && parts.length > 0) {
+      stack = [...stack, ...parts];
+    }
+  }
+
+  return res;
+}
+
 /**
- * api to get the list of message by a thread id
+ * api to get and process the list of message by a thread id
  * @param targetThreadId
  */
-function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
-  let foundInCached = false;
+function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
   return new Promise(async (resolve, reject) => {
-    // get from databases
-    const matchedEmailsResponse: DatabaseResponse<
-      Email
-    >[] = await Models.Email.findAll({
-      where: {
-        threadId: targetThreadId,
-      },
-    });
-    if (matchedEmailsResponse.length > 0) {
-      foundInCached = true;
-      return resolve(matchedEmailsResponse.map((r) => r.dataValues));
-    }
-
     // get from gmail api
     const messagesToReturn: Email[] = [];
     const allAttachments = [];
@@ -270,15 +289,19 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
       }
 
       let rawBody = "";
-      if (message.payload.parts) {
-        for (let part of message.payload.parts) {
-          const { mimeType } = part;
+      const parts = _flattenGmailPayloadParts(message.payload);
+      if (parts && parts.length > 0) {
+        for (let part of parts) {
+          const { mimeType, partId } = part;
 
-          const attachmentId = part.body.attachmentId;
+          const { size, attachmentId, data } = part.body;
           const fileName = part.filename;
 
-          if (attachmentId && fileName) {
-            // is attachment
+          if (size === 0) {
+            // no body or data
+            continue;
+          } else if (attachmentId) {
+            // is attachment, then download it
             const attachment = {
               mimeType,
               attachmentId,
@@ -298,7 +321,8 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
           } else {
             // regular file
             switch (mimeType) {
-              default:
+              case "multipart/alternative":
+              case "multipart/related":
                 console.log(
                   "> Unsupported mimeType",
                   `threadId=${message.threadId}`,
@@ -307,20 +331,40 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
                 );
                 break;
 
+              default:
+              case "image/png":
+              case "image/jpg":
+              case "image/jpeg":
+              case "image/gif":
+                const inlineFileName =
+                  fileName || `parts.${threadId}.${id}.${partId}`;
+
+                const newFilePath = `${GMAIL_ATTACHMENT_PATH}/${inlineFileName}`;
+                _saveBase64DataToFile(newFilePath, data);
+
+                allAttachments.push({
+                  id: inlineFileName,
+                  messageId: id,
+                  mimeType: mimeType,
+                  fileName: inlineFileName,
+                  path: newFilePath,
+                });
+                break;
+
               case "text/plain":
                 if (!rawBody) {
                   // only store the rawbody if it's not already defined
-                  rawBody = part.body.data;
+                  rawBody = data;
                 }
                 break;
+
+              case "text/x-amp-html":
               case "text/html":
-                rawBody = _parseGmailMessage(part.body.data);
+                rawBody = _parseGmailMessage(data);
                 break;
             }
           }
         }
-      } else if (message.payload.body) {
-        rawBody = _parseGmailMessage(message.payload.body.data);
       }
 
       const headers: Headers = _getHeaders(message.payload.headers || []);
@@ -357,25 +401,25 @@ function _getMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
       // store the message itself
       await Models.Email.create(messageToUse).catch((err) => {
-        console.error(
-          "> Insert Message Failed",
-          `threadId=${message.threadId}`,
-          `id=${message.id}`,
-          message.subject,
-          err
-        );
-
-        console.log(err);
+        // console.error(
+        //   "> Insert Message Skipped or Failed",
+        //   `threadId=${message.threadId}`,
+        //   `id=${message.id}`,
+        //   // message.subject
+        //   // err
+        // );
+        // console.log(err);
       });
     }
 
     // save attachments
     for (let attachment of allAttachments) {
       await Models.Attachment.create(attachment).catch((err) => {
-        console.error(
-          "> Insert Attachment Failed",
-          JSON.stringify(attachment, null, 2)
-        );
+        // console.error(
+        //   "> Insert Attachment Failed",
+        //   JSON.stringify(attachment, null, 2),
+        //   err
+        // );
       });
     }
 
@@ -461,11 +505,15 @@ async function _getThreadsToProcess() {
 export function _cleanHtml(string) {
   return string
     .replace(
-      /<style( type="[a-zA-Z/+]+")?>[a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/>?&~+]+<\/style>/gi,
+      /<style( type="[a-zA-Z/+]+")?>[a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/ŤŮ>?&~+µ]+<\/style>/gi,
       ""
     )
     .replace(
-      /<script( type="[a-zA-Z/+]+")?>[a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/>?&~+]+<\/script>/gi,
+      /style=["'][a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/ŤŮ>?&~+µ]+["']/gi,
+      ""
+    )
+    .replace(
+      /<script( type="[a-zA-Z/+]+")?>[a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/ŤŮ>?&~+µ]+<\/script>/gi,
       ""
     );
 }
@@ -542,16 +590,28 @@ export async function _parseGmailAttachment(
       messageId,
       attachment.attachmentId
     );
-    const data = attachmentResponse.replace(/-/g, "+").replace(/_/g, "/");
 
-    fs.writeFileSync(newFilePath, data, "base64", function (err) {
-      console.log(err);
-    });
+    _saveBase64DataToFile(newFilePath, attachmentResponse);
 
     return newFilePath;
   } else {
     // console.log("> Skipped attachment: ", newFilePath);
     return null; // null indicated that we don't need to download, and ignored this entry entirely
+  }
+}
+
+function _saveBase64DataToFile(newFilePath, base64Data) {
+  try {
+    fs.writeFileSync(
+      newFilePath,
+      (base64Data || "").replace(/-/g, "+").replace(/_/g, "/"),
+      "base64",
+      function (err) {
+        console.log(err);
+      }
+    );
+  } catch (e) {
+    console.log("> Error cannot save binary: ", newFilePath);
   }
 }
 
@@ -576,8 +636,8 @@ async function _processEmails(gmail) {
     ).toFixed(2);
 
     if (
-      processedThreadCount % 1000 === 0 ||
-      percentDone % 20 === 0
+      processedThreadCount % 250 === 0 ||
+      (percentDone % 20 === 0 && percentDone > 0)
     ) {
       console.log(
         `> ${percentDone}% (${processedThreadCount} / ${totalThreadCount})`
@@ -586,7 +646,7 @@ async function _processEmails(gmail) {
     processedThreadCount++;
 
     // search for the thread
-    const _messages = await _getMessagesByThreadId(threadId);
+    const _messages = await _processMessagesByThreadId(threadId);
     totalMsgCount += _messages.length;
   }
 
@@ -655,7 +715,7 @@ export async function uploadFile(
   }
 
   const createdTime = moment.utc(dateEpochTime).format("YYYY-MM-DDTHH:mm:ssZ");
-  const modifiedTime = moment.utc().format("YYYY-MM-DDTHH:mm:ssZ");
+  const modifiedTime = moment.utc(dateEpochTime).format("YYYY-MM-DDTHH:mm:ssZ");
 
   // refer to this link for more metadata
   // https://developers.google.com/drive/api/v3/reference/files/create
@@ -673,13 +733,22 @@ export async function uploadFile(
     body: fs.createReadStream(localPath),
   };
 
-  const matchedFiles = await _searchFileInFolder(
+  const matchedFiles = await _searchGoogleDrive(
     fileGDriveMetadata.name,
     parentFolderId
   );
   if (matchedFiles.length === 0) {
     return _uploadFileToDrive(fileGDriveMetadata, media);
   }
+}
+
+export function newDriveFolder(folderName, description, parentFolderId) {
+  const fileGDriveMetadata = {
+    name,
+    parents: [parentFolderId],
+    mimeType: mimeTypeToUse,
+    description,
+  };
 }
 
 /**
