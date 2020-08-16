@@ -18,6 +18,30 @@ import Models from "../models/modelsSchema";
 let gmail;
 let drive;
 
+enum MimeTypeEnum {
+  APP_JSON = "application/json",
+  APP_GOOGLE_DOCUMENT = "application/vnd.google-apps.document",
+  APP_GOOGLE_FOLDER = "application/vnd.google-apps.folder",
+  APP_GOOGLE_PRESENTATION = "application/vnd.google-apps.presentation",
+  APP_GOOGLE_SPREADSHEET = "application/vnd.google-apps.spreadsheet",
+  APP_MS_XLS = "application/vnd.ms-excel",
+  APP_MS_PPT = "application/vnd.ms-powerpoint",
+  APP_MS_PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  APP_MS_WORD_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  APP_XML = "application/xml",
+  IMAGE_GIF = "image/gif",
+  IMAGE_JPEG = "image/jpeg",
+  IMAGE_JPG = "image/jpg",
+  IMAGE_PNG = "image/png",
+  MULTIPART_ALTERNATIVE = "multipart/alternative",
+  MULTIPART_RELATED = "multipart/related",
+  TEXT_HTML = "text/html",
+  TEXT_PLAIN = "text/plain",
+  TEXT_PLAIN = "text/plain",
+  TEXT_X_AMP_HTML = "text/x-amp-html",
+  TEXT_XML = "text/xml",
+}
+
 // google crawler
 // If modifying these scopes, delete token.json.
 const SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"].concat([
@@ -127,11 +151,28 @@ function _uploadFileToDrive(resource, media) {
   });
 }
 
-function _sanatizeGoogleQuery(string){
-  return (string || '').replace(/'/g, "\\'");
+function _createFolderInDrive(resource) {
+  return new Promise((resolve, reject) => {
+    drive.files.create(
+      {
+        resource,
+        fields: "id",
+      },
+      function (err, res) {
+        if (err) {
+          return reject(err.response.data);
+        }
+        resolve(res.data);
+      }
+    );
+  });
 }
 
-function _searchGoogleDrive(name, parentFolderId, mimeType) {
+function _sanatizeGoogleQuery(string) {
+  return (string || "").replace(/'/g, "\\'");
+}
+
+function _searchGoogleDrive(name, mimeType, parentFolderId) {
   const queries = [];
 
   queries.push(`trashed=false`);
@@ -142,7 +183,7 @@ function _searchGoogleDrive(name, parentFolderId, mimeType) {
     queries.push(`parents in '${_sanatizeGoogleQuery(parentFolderId)}'`);
   }
 
-  if(mimeType){
+  if (mimeType) {
     queries.push(`mimeType='${_sanatizeGoogleQuery(mimeType)}'`);
   }
 
@@ -653,27 +694,6 @@ async function _processEmails(gmail) {
   console.log("Total Messages:", totalMsgCount);
 }
 
-/**
- * api used to init to be called to get the gmail api setup
- * @param onAfterInitFunc
- */
-export const init = (onAfterInitFunc = () => {}) => {
-  return new Promise((resolve, reject) => {
-    // Load client secrets from a local file.
-    fs.readFile(GMAIL_CREDENTIALS_PATH, (err, content) => {
-      if (err) return reject("Error loading client secret file:" + err);
-      // Authorize a client with credentials, then call the Gmail API.
-      _authorize(JSON.parse(content), function (auth) {
-        gmail = google.gmail({ version: "v1", auth });
-        drive = google.drive({ version: "v3", auth });
-
-        onAfterInitFunc(gmail, drive);
-        resolve();
-      });
-    });
-  });
-};
-
 export async function uploadFile(
   name,
   mimeType,
@@ -733,23 +753,58 @@ export async function uploadFile(
     body: fs.createReadStream(localPath),
   };
 
-  const matchedFiles = await _searchGoogleDrive(
+  const matchedResults = await _searchGoogleDrive(
     fileGDriveMetadata.name,
+    fileGDriveMetadata.mimeType,
     parentFolderId
   );
-  if (matchedFiles.length === 0) {
+  if (matchedResults.length === 0) {
     return _uploadFileToDrive(fileGDriveMetadata, media);
   }
 }
 
-export function newDriveFolder(folderName, description, parentFolderId) {
-  const fileGDriveMetadata = {
-    name,
-    parents: [parentFolderId],
-    mimeType: mimeTypeToUse,
-    description,
-  };
+export async function createDriveFolder(name, description, parentFolderId) {
+  const mimeType = "application/vnd.google-apps.folder";
+
+  const matchedResults = await _searchGoogleDrive(name, mimeType);
+  if (matchedResults.length === 0) {
+    const fileGDriveMetadata = {
+      name,
+      mimeType,
+      description,
+    };
+
+    if (parentFolderId) {
+      fileGDriveMetadata.parents = [parentFolderId];
+    }
+
+    // create the folder itself
+    return (await _createFolderInDrive(fileGDriveMetadata)).id;
+  } else {
+    return matchedResults[0].id;
+  }
 }
+
+/**
+ * api used to init to be called to get the gmail api setup
+ * @param onAfterInitFunc
+ */
+export const init = (onAfterInitFunc = () => {}) => {
+  return new Promise((resolve, reject) => {
+    // Load client secrets from a local file.
+    fs.readFile(GMAIL_CREDENTIALS_PATH, (err, content) => {
+      if (err) return reject("Error loading client secret file:" + err);
+      // Authorize a client with credentials, then call the Gmail API.
+      _authorize(JSON.parse(content), function (auth) {
+        gmail = google.gmail({ version: "v1", auth });
+        drive = google.drive({ version: "v3", auth });
+
+        onAfterInitFunc(gmail, drive);
+        resolve();
+      });
+    });
+  });
+};
 
 /**
  * entry point to start work
