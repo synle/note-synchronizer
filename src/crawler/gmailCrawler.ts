@@ -287,7 +287,7 @@ function _flattenGmailPayloadParts(initialParts) {
  * api to get and process the list of message by a thread id
  * @param targetThreadId
  */
-function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
+export function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
   return new Promise(async (resolve, reject) => {
     // get from gmail api
     const messagesToReturn: Email[] = [];
@@ -789,7 +789,7 @@ export async function createDriveFolder(name, description, parentFolderId) {
  * api used to init to be called to get the gmail api setup
  * @param onAfterInitFunc
  */
-export const init = (onAfterInitFunc = () => {}) => {
+export const initGoogleApi = (onAfterInitFunc = () => {}) => {
   return new Promise((resolve, reject) => {
     // Load client secrets from a local file.
     fs.readFile(GMAIL_CREDENTIALS_PATH, (err, content) => {
@@ -807,10 +807,20 @@ export const init = (onAfterInitFunc = () => {}) => {
 };
 
 /**
- * entry point to start work
+ * entry point to start work on all items
  */
-function _doWork() {
-  init(_processEmails);
+export function doWorkForAllItems() {
+  initGoogleApi(_processEmails);
 }
 
-export default _doWork;
+/**
+ * entry point to start work on a single item
+ * @param targetThreadId
+ */
+export function doWorkSingle(targetThreadId) {
+  initGoogleApi(() => {
+    _processMessagesByThreadId(targetThreadId);
+  });
+}
+
+export default doWorkForAllItems;
