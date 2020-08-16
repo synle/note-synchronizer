@@ -5,25 +5,55 @@ import initDatabase from "./src/models/modelsFactory";
 
 import {
   initGoogleApi,
-  doWorkForAllItems,
-  doWorkSingle,
+  doGmailWorkPollThreadList,
+  doGmailWorkForAllItems,
+  doGmailWorkByThreadIds,
 } from "./src/crawler/gmailCrawler";
+
+import {
+  doGdriveWorkForAllItems,
+  doGdriveWorkByThreadIds,
+} from "./src/crawler/gdriveCrawler";
+
+import { logger } from "./src/loggers";
 
 async function _doWork() {
   await initDatabase();
   await initGoogleApi();
 
   try {
-    const targetThreadIds = (process.argv[2] || "")
+    const command = process.argv[2] || "";
+    const targetThreadIds = (process.argv[3] || "")
       .split(",")
       .map((r) => (r || "").trim())
       .filter((r) => !!r);
-    if (targetThreadIds.length > 0) {
-      for (let targetThreadId of targetThreadIds) {
-        await doWorkSingle(targetThreadId);
-      }
-    } else {
-      doWorkForAllItems();
+
+    logger.info(
+      `Start job with command=${command} threadIds=${targetThreadIds.length}`
+    );
+
+    switch (command) {
+      case "poll": // poll for email threads from gmail
+        await doGmailWorkPollThreadList();
+        break;
+
+      // fetch the email details from gmail by the threadid
+      case "fetch_all_emails":
+        await doGmailWorkForAllItems();
+        break;
+
+      case "fetch_selected_emails":
+        await doGmailWorkByThreadIds(targetThreadIds);
+        break;
+
+      // process emails and send the data to gdrive
+      case "process_gdrive_all_emails":
+        await doGdriveWorkForAllItems();
+        break;
+
+      case "process_gdrive_selected_emails":
+        await doGdriveWorkByThreadIds(targetThreadIds);
+        break;
     }
   } catch (e) {
     console.log("e", e);

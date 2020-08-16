@@ -56,6 +56,9 @@ const GMAIL_TOKEN_PATH = "token.json";
 const GMAIL_CREDENTIALS_PATH = "credentials.json";
 const GMAIL_ATTACHMENT_PATH = "./attachments";
 
+const GMAIL_PATH_THREAD_LIST = `./caches/gmail.threads.data`;
+const GMAIL_PATH_THREAD_LIST_TOKEN = `./caches/gmail.threads_last_tokens.data`;
+
 // core apis
 /**
  * Lists the labels in the user's account.
@@ -307,7 +310,10 @@ function _flattenGmailPayloadParts(initialParts) {
  * api to get and process the list of message by a thread id
  * @param targetThreadId
  */
-export function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
+export function _processMessagesByThreadId(
+  targetThreadId,
+  inMemoryMapForMessages = {}
+): Promise<Email[]> {
   return new Promise(async (resolve, reject) => {
     // get from gmail api
     const messagesToReturn: Email[] = [];
@@ -317,6 +323,15 @@ export function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
     let foundFromDb = false;
 
     logger.debug(`> Working on thread: ${targetThreadId}`);
+
+    // attempting at getting it from the in memory map
+    try {
+      threadMessages = inMemoryMapForMessages[targetThreadId];
+      foundFromDb = true;
+      logger.debug(
+        `> Threads Result from Memory: threadMessages${messagesFromDatabase.length}`
+      );
+    } catch (e) {}
 
     // attempting at getting the emails from the database
     try {
@@ -349,9 +364,9 @@ export function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
       `> Found and start processing ${threadMessages.length} messages`
     );
 
+    // persist things into the raw content db...
     for (let message of threadMessages) {
       const { id, threadId } = message;
-      const messageDate = message.internalDate;
 
       // store raw content
       if (foundFromDb !== true) {
@@ -361,6 +376,12 @@ export function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           rawApiResponse: JSON.stringify(message),
         }).catch(() => {});
       }
+    }
+
+    // start processing
+    for (let message of threadMessages) {
+      const { id, threadId } = message;
+      const messageDate = message.internalDate;
 
       let rawBody = "";
       const parts = _flattenGmailPayloadParts(message.payload);
@@ -495,6 +516,7 @@ export function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
     // save attachments
     logger.debug(`> Saving ${attachments.length} attachments`);
     for (let attachment of attachments) {
+      // note we don't block sql database here...
       await Models.Attachment.create(attachment).catch((err) => {
         // attempt to do update
         return Models.Attachment.update(attachment, {
@@ -542,17 +564,26 @@ function _parseEmailAddress(emailAddress) {
 /**
  * get a list of threads to process
  */
-async function _getThreadsToProcess() {
-  const crawlFromLastToken = process.env.GMAIL_USE_LAST_PAGE_TOKEN === "true";
-  const filePathThreadList = `./gmail.threads.data`;
-  const filePathLastToken = `./gmail.threads_last_tokens.data`;
+async function _getThreadIdsToProcess() {
+  try {
+    return JSON.parse(fs.readFileSync(GMAIL_PATH_THREAD_LIST));
+  } catch (GMAIL_PATH_THREAD_LIST_TOKEN) {
+    // not in cache
+    logger.info("> Not found in cache, start fetching thread list");
+    return [];
+  }
+}
 
+async function _pollNewEmailThreads() {
+  const crawlFromLastToken = process.env.GMAIL_USE_LAST_PAGE_TOKEN === "true";
+
+  let countPageProcessed = 0;
   let pageToken = "";
   let threadIds = [];
 
   try {
-    threadIds = JSON.parse(fs.readFileSync(filePathThreadList));
-  } catch (e) {
+    threadIds = JSON.parse(fs.readFileSync(GMAIL_PATH_THREAD_LIST));
+  } catch (GMAIL_PATH_THREAD_LIST_TOKEN) {
     // not in cache
     logger.info("> Not found in cache, start fetching thread list");
   }
@@ -563,7 +594,7 @@ async function _getThreadsToProcess() {
   } else {
     try {
       pageToken = fs
-        .readFileSync(filePathLastToken, "UTF-8")
+        .readFileSync(GMAIL_PATH_THREAD_LIST_TOKEN, "UTF-8")
         .split("\n")
         .map((r) => r.trim())
         .filter((r) => !!r);
@@ -571,17 +602,17 @@ async function _getThreadsToProcess() {
     } catch (e) {}
   }
 
-  let pageToLookAt = process.env.GMAIL_PAGES_TO_CRAWL || 1;
+  let countTotalPagesToCrawl = process.env.GMAIL_PAGES_TO_CRAWL || 1;
   logger.info(
-    `> Crawl list of email threads: totalPages=${pageToLookAt} lastToken=${pageToken}`
+    `> Crawl list of email threads: maxPages=${countTotalPagesToCrawl} lastToken=${pageToken}`
   );
 
   let allThreads = [];
 
-  while (pageToLookAt > 0) {
-    pageToLookAt--;
+  while (countPageProcessed < countTotalPagesToCrawl) {
+    countPageProcessed++;
 
-    try{
+    try {
       const { threads, nextPageToken } = await _getThreads(pageToken);
       allThreads = [...allThreads, ...(threads || []).map((r) => r.id)];
       pageToken = nextPageToken;
@@ -590,15 +621,15 @@ async function _getThreadsToProcess() {
         break;
       }
 
-      fs.appendFileSync(filePathLastToken, nextPageToken + "\n");
+      fs.appendFileSync(GMAIL_PATH_THREAD_LIST_TOKEN, nextPageToken + "\n");
 
-      if (pageToLookAt % 25 === 0 && pageToLookAt > 0) {
-        logger.info(`> ${pageToLookAt} pages of threads left`);
-      } else if (pageToLookAt === 0) {
-        logger.info(`> Done get thread list`);
+      if (countPageProcessed % 25 === 0 && countPageProcessed > 0) {
+        logger.info(`> ${countPageProcessed} pages crawled so far`);
       }
-    } catch(e){
-      logger.error(`> Failed to get thread list pageToken=${pageToken}  error=${e}`)
+    } catch (e) {
+      logger.error(
+        `> Failed to get thread list pageToken=${pageToken}  error=${e}`
+      );
       break;
     }
   }
@@ -614,8 +645,7 @@ async function _getThreadsToProcess() {
   });
 
   // cache it
-  fs.writeFileSync(filePathThreadList, JSON.stringify(threadIds, null, 2));
-
+  fs.writeFileSync(GMAIL_PATH_THREAD_LIST, JSON.stringify(threadIds, null, 2));
 
   return allThreads;
 }
@@ -744,35 +774,36 @@ function _getHeaders(headers) {
   }, {});
 }
 
-async function _processEmails() {
-  const threadIds = await _getThreadsToProcess();
-  const totalThreadCount = threadIds.length;
-  logger.info("Total Threads:", totalThreadCount);
+async function _processEmails(threadIds) {
+  threadIds = [].concat(threadIds || []);
+
+  const countTotalThreads = threadIds.length;
+  logger.info("Total Threads:", countTotalThreads);
 
   let totalMsgCount = 0;
-  let processedThreadCount = 0;
+  let countProcessedThread = 0;
   for (let threadId of threadIds) {
     const percentDone = (
-      (processedThreadCount / totalThreadCount) *
+      (countProcessedThread / countTotalThreads) *
       100
     ).toFixed(2);
 
     if (
-      processedThreadCount % 250 === 0 ||
+      countProcessedThread % 250 === 0 ||
       (percentDone % 20 === 0 && percentDone > 0)
     ) {
       logger.info(
-        `> ${percentDone}% (${processedThreadCount} / ${totalThreadCount})`
+        `> ${percentDone}% (${countProcessedThread} / ${countTotalThreads})`
       );
     }
-    processedThreadCount++;
+    countProcessedThread++;
 
     // search for the thread
     const _messages = await _processMessagesByThreadId(threadId);
     totalMsgCount += _messages.length;
   }
 
-  logger.info("Total Messages:", totalMsgCount);
+  logger.info(`Total Messages: ${totalMsgCount}`);
 }
 
 export async function uploadFile(
@@ -898,18 +929,50 @@ export const initGoogleApi = (onAfterInitFunc = () => {}) => {
 /**
  * entry point to start work on all items
  */
-export function doWorkForAllItems() {
-  logger.debug(`Doing work for all items`);
-  return _processEmails();
+export async function doGmailWorkForAllItems() {
+  logger.info(`doGmailWorkForAllItems`);
+
+  const threadIds = await _getThreadIdsToProcess();
+
+  // attempting at getting the emails from the database
+  logger.info(`Constructing in-memory lookup for messages`);
+  let inMemoryLookupContent = {};
+  try {
+    const messagesFromDatabase = await Models.RawContent.findAll({});
+
+    if (messagesFromDatabase && messagesFromDatabase.length > 0) {
+      messagesFromDatabase.forEach((message) => {
+        inMemoryLookupContent[message.threadId] =
+          inMemoryLookupContent[message.threadId] || [];
+        inMemoryLookupContent[message.threadId].push(
+          JSON.parse(message.dataValues.rawApiResponse)
+        );
+      });
+    }
+  } catch (e) {}
+
+  logger.info(
+    `Size of in-memory lookup for messages: ${
+      Object.keys(inMemoryLookupContent).length
+    }`
+  );
+
+  return _processEmails(threadIds, inMemoryLookupContent);
 }
 
 /**
  * entry point to start work on a single item
  * @param targetThreadId
  */
-export function doWorkSingle(targetThreadId) {
-  logger.debug(`Doing work for single item ${targetThreadId}`);
-  return _processMessagesByThreadId(targetThreadId);
+export async function doGmailWorkByThreadIds(targetThreadId) {
+  logger.info(`doGmailWorkByThreadIds ${targetThreadId}`);
+  return _processEmails(targetThreadId);
 }
 
-export default doWorkForAllItems;
+/**
+ * This is simply to get a list of all email threadIds
+ */
+export async function doGmailWorkPollThreadList() {
+  logger.info(`doGmailWorkPollThreadList`);
+  return _pollNewEmailThreads();
+}

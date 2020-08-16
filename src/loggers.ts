@@ -6,13 +6,12 @@ const prettyJson = format.printf((info) => {
   if (info.message.constructor === Object) {
     info.message = JSON.stringify(info.message, null, 4);
   }
-  return `${info.level}: ${info.message}`;
+  return `[${info.level}]: ${info.message}`;
 });
 
 export const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || "debug", // https://github.com/winstonjs/winston#logging-levels
   format: combine(
-    format.colorize(),
     format.timestamp({
       format: "HH:mm:ss",
     }),
@@ -23,12 +22,16 @@ export const logger = winston.createLogger({
     )
   ),
   transports: [
+    // https://github.com/winstonjs/winston/blob/master/docs/transports.md
     new winston.transports.Console(), // only use for debugging
     new winston.transports.File({
-      filename: "log_error.data",
+      filename: "./logs/log_error.data",
       level: "error",
     }),
-    new winston.transports.File({ filename: "log_combined.data" }),
+    new winston.transports.File({
+      filename: "./logs/log_combined.data",
+      level: "debug",
+    }),
   ],
 });
 
