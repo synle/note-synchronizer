@@ -15,6 +15,8 @@ import {
 } from "../types";
 import Models from "../models/modelsSchema";
 
+import { logger } from "../loggers";
+
 let gmail;
 let drive;
 
@@ -133,11 +135,29 @@ function _getAttachment(messageId, attachmentId) {
   });
 }
 
-function _uploadFileToDrive(resource, media) {
+function _createFileInDrive(resource, media) {
   return new Promise((resolve, reject) => {
     drive.files.create(
       {
         resource,
+        media,
+        fields: "id",
+      },
+      function (err, res) {
+        if (err) {
+          return reject(err.response.data);
+        }
+        resolve(res.data);
+      }
+    );
+  });
+}
+
+function _updateFileInDrive(fileId, resource, media) {
+  return new Promise((resolve, reject) => {
+    drive.files.update(
+      {
+        fileId,
         media,
         fields: "id",
       },
@@ -245,7 +265,7 @@ function _getNewToken(oAuth2Client, callback) {
     access_type: "offline",
     scope: SCOPES,
   });
-  console.log("Authorize this app by visiting this url:", authUrl);
+  logger.info("Authorize this app by visiting this url:", authUrl);
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -253,12 +273,12 @@ function _getNewToken(oAuth2Client, callback) {
   rl.question("Enter the code from that page here: ", (code) => {
     rl.close();
     oAuth2Client.getToken(code, (err, token) => {
-      if (err) return console.error("Error retrieving access token", err);
+      if (err) return logger.error("Error retrieving access token", err);
       oAuth2Client.setCredentials(token);
       // Store the token to disk for later program executions
       fs.writeFile(GMAIL_TOKEN_PATH, JSON.stringify(token), (err) => {
-        if (err) return console.error(err);
-        console.log("Token stored to", GMAIL_TOKEN_PATH);
+        if (err) return logger.error(err);
+        logger.info("Token stored to", GMAIL_TOKEN_PATH);
       });
       callback(oAuth2Client);
     });
@@ -291,10 +311,12 @@ export function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
   return new Promise(async (resolve, reject) => {
     // get from gmail api
     const messagesToReturn: Email[] = [];
-    const allAttachments = [];
+    const attachments = [];
 
     let threadMessages;
     let foundFromDb = false;
+
+    logger.debug(`> Working on thread: ${targetThreadId}`);
 
     // attempting at getting the emails from the database
     try {
@@ -303,6 +325,9 @@ export function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           threadId: targetThreadId,
         },
       });
+
+      logger.debug(`> Threads Result from DB: ${messagesFromDatabase.length}`);
+
       if (messagesFromDatabase && messagesFromDatabase.length > 0) {
         threadMessages = messagesFromDatabase.map((message) =>
           JSON.parse(message.dataValues.rawApiResponse)
@@ -314,11 +339,19 @@ export function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
     // get emails from the database
     if (!threadMessages) {
       const { messages } = await _getThreadEmails(targetThreadId);
+
+      logger.debug(`> Threads Result from API: ${messages.length}`);
+
       threadMessages = messages;
     }
 
+    logger.debug(
+      `> Found and start processing ${threadMessages.length} messages`
+    );
+
     for (let message of threadMessages) {
       const { id, threadId } = message;
+      const messageDate = message.internalDate;
 
       // store raw content
       if (foundFromDb !== true) {
@@ -326,7 +359,7 @@ export function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           messageId: id,
           threadId: threadId,
           rawApiResponse: JSON.stringify(message),
-        });
+        }).catch(() => {});
       }
 
       let rawBody = "";
@@ -338,10 +371,14 @@ export function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           const { size, attachmentId, data } = part.body;
           const fileName = part.filename;
 
+          logger.debug(`> Parsing Part of Message: ${partId} - ${mimeType}`);
+
           if (size === 0) {
             // no body or data
             continue;
           } else if (attachmentId) {
+            logger.debug(`> Parsing Message Attachment: ${mimeType}`);
+
             // is attachment, then download it
             const attachment = {
               mimeType,
@@ -351,7 +388,7 @@ export function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
             const attachmentPath = await _parseGmailAttachment(id, attachment);
 
             if (attachmentPath) {
-              allAttachments.push({
+              attachments.push({
                 id: attachment.attachmentId,
                 messageId: id,
                 mimeType: attachment.mimeType,
@@ -361,10 +398,11 @@ export function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
             }
           } else {
             // regular file
+            logger.debug(`> Parse Message: ${mimeType}`);
             switch (mimeType) {
               case "multipart/alternative":
               case "multipart/related":
-                console.log(
+                logger.info(
                   "> Unsupported mimeType",
                   `threadId=${message.threadId}`,
                   `id=${message.id}`,
@@ -383,7 +421,7 @@ export function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                 const newFilePath = `${GMAIL_ATTACHMENT_PATH}/${inlineFileName}`;
                 _saveBase64DataToFile(newFilePath, data);
 
-                allAttachments.push({
+                attachments.push({
                   id: inlineFileName,
                   messageId: id,
                   mimeType: mimeType,
@@ -395,7 +433,7 @@ export function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               case "text/plain":
                 if (!rawBody) {
                   // only store the rawbody if it's not already defined
-                  rawBody = data;
+                  rawBody = _parseGmailMessage(data);
                 }
                 break;
 
@@ -418,7 +456,7 @@ export function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
       const subject = (headers.subject || "").trim();
 
-      const date = new Date(headers.date).getTime();
+      const date = new Date(headers.date).getTime() || messageDate;
 
       const body =
         parseHtmlBody(rawBody) ||
@@ -441,26 +479,29 @@ export function _processMessagesByThreadId(targetThreadId): Promise<Email[]> {
       messagesToReturn.push(messageToUse);
 
       // store the message itself
+      logger.debug(
+        `> Saving message: threadId=${threadId} id=${id} subject=${subject}`
+      );
       await Models.Email.create(messageToUse).catch((err) => {
-        // console.error(
-        //   "> Insert Message Skipped or Failed",
-        //   `threadId=${message.threadId}`,
-        //   `id=${message.id}`,
-        //   // message.subject
-        //   // err
-        // );
-        // console.log(err);
+        // attempt to do update
+        return Models.Email.update(messageToUse, {
+          where: {
+            id: messageToUse.id,
+          },
+        }).catch((err) => {});
       });
     }
 
     // save attachments
-    for (let attachment of allAttachments) {
+    logger.debug(`> Saving ${attachments.length} attachments`);
+    for (let attachment of attachments) {
       await Models.Attachment.create(attachment).catch((err) => {
-        // console.error(
-        //   "> Insert Attachment Failed",
-        //   JSON.stringify(attachment, null, 2),
-        //   err
-        // );
+        // attempt to do update
+        return Models.Attachment.update(attachment, {
+          where: {
+            id: attachment.id,
+          },
+        }).catch((err) => {});
       });
     }
 
@@ -480,7 +521,6 @@ function _parseEmailAddressList(emailAddressesAsString) {
       try {
         return _parseEmailAddress(emailAddress);
       } catch (e) {
-        // console.error("> cannot parse email", emailAddress);
         return emailAddress;
       }
     })
@@ -504,14 +544,15 @@ function _parseEmailAddress(emailAddress) {
  */
 async function _getThreadsToProcess() {
   let pageToLookAt = process.env.GMAIL_PAGES_TO_CRAWL || 1;
-  console.log("> Total Pages of Threads to crawl: ", pageToLookAt);
+  logger.info("> Total Pages of Threads to crawl: ", pageToLookAt);
 
-  const filePath = `./gmail.threads.data`;
+  const filePathThreadList = `./gmail.threads.data`;
+  const filePathLastToken = `./gmail.threads_last_tokens.data`;
   try {
-    return JSON.parse(fs.readFileSync(filePath));
+    return JSON.parse(fs.readFileSync(filePathThreadList));
   } catch (e) {
     // not in cache
-    console.log("> Not found in cache, start fetching thread list");
+    logger.info("> Not found in cache, start fetching thread list");
   }
 
   let pageToken = "";
@@ -524,9 +565,9 @@ async function _getThreadsToProcess() {
     pageToLookAt--;
 
     if (pageToLookAt % 25 === 0 && pageToLookAt > 0) {
-      console.log(`> ${pageToLookAt} pages of threads left`);
+      logger.info(`> ${pageToLookAt} pages of threads left`);
     } else if (pageToLookAt === 0) {
-      console.log(`> Done get thread list`);
+      logger.info(`> Done get thread list`);
     }
   }
 
@@ -534,7 +575,10 @@ async function _getThreadsToProcess() {
   allThreads = allThreads.map((r) => r.id);
 
   // cache it
-  fs.writeFileSync(filePath, JSON.stringify(allThreads, null, 2));
+  fs.writeFileSync(filePathThreadList, JSON.stringify(allThreads, null, 2));
+
+  // save the offset for next try
+  fs.writeFileSync(filePathLastToken, pageToken);
 
   return allThreads;
 }
@@ -624,7 +668,7 @@ export async function _parseGmailAttachment(
   } catch (e) {}
 
   if (hasDownloaded !== true) {
-    // console.log("> Download attachment: ", newFilePath);
+    // logger.info("> Download attachment: ", newFilePath);
 
     // if not, then download from upstream
     const attachmentResponse = await _getAttachment(
@@ -636,7 +680,7 @@ export async function _parseGmailAttachment(
 
     return newFilePath;
   } else {
-    // console.log("> Skipped attachment: ", newFilePath);
+    // logger.info("> Skipped attachment: ", newFilePath);
     return null; // null indicated that we don't need to download, and ignored this entry entirely
   }
 }
@@ -648,11 +692,11 @@ function _saveBase64DataToFile(newFilePath, base64Data) {
       (base64Data || "").replace(/-/g, "+").replace(/_/g, "/"),
       "base64",
       function (err) {
-        console.log(err);
+        logger.info(err);
       }
     );
   } catch (e) {
-    console.log("> Error cannot save binary: ", newFilePath);
+    logger.info("> Error cannot save binary: ", newFilePath);
   }
 }
 
@@ -663,10 +707,10 @@ function _getHeaders(headers) {
   }, {});
 }
 
-async function _processEmails(gmail) {
+async function _processEmails() {
   const threadIds = await _getThreadsToProcess();
   const totalThreadCount = threadIds.length;
-  console.log("Total Threads:", totalThreadCount);
+  logger.info("Total Threads:", totalThreadCount);
 
   let totalMsgCount = 0;
   let processedThreadCount = 0;
@@ -680,7 +724,7 @@ async function _processEmails(gmail) {
       processedThreadCount % 250 === 0 ||
       (percentDone % 20 === 0 && percentDone > 0)
     ) {
-      console.log(
+      logger.info(
         `> ${percentDone}% (${processedThreadCount} / ${totalThreadCount})`
       );
     }
@@ -691,7 +735,7 @@ async function _processEmails(gmail) {
     totalMsgCount += _messages.length;
   }
 
-  console.log("Total Messages:", totalMsgCount);
+  logger.info("Total Messages:", totalMsgCount);
 }
 
 export async function uploadFile(
@@ -759,7 +803,15 @@ export async function uploadFile(
     parentFolderId
   );
   if (matchedResults.length === 0) {
-    return _uploadFileToDrive(fileGDriveMetadata, media);
+    logger.debug("Upload file with create operation", name);
+    return _createFileInDrive(fileGDriveMetadata, media);
+  } else {
+    logger.debug(
+      "Upload file with update operation",
+      name,
+      matchedResults[0].id
+    );
+    return _updateFileInDrive(matchedResults[0].id, fileGDriveMetadata, media);
   }
 }
 
@@ -810,7 +862,8 @@ export const initGoogleApi = (onAfterInitFunc = () => {}) => {
  * entry point to start work on all items
  */
 export function doWorkForAllItems() {
-  initGoogleApi(_processEmails);
+  logger.debug(`Doing work for all items`);
+  return _processEmails();
 }
 
 /**
@@ -818,9 +871,8 @@ export function doWorkForAllItems() {
  * @param targetThreadId
  */
 export function doWorkSingle(targetThreadId) {
-  initGoogleApi(() => {
-    _processMessagesByThreadId(targetThreadId);
-  });
+  logger.debug(`Doing work for single item ${targetThreadId}`);
+  return _processMessagesByThreadId(targetThreadId);
 }
 
 export default doWorkForAllItems;

@@ -3,25 +3,23 @@ require("dotenv").config();
 
 import initDatabase from "./src/models/modelsFactory";
 
-import {
-  initGoogleApi
-} from "./src/crawler/gmailCrawler";
+import { initGoogleApi } from "./src/crawler/gmailCrawler";
 
-import {
-  doWorkForAllItems,
-  doWorkSingle,
-} from "./src/crawler/gdriveCrawler";
+import { doWorkForAllItems, doWorkSingle } from "./src/crawler/gdriveCrawler";
 
 async function _doWork() {
   await initDatabase();
   await initGoogleApi();
 
-  const targetThreadId = process.argv[2]
-  if (targetThreadId){
-    console.log("Starting GDrive Crawler on a single item", targetThreadId);
-    doWorkSingle(targetThreadId);
-  }  else{
-    console.log('Starting GDrive Crawler on all items');
+  const targetThreadIds = (process.argv[2] || "")
+    .split(",")
+    .map((r) => (r || "").trim())
+    .filter((r) => !!r);
+  if (targetThreadIds.length > 0) {
+    for (let targetThreadId of targetThreadIds) {
+      await doWorkSingle(targetThreadId);
+    }
+  } else {
     doWorkForAllItems();
   }
 }
