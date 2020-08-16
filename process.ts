@@ -8,6 +8,7 @@ import Models from "./src/models/modelsSchema";
 import { JSDOM } from "jsdom";
 import {
   init as initGoogleApi,
+  createDriveFolder,
   uploadFile,
   parseHtmlBody,
   parseHtmlTitle,
@@ -49,9 +50,18 @@ async function _crawlUrl(url) {
   }
 }
 
+function _sanitizeFileName(string){
+  return string.replace('|', '');
+}
+
 async function _doWork() {
   await initDatabase();
   await initGoogleApi();
+
+  const noteDestinationFolderId = await createDriveFolder(
+    process.env.NOTE_DESTINATION_FOLDER_NAME,
+    "Note Synchronizer Destination Folder"
+  );
 
   const matchedEmailsResponse: DatabaseResponse<
     Email
@@ -182,12 +192,12 @@ async function _doWork() {
           fs.writeFileSync(localPath, fileContent.trim());
 
           await uploadFile(
-            docFileName,
+            _sanitizeFileName(docFileName),
             "text/html",
             localPath,
             `ThreadId=${threadId} MessageId=${id} Main Email`,
             date,
-            process.env.NOTE_GDRIVE_FOLDER_ID
+            noteDestinationFolderId
           );
         } catch (e) {
           console.error(
@@ -211,12 +221,12 @@ async function _doWork() {
 
         try {
           await uploadFile(
-            attachmentName,
+            _sanitizeFileName(attachmentName),
             attachment.mimeType,
             attachment.path,
             `ThreadId=${threadId} MessageId=${id} Attachment #${AttachmentIdx}`,
             date,
-            process.env.NOTE_GDRIVE_FOLDER_ID
+            noteDestinationFolderId
           );
         } catch (e) {
           console.error(
