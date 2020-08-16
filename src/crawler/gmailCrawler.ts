@@ -543,42 +543,79 @@ function _parseEmailAddress(emailAddress) {
  * get a list of threads to process
  */
 async function _getThreadsToProcess() {
-  let pageToLookAt = process.env.GMAIL_PAGES_TO_CRAWL || 1;
-  logger.info("> Total Pages of Threads to crawl: ", pageToLookAt);
-
+  const crawlFromLastToken = process.env.GMAIL_USE_LAST_PAGE_TOKEN === "true";
   const filePathThreadList = `./gmail.threads.data`;
   const filePathLastToken = `./gmail.threads_last_tokens.data`;
+
+  let pageToken = "";
+  let threadIds = [];
+
   try {
-    return JSON.parse(fs.readFileSync(filePathThreadList));
+    threadIds = JSON.parse(fs.readFileSync(filePathThreadList));
   } catch (e) {
     // not in cache
     logger.info("> Not found in cache, start fetching thread list");
   }
 
-  let pageToken = "";
+  if (crawlFromLastToken !== true) {
+    logger.info("> Return email threads from cache");
+    return threadIds;
+  } else {
+    try {
+      pageToken = fs
+        .readFileSync(filePathLastToken, "UTF-8")
+        .split("\n")
+        .map((r) => r.trim())
+        .filter((r) => !!r);
+      pageToken = pageToken[pageToken.length - 1] || "";
+    } catch (e) {}
+  }
+
+  let pageToLookAt = process.env.GMAIL_PAGES_TO_CRAWL || 1;
+  logger.info(
+    `> Crawl list of email threads: totalPages=${pageToLookAt} lastToken=${pageToken}`
+  );
+
   let allThreads = [];
 
   while (pageToLookAt > 0) {
-    const { threads, nextPageToken } = await _getThreads(pageToken);
-    allThreads = [...allThreads, ...threads];
-    pageToken = nextPageToken;
     pageToLookAt--;
 
-    if (pageToLookAt % 25 === 0 && pageToLookAt > 0) {
-      logger.info(`> ${pageToLookAt} pages of threads left`);
-    } else if (pageToLookAt === 0) {
-      logger.info(`> Done get thread list`);
+    try{
+      const { threads, nextPageToken } = await _getThreads(pageToken);
+      allThreads = [...allThreads, ...(threads || []).map((r) => r.id)];
+      pageToken = nextPageToken;
+
+      if (!nextPageToken) {
+        break;
+      }
+
+      fs.appendFileSync(filePathLastToken, nextPageToken + "\n");
+
+      if (pageToLookAt % 25 === 0 && pageToLookAt > 0) {
+        logger.info(`> ${pageToLookAt} pages of threads left`);
+      } else if (pageToLookAt === 0) {
+        logger.info(`> Done get thread list`);
+      }
+    } catch(e){
+      logger.error(`> Failed to get thread list pageToken=${pageToken}  error=${e}`)
+      break;
     }
   }
 
   // remove things we don't need
-  allThreads = allThreads.map((r) => r.id);
+  const foundIds = {};
+  threadIds = [...threadIds, ...allThreads].filter((threadId) => {
+    if (foundIds[threadId]) {
+      return false; // don't include duplicate
+    }
+    foundIds[threadId] = true;
+    return true;
+  });
 
   // cache it
-  fs.writeFileSync(filePathThreadList, JSON.stringify(allThreads, null, 2));
+  fs.writeFileSync(filePathThreadList, JSON.stringify(threadIds, null, 2));
 
-  // save the offset for next try
-  fs.writeFileSync(filePathLastToken, pageToken);
 
   return allThreads;
 }
