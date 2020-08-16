@@ -36,6 +36,32 @@ Base64.decode(
 ).trim()
 ```
 
+### Gmail Content Parts
+
+Sometimes Gmail Email can have nested parts. I wrote the following calls to flatten the nested parts iteratively
+
+```
+function _flattenGmailPayloadParts(initialParts) {
+  const res = [];
+
+  let stack = [initialParts];
+
+  while (stack.length > 0) {
+    const target = stack.pop();
+    const { parts, ...rest } = target;
+    res.push(rest);
+
+    if (parts && parts.length > 0) {
+      stack = [...stack, ...parts];
+    }
+  }
+
+  return res;
+}
+
+const flattenParts =_flattenGmailPayloadParts(message.payload);
+```
+
 ### Download Gmail attachment
 
 ```
