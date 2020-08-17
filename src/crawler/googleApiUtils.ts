@@ -106,8 +106,12 @@ function getGmailLabels() {
       },
       (err, res) => {
         if (err) {
-          logger.error(`API Failed ${JSON.stringify(err)}`);
-          return reject(err.response.data);
+          logger.error(
+            `Gmail API Failed: \nError=${JSON.stringify(
+              err
+            )} \nRes=${JSON.stringify(res)}`
+          );
+          return reject(err);
         }
         resolve(res.data.labels);
       }
@@ -127,12 +131,16 @@ export function getThreadsByQuery(q, pageToken) {
         userId: "me",
         pageToken,
         q,
-        maxResults: 10000,
+        maxResults: 500, // so far the max is 500
       },
       (err, res) => {
         if (err) {
-          logger.error(`API Failed ${JSON.stringify(err)}`);
-          return reject(err.response.data);
+          logger.error(
+            `Gmail API Failed: \nError=${JSON.stringify(
+              err
+            )} \nRes=${JSON.stringify(res)}`
+          );
+          return reject(err);
         }
         resolve(res.data);
       }
@@ -153,8 +161,12 @@ export function getThreadEmailsByThreadId(targetThreadId) {
       },
       (err, res) => {
         if (err) {
-          logger.error(`API Failed ${JSON.stringify(err)}`);
-          return reject(err.response.data);
+          logger.error(
+            `Gmail API Failed: \nError=${JSON.stringify(
+              err
+            )} \nRes=${JSON.stringify(res)}`
+          );
+          return reject(err);
         }
         resolve(res.data);
       }
@@ -172,8 +184,12 @@ export function getEmailAttachment(messageId, attachmentId) {
       })
       .then((res, err) => {
         if (err) {
-          logger.error(`API Failed ${JSON.stringify(err)}`);
-          return reject(err.response.data);
+          logger.error(
+            `Gmail API Failed: \nError=${JSON.stringify(
+              err
+            )} \nRes=${JSON.stringify(res)}`
+          );
+          return reject(err);
         }
         resolve(res.data.data);
       });
@@ -190,8 +206,12 @@ export function createFileInDrive(resource, media) {
       },
       function (err, res) {
         if (err) {
-          logger.error(`API Failed ${JSON.stringify(err)}`);
-          return reject(err.response.data);
+          logger.error(
+            `Gmail API Failed: \nError=${JSON.stringify(
+              err
+            )} \nRes=${JSON.stringify(res)}`
+          );
+          return reject(err);
         }
         resolve(res.data);
       }
@@ -209,8 +229,12 @@ export function updateFileInDrive(fileId, resource, media) {
       },
       function (err, res) {
         if (err) {
-          logger.error(`API Failed ${JSON.stringify(err)}`);
-          return reject(err.response.data);
+          logger.error(
+            `Gmail API Failed: \nError=${JSON.stringify(
+              err
+            )} \nRes=${JSON.stringify(res)}`
+          );
+          return reject(err);
         }
         resolve(res.data);
       }
@@ -227,8 +251,12 @@ export function createFolderInDrive(resource) {
       },
       function (err, res) {
         if (err) {
-          logger.error(`API Failed ${JSON.stringify(err)}`);
-          return reject(err.response.data);
+          logger.error(
+            `Gmail API Failed: \nError=${JSON.stringify(
+              err
+            )} \nRes=${JSON.stringify(res)}`
+          );
+          return reject(err);
         }
         resolve(res.data);
       }
@@ -262,10 +290,12 @@ export function searchDrive(name, mimeType, parentFolderId) {
       },
       function (err, res) {
         if (err) {
-          return reject({
-            ...err.response.data,
-            q,
-          });
+          logger.error(
+            `Gmail API Failed: \nError=${JSON.stringify(
+              err
+            )} \nRes=${JSON.stringify(res)}`
+          );
+          return reject(err);
         }
         resolve(res.data.files);
       }

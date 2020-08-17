@@ -28,7 +28,7 @@ import {
   MimeTypeEnum,
 } from "./commonUtils";
 
-const useInMemoryCache = true;
+const useInMemoryCache = false;
 
 // google crawler
 const GMAIL_ATTACHMENT_PATH = "./attachments";
@@ -490,8 +490,10 @@ async function _pollNewEmailThreads(q = "") {
 
       fs.appendFileSync(GMAIL_PATH_THREAD_LIST_TOKEN, nextPageToken + "\n");
 
-      if (countPageProcessed % 50 === 0 && countPageProcessed > 0) {
-        logger.info(`So far, ${countPageProcessed} pages crawled. ${allThreads.length} threads found`);
+      if (countPageProcessed % 25 === 0 && countPageProcessed > 0) {
+        logger.info(
+          `So far, ${countPageProcessed} pages crawled. ${allThreads.length} threads found`
+        );
       }
     } catch (err) {
       logger.error(

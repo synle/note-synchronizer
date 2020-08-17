@@ -7,7 +7,7 @@
   "scripts": {
     "clean": "mkdir -p attachments processed caches logs && rm -rf processed/* logs/*",
     "clean:full": "npm run clean && rm -rf caches/*",
-    "prestart": "npm run format:js && clear",
+    "prestart": "npm run format:js && npm run clean && clear",
     "job1": "npm run work_poll",
     "job2": "npm run work_fetch_all_emails",
     "job3": "npm run work_process_gdrive_all_emails",
