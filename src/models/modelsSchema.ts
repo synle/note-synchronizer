@@ -103,6 +103,12 @@ export class Thread extends Model {
 
   @attribute(Thread)
   public processedDate!: number;
+
+  @attribute(Thread)
+  public duration!: number;
+
+  @attribute(Thread)
+  public totalMessages!: number;
 }
 
 /**

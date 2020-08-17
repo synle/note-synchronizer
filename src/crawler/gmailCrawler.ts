@@ -53,6 +53,7 @@ export function _processMessagesByThreadId(
     const attachmentsPromises = []; // promises to keep track of attachment async download
     const attachmentsToSave = [];
     const messagesToSave = [];
+    const startDuration = Date.now();
 
     let threadMessages;
     let foundRawEmailsFromDbOrCache = false;
@@ -292,7 +293,9 @@ export function _processMessagesByThreadId(
 
           if (websiteRes && websiteRes.subject) {
             subject = (websiteRes.subject || "").trim();
-            body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr />${websiteRes.body}`.trim();
+            body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr />${_prettifyHtml(
+              websiteRes.body
+            )}`.trim();
           } else {
             logger.debug(`Crawl failed for id=${id} url${urlToCrawl}`);
             body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr /><h2>404_Page_Not_Found</h2>`.trim();
@@ -306,7 +309,9 @@ export function _processMessagesByThreadId(
             const websiteRes = await crawlUrl(urlToCrawl);
             if (websiteRes && websiteRes.subject) {
               subject = `${subject} - ${websiteRes.subject || ""}`.trim();
-              body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr />${websiteRes.body}`.trim();
+              body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr />${_prettifyHtml(
+                websiteRes.body
+              )}`.trim();
             } else {
               logger.debug(`Crawl failed for id=${id} url${urlToCrawl}`);
               body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr /><h2>404_Page_Not_Found</h2>`.trim();
@@ -328,7 +333,7 @@ export function _processMessagesByThreadId(
           to: to.join(",") || null,
           bcc: bcc.join(",") || null,
           date,
-          labelIds: (labelIds || []).join(","),
+          labelIds: (labelIds || []).join(",") || null,
         };
 
         logger.debug(
@@ -392,6 +397,8 @@ export function _processMessagesByThreadId(
     Models.Thread.update(
       {
         processedDate: Date.now(),
+        duration: Date.now() - startDuration,
+        totalMessages: threadMessages.length,
       },
       {
         where: {
@@ -456,6 +463,9 @@ async function _getThreadIdsToProcess() {
           [Op.eq]: null,
         },
       },
+      order: [
+        ["updatedAt", "DESC"], // start with the one that changes recenty
+      ],
     });
     return databaseResponse.map(({ threadId }) => threadId);
   } catch (err) {
@@ -519,7 +529,10 @@ async function _pollNewEmailThreads(q = "") {
     await Models.Thread.bulkCreate(
       threadIdsChunk.map((threadId) => ({
         threadId,
-        processedDate: null, // this is to re-trigger the thread fetch, basically we want to reprocess this...
+        // this is to re-trigger the thread fetch, basically we want to reprocess this...
+        processedDate: null,
+        duration: null,
+        totalMessages: null,
       })),
       {
         updateOnDuplicate: ["processedDate"],
