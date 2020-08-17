@@ -127,6 +127,7 @@ export function getThreadsByQuery(q, pageToken) {
         userId: "me",
         pageToken,
         q,
+        maxResults: 10000,
       },
       (err, res) => {
         if (err) {
