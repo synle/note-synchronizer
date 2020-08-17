@@ -86,9 +86,9 @@ async function _processMessages(messagesToProcess) {
 
     subject = (subject || "").trim();
 
-    const labelIdsList = (labelIds || '').split(',');
+    const labelIdsList = (labelIds || "").split(",");
 
-    const starred = labelIdsList.some( labelId => labelId.includes('STARRED') );
+    const starred = labelIdsList.some((labelId) => labelId.includes("STARRED"));
 
     const rawBody = (email.rawBody || "").trim();
 

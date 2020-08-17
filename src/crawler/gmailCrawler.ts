@@ -720,7 +720,9 @@ export async function uploadFile(
   starred = false,
   parentFolderId = process.env.NOTE_GDRIVE_FOLDER_ID
 ) {
-  mimeType = mimeType.toLowerCase();
+  const originalMimeType = mimeType.toLowerCase();
+
+  mimeType = originalMimeType;
   switch (mimeType) {
     case MimeTypeEnum.TEXT_PLAIN:
     case MimeTypeEnum.TEXT_XML:
@@ -743,12 +745,13 @@ export async function uploadFile(
     [
       MimeTypeEnum.APP_MS_DOC,
       MimeTypeEnum.APP_MS_DOCX,
-      MimeTypeEnum.TEXT_PLAIN,
       MimeTypeEnum.TEXT_X_AMP_HTML,
       MimeTypeEnum.TEXT_HTML,
     ].includes(mimeType)
   ) {
     mimeTypeToUse = MimeTypeEnum.APP_GOOGLE_DOCUMENT;
+  } else if ([MimeTypeEnum.TEXT_PLAIN].includes(mimeType)) {
+    mimeTypeToUse = MimeTypeEnum.APP_GOOGLE_SCRIPT;
   } else if (
     [MimeTypeEnum.APP_MS_PPT, MimeTypeEnum.APP_MS_PPTX].includes(mimeType)
   ) {
@@ -904,7 +907,8 @@ export async function doDecodeBase64ForRawContent() {
       if (processedSofar % 1000 === 0) {
         logger.info(
           `${processedSofar} / ${messagesFromDatabase.length} (${(
-            (processedSofar / messagesFromDatabase.length) * 100
+            (processedSofar / messagesFromDatabase.length) *
+            100
           ).toFixed(1)}%)`
         );
 
