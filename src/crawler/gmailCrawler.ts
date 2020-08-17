@@ -770,6 +770,8 @@ export async function uploadFile(
     createdTime,
     description,
     starred,
+    useContentAsIndexableText: true,
+    enforceSingleParent: true,
   };
 
   const media = {
@@ -899,7 +901,7 @@ export async function doDecodeBase64ForRawContent() {
     for (let messageResponse of messagesFromDatabase) {
       processedSofar++;
 
-      if (processedSofar % 5000 === 0) {
+      if (processedSofar % 1000 === 0) {
         logger.info(
           `${processedSofar} / ${messagesFromDatabase.length} (${(
             (processedSofar / messagesFromDatabase.length) * 100
