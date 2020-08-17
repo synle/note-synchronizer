@@ -330,26 +330,6 @@ export function _processMessagesByThreadId(
       );
     });
 
-    // await Models.Email.create(messageToUse).catch((err) => {
-    //   // attempt to do update
-    //   logger.debug(
-    //     `Inserting email failed, trying updating threadId=${threadId} id=${id} ${
-    //     err.stack || JSON.stringify(err)
-    //     }`
-    //   );
-    //   return Models.Email.update(messageToUse, {
-    //     where: {
-    //       id: messageToUse.id,
-    //     },
-    //   }).catch((err) => {
-    //     logger.error(
-    //       `Upsert email failed threadId=${threadId} id=${id} ${
-    //       err.stack || JSON.stringify(err)
-    //       }`
-    //     );
-    //   });
-    // });
-
     // save attachments
     logger.debug(
       `Saving attachments: threadId=${targetThreadId} total=${attachmentsToSave.length}`
@@ -363,32 +343,6 @@ export function _processMessagesByThreadId(
         } id=${attachment.messageId} ${err.stack || JSON.stringify(err)}`
       );
     });
-    // for (let attachment of attachments) {
-    //   // note we don't block sql database here...
-    //   Models.Attachment.create(attachment).catch((err) => {
-    //     // attempt to do update
-    //     logger.debug(
-    //       `Insert attachment failed, trying to do update instead threadId=${
-    //         attachment.threadId
-    //       } id=${attachment.messageId} attachmentId=${attachment.id} ${
-    //         err.stack || JSON.stringify(err)
-    //       }`
-    //     );
-    //     return Models.Attachment.update(attachment, {
-    //       where: {
-    //         id: attachment.id,
-    //       },
-    //     }).catch((err) => {
-    //       logger.error(
-    //         `Upsert email attachment failed threadId=${
-    //           attachment.threadId
-    //         } id=${attachment.messageId} attachmentId=${attachment.id} ${
-    //           err.stack || JSON.stringify(err)
-    //         }`
-    //       );
-    //     });
-    //   });
-    // }
 
     logger.debug(`Done processing threadId=${targetThreadId}`);
 
