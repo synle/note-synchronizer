@@ -34,6 +34,9 @@ export class RawContent extends Model {
 
   @attribute(RawContent, { type: DataTypes.TEXT, allowNull: false })
   public rawApiResponse!: string;
+
+  @attribute(RawContent)
+  public date!: number;
 }
 
 // parsed emails and threads

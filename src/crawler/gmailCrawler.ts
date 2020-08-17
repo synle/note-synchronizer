@@ -128,6 +128,7 @@ export function _processMessagesByThreadId(
           messageId: id,
           threadId: threadId,
           rawApiResponse: JSON.stringify(message),
+          date: message.internalDate || Date.now(),
         }).catch((err) => {
           logger.error(
             `Insert raw content failed threadId=${threadId} id=${id} ${
@@ -881,7 +882,9 @@ export async function doGmailWorkPollThreadList() {
 export async function doDecodeBase64ForRawContent() {
   logger.info(`doDecodeBase64ForRawContent`);
 
-  const messagesFromDatabase = await Models.RawContent.findAll({});
+  const messagesFromDatabase = await Models.RawContent.findAll({
+    // limit: 1
+  });
 
   logger.info(
     `doDecodeBase64ForRawContent : start decoding ${messagesFromDatabase.length}`
@@ -897,7 +900,7 @@ export async function doDecodeBase64ForRawContent() {
       if (processedSofar % 5000 === 0) {
         logger.info(
           `${processedSofar} / ${messagesFromDatabase.length} (${(
-            processedSofar / messagesFromDatabase.length
+            (processedSofar / messagesFromDatabase.length) * 100
           ).toFixed(1)}%)`
         );
 
@@ -907,26 +910,27 @@ export async function doDecodeBase64ForRawContent() {
 
       const message = JSON.parse(messageResponse.dataValues.rawApiResponse);
 
-      // look for parts and parse it
-      const parts = flattenGmailPayloadParts(message.payload);
-      if (parts && parts.length > 0) {
-        for (let part of parts) {
-          if (part.body.data) {
-            part.body.data = _parseGmailMessage(part.body.data);
-          }
-        }
-      }
+      // // look for parts and parse it
+      // const parts = flattenGmailPayloadParts(message.payload);
+      // if (parts && parts.length > 0) {
+      //   for (let part of parts) {
+      //     if (part.body.data) {
+      //       part.body.data = _parseGmailMessage(part.body.data);
+      //     }
+      //   }
+      // }
 
       const newRawMessage = {
         ...messageResponse.dataValues,
         rawApiResponse: JSON.stringify(message),
+        date: message.internalDate,
       };
 
       messagesToDecode.push(newRawMessage);
 
       if (messagesToDecode.length === 100) {
         await Models.RawContent.bulkCreate(messagesToDecode, {
-          updateOnDuplicate: ["rawApiResponse"],
+          updateOnDuplicate: ["rawApiResponse", "date"],
         });
         messagesToDecode = [];
       }

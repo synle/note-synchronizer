@@ -124,11 +124,13 @@ application/vnd.google-apps.presentation (Google Slides)
 ### SQL Queries
 
 #### Show list of messages and their timestamp
+
 ```
 SELECT id, threadId,  subject, body, datetime(date / 1000, 'unixepoch') as time FROM "emails" ORDER BY date DESC LIMIT 20
 ```
 
 #### Reset processed and restart the full load
+
 ```
 UPDATE "threads" SET processedDate = null
 ```
