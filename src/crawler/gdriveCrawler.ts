@@ -3,6 +3,8 @@ require("dotenv").config();
 import fs from "fs";
 import { Email, DatabaseResponse, Attachment } from "../types";
 import Models from "../models/modelsSchema";
+
+// TODO: move these into the GoogleApiUtils
 import { createDriveFolder, uploadFile } from "../crawler/gmailCrawler";
 
 import { logger } from "../loggers";

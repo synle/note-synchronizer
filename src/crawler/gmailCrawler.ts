@@ -31,13 +31,15 @@ import {
   MimeTypeEnum,
 } from "./commonUtils";
 
-const useInMemoryCache = false; // whether or not to build up the map in memory
+const useInMemoryCache = true; // whether or not to build up the map in memory
 
 // google crawler
-const MAX_CONCURRENT_THREAD_QUEUE = 15;
+const MAX_CONCURRENT_THREAD_QUEUE = 25;
+
 const GMAIL_ATTACHMENT_PATH = "./attachments";
 const GMAIL_PATH_THREAD_LIST_TOKEN = `./caches/gmail.threads_last_tokens.data`;
 
+const MAX_TIME_PER_THREAD = 90000;
 // crawler start
 
 /**
@@ -49,13 +51,18 @@ export function _processMessagesByThreadId(
   inMemoryMapForMessages
 ): Promise<Email[]> {
   return new Promise(async (resolve, reject) => {
-    // get from gmail api
     const attachmentsPromises = []; // promises to keep track of attachment async download
     const attachmentsToSave = [];
     const messagesToSave = [];
     const startDuration = Date.now();
 
-    let threadMessages;
+    setTimeout(() => {
+      logger.error(
+        `Aborted working on thread No messages found with this threadId: threadId=${targetThreadId}`
+      );
+    }, MAX_TIME_PER_THREAD);
+
+    let threadMessages = [];
     let foundRawEmailsFromDbOrCache = false;
 
     logger.debug(`Start working on thread: threadId=${targetThreadId}`);
@@ -66,12 +73,12 @@ export function _processMessagesByThreadId(
         threadMessages = inMemoryMapForMessages;
         foundRawEmailsFromDbOrCache = true;
         logger.debug(
-          `Threads Result threadId=${targetThreadId} from Memory: threadMessages=${threadMessages.length}`
+          `Threads Result from Memory threadId=${targetThreadId}: threadMessages=${threadMessages.length}`
         );
       }
 
       // attempting at getting the emails from the database
-      if (!threadMessages) {
+      if (threadMessages.length === 0) {
         const messagesFromDatabase = await Models.RawContent.findAll({
           where: {
             threadId: targetThreadId,
@@ -79,7 +86,7 @@ export function _processMessagesByThreadId(
         });
 
         logger.debug(
-          `Threads Result threadId=${targetThreadId} from DB: ${messagesFromDatabase.length}`
+          `Threads Result from DB threadId=${targetThreadId}: ${messagesFromDatabase.length}`
         );
 
         if (messagesFromDatabase && messagesFromDatabase.length > 0) {
@@ -91,17 +98,24 @@ export function _processMessagesByThreadId(
       }
 
       // get emails from the database
-      if (!threadMessages) {
+      if (threadMessages.length === 0) {
         const { messages } = await getThreadEmailsByThreadId(targetThreadId);
 
         logger.debug(
-          `Threads Result threadId=${targetThreadId} from API: ${messages.length}`
+          `Threads Result from API threadId=${targetThreadId}: ${messages.length}`
         );
 
         threadMessages = messages;
       }
     } catch (e) {
       logger.error(`Cannot fetch thread : threadId=${targetThreadId} : ${e}`);
+    }
+
+    if (threadMessages.length === 0) {
+      logger.error(
+        `Aborted working on thread No messages found with this threadId: threadId=${targetThreadId}`
+      );
+      return resolve(threadMessages.length);
     }
 
     logger.debug(
@@ -500,7 +514,7 @@ async function _pollNewEmailThreads(q = "") {
 
     try {
       const { threads, nextPageToken } = await getThreadsByQuery(q, pageToken);
-      threadIds = [...threadIds, ...(threads || []).map((r) => r.id)];
+      threadIds = [...threadIds, ...threads];
       pageToken = nextPageToken;
 
       if (!nextPageToken) {
@@ -528,8 +542,10 @@ async function _pollNewEmailThreads(q = "") {
   const threadIdsChunks = chunk(threadIds, 50); // maximum page size
   for (let threadIdsChunk of threadIdsChunks) {
     await Models.Thread.bulkCreate(
-      threadIdsChunk.map((threadId) => ({
-        threadId,
+      threadIdsChunk.map(({ id, historyId, snippet }) => ({
+        threadId: id,
+        historyId,
+        snippet,
         // this is to re-trigger the thread fetch, basically we want to reprocess this...
         processedDate: null,
         duration: null,
@@ -650,7 +666,7 @@ function _saveBase64DataToFile(newFilePath, base64Data) {
       (base64Data || "").replace(/-/g, "+").replace(/_/g, "/"),
       "base64",
       function (err) {
-        logger.info(err);
+        logger.info(`Failed _saveBase64DataToFile ${newFilePath} ${err}`);
       }
     );
   } catch (e) {
@@ -674,7 +690,8 @@ async function _processEmails(threadIds, inMemoryLookupContent = {}) {
   let totalMsgCount = 0;
   let countProcessedThread = 0;
 
-  let promisePool = [];
+  let actionPromisesPool = [];
+  let threadIdsPool = [];
 
   for (let threadId of threadIds) {
     const percentDone = (
@@ -683,7 +700,7 @@ async function _processEmails(threadIds, inMemoryLookupContent = {}) {
     ).toFixed(2);
 
     if (
-      countProcessedThread % 5000 === 0 ||
+      countProcessedThread % 250 === 0 ||
       (percentDone % 20 === 0 && percentDone > 0)
     ) {
       logger.info(
@@ -693,7 +710,7 @@ async function _processEmails(threadIds, inMemoryLookupContent = {}) {
     countProcessedThread++;
 
     // search for the thread
-    promisePool.push(
+    actionPromisesPool.push(
       _processMessagesByThreadId(
         threadId,
         inMemoryLookupContent[threadId]
@@ -702,9 +719,16 @@ async function _processEmails(threadIds, inMemoryLookupContent = {}) {
       )
     );
 
-    if (promisePool.length === MAX_CONCURRENT_THREAD_QUEUE) {
-      await Promise.all(promisePool);
-      promisePool = [];
+    threadIdsPool.push(threadId);
+
+    if (actionPromisesPool.length === MAX_CONCURRENT_THREAD_QUEUE) {
+      logger.debug(
+        `Waiting for threads to be processed: \n${threadIdsPool.join("\n")}`
+      );
+
+      await Promise.allSettled(actionPromisesPool);
+      actionPromisesPool = [];
+      threadIdsPool = [];
     }
   }
 
@@ -743,6 +767,7 @@ export async function uploadFile(
     mimeTypeToUse = MimeTypeEnum.APP_GOOGLE_SPREADSHEET;
   } else if (
     [
+      MimeTypeEnum.APP_RTF,
       MimeTypeEnum.APP_MS_DOC,
       MimeTypeEnum.APP_MS_DOCX,
       MimeTypeEnum.TEXT_X_AMP_HTML,
@@ -904,7 +929,7 @@ export async function doDecodeBase64ForRawContent() {
     for (let messageResponse of messagesFromDatabase) {
       processedSofar++;
 
-      if (processedSofar % 1000 === 0) {
+      if (processedSofar % 500 === 0) {
         logger.info(
           `${processedSofar} / ${messagesFromDatabase.length} (${(
             (processedSofar / messagesFromDatabase.length) *

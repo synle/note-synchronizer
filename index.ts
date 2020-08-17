@@ -62,7 +62,7 @@ async function _doWork() {
         break;
     }
   } catch (e) {
-    console.log("e", e);
+    logger.error(`Main Process Failed: ${e && e.stack} ${e}`);
   }
 }
 
