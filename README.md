@@ -132,5 +132,9 @@ SELECT id, threadId,  subject, body, datetime(date / 1000, 'unixepoch') as time 
 #### Reset processed and restart the full load
 
 ```
-UPDATE "threads" SET processedDate = null
+UPDATE "threads"
+SET
+  processedDate = null,
+  duration = null,
+  totalMessages = null
 ```

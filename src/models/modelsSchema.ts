@@ -112,6 +112,12 @@ export class Thread extends Model {
 
   @attribute(Thread)
   public totalMessages!: number;
+
+  @attribute(Thread)
+  public historyId!: string;
+
+  @attribute(Thread)
+  public snippet!: string;
 }
 
 /**
@@ -150,17 +156,17 @@ export class Email extends Model {
   @attribute(Email)
   public bcc!: string;
 
-  @attribute(Email, { type: DataTypes.TEXT })
-  public body!: string;
-
-  @attribute(Email, { type: DataTypes.TEXT })
-  public rawBody!: string;
-
   @attribute(Email)
   public subject!: string;
 
   @attribute(Email)
   public rawSubject!: string;
+
+  @attribute(Email, { type: DataTypes.TEXT })
+  public body!: string;
+
+  @attribute(Email, { type: DataTypes.TEXT })
+  public rawBody!: string;
 
   @attribute(Email)
   public date!: number;

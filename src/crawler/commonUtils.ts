@@ -3,7 +3,7 @@ import { logger } from "../loggers";
 import { parseHtmlTitle } from "./gmailCrawler";
 
 // default timeout for axios
-axios.defaults.timeout = 1000;
+axios.defaults.timeout = 500;
 
 export const mySignatureTokens = (process.env.MY_SIGNATURE_TOKEN || "").split(
   "|||"
@@ -29,7 +29,9 @@ export enum MimeTypeEnum {
   APP_MS_PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   APP_MS_DOC = "application/msword",
   APP_MS_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  APP_RTF = "application/rtf",
   APP_XML = "application/xml",
+  APP_PDF = "application/pdf",
   IMAGE_GIF = "image/gif",
   IMAGE_JPEG = "image/jpeg",
   IMAGE_JPG = "image/jpg",
