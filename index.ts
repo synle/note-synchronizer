@@ -3,8 +3,9 @@ require("dotenv").config();
 
 import initDatabase from "./src/models/modelsFactory";
 
+import { initGoogleApi } from "./src/crawler/googleApiUtils";
+
 import {
-  initGoogleApi,
   doGmailWorkPollThreadList,
   doGmailWorkForAllItems,
   doGmailWorkByThreadIds,
