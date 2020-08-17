@@ -100,6 +100,9 @@ export class Thread extends Model {
     unique: true,
   })
   public threadId!: string;
+
+  @attribute(Thread)
+  public processedDate!: number;
 }
 
 /**

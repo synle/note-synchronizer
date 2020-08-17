@@ -6,6 +6,7 @@ const { JSDOM } = require("jsdom");
 const moment = require("moment");
 const { chunk } = require("lodash");
 const prettier = require("prettier");
+import { Op } from "sequelize";
 
 import { Email, Headers, GmailAttachmentResponse } from "../types";
 import Models from "../models/modelsSchema";
@@ -30,7 +31,6 @@ import {
   MimeTypeEnum,
 } from "./commonUtils";
 
-const reprocessEmailFetch = false; // whether or not to rebuild the email details regardless if we already have the record in the database
 const useInMemoryCache = false; // whether or not to build up the map in memory
 
 // google crawler
@@ -58,24 +58,6 @@ export function _processMessagesByThreadId(
     let foundRawEmailsFromDbOrCache = false;
 
     logger.debug(`Start working on thread: threadId=${targetThreadId}`);
-
-    // see if we need to ignore this email
-    if (reprocessEmailFetch !== true) {
-      try {
-        const matchedProcessedEmails = await Models.Email.findAll({
-          where: {
-            threadId: targetThreadId,
-          },
-        });
-
-        if (matchedProcessedEmails.length > 0) {
-          logger.debug(
-            `Skipped processing due to reprocessEmailFetch=false and records exist in the database threadId=${targetThreadId} totalMessages=${matchedProcessedEmails.length}`
-          );
-          return;
-        }
-      } catch (err) {}
-    }
 
     try {
       // attempting at getting it from the in memory map
@@ -406,6 +388,18 @@ export function _processMessagesByThreadId(
 
     logger.debug(`Done processing threadId=${targetThreadId}`);
 
+    // update the process time
+    Models.Thread.update(
+      {
+        processedDate: Date.now(),
+      },
+      {
+        where: {
+          threadId: targetThreadId,
+        },
+      }
+    );
+
     resolve(threadMessages.length);
   });
 }
@@ -456,7 +450,13 @@ function _parseEmailAddress(emailAddress) {
  */
 async function _getThreadIdsToProcess() {
   try {
-    const databaseResponse = await Models.Thread.findAll({});
+    const databaseResponse = await Models.Thread.findAll({
+      where: {
+        processedDate: {
+          [Op.eq]: null,
+        },
+      },
+    });
     return databaseResponse.map(({ threadId }) => threadId);
   } catch (err) {
     // not in cache
@@ -519,7 +519,11 @@ async function _pollNewEmailThreads(q = "") {
     await Models.Thread.bulkCreate(
       threadIdsChunk.map((threadId) => ({
         threadId,
-      }))
+        processedDate: null, // this is to re-trigger the thread fetch, basically we want to reprocess this...
+      })),
+      {
+        updateOnDuplicate: ["processedDate"],
+      }
     ).catch(() => {});
   }
 }
@@ -665,7 +669,7 @@ async function _processEmails(threadIds, inMemoryLookupContent = {}) {
     ).toFixed(2);
 
     if (
-      countProcessedThread % 100 === 0 ||
+      countProcessedThread % 5000 === 0 ||
       (percentDone % 20 === 0 && percentDone > 0)
     ) {
       logger.info(
