@@ -7,7 +7,7 @@ import { createDriveFolder, uploadFile } from "../crawler/gmailCrawler";
 
 import { logger } from "../loggers";
 
-import { myEmails, ignoredTokens } from "./commonUtils";
+import { myEmails, ignoredWordTokens } from "./commonUtils";
 
 let noteDestinationFolderId;
 
@@ -43,7 +43,7 @@ async function _init() {
 async function _processMessages(messagesToProcess) {
   const countTotalMessages = messagesToProcess.length;
   logger.info(
-    `> Total Messages To Sync with Google Drive: ${countTotalMessages}`
+    `Total Messages To Sync with Google Drive: ${countTotalMessages}`
   );
 
   let countProcessedMessages = 0;
@@ -61,12 +61,12 @@ async function _processMessages(messagesToProcess) {
       countProcessedMessages % 100 === 0
     ) {
       logger.debug(
-        `> ${percentDone}% (${countProcessedMessages}/${countTotalMessages})`
+        `${percentDone}% (${countProcessedMessages}/${countTotalMessages})`
       );
     }
     countProcessedMessages++;
 
-    let { threadId, id, body, from, bcc, to, subject, date } = email;
+    let { threadId, id, from, bcc, to, subject, date } = email;
     const toEmailList = (bcc || "")
       .split(",")
       .concat((to || "").split(","))
@@ -78,14 +78,15 @@ async function _processMessages(messagesToProcess) {
         // only use attachments that is not small images
         const attachmentStats = fs.statSync(attachment.path);
         return (
-          attachmentStats.size < MINIMUM_IMAGE_SIZE_IN_BITS &&
-          attachment.mimeType.includes("images/") === 0
+          (attachmentStats.size < MINIMUM_IMAGE_SIZE_IN_BITS &&
+            attachment.mimeType.includes("images/")) ||
+          !attachment.mimeType.includes("images/")
         );
       });
 
     subject = (subject || "").trim();
 
-    body = (body || "").trim();
+    const rawBody = (email.rawBody || "").trim();
 
     const toEmailAddresses = toEmailList.join(", ");
 
@@ -103,14 +104,14 @@ async function _processMessages(messagesToProcess) {
 
     // ignored if content contains the ignored patterns
     if (
-      ignoredTokens.some((ignoredToken) =>
-        body.toLowerCase().includes(ignoredToken)
+      ignoredWordTokens.some((ignoredToken) =>
+        rawBody.toLowerCase().includes(ignoredToken)
       ) ||
-      ignoredTokens.some((ignoredToken) =>
+      ignoredWordTokens.some((ignoredToken) =>
         subject.toLowerCase().includes(ignoredToken)
       )
     ) {
-      logger.debug(`> Skipped due to Ignored Pattern: ${subject}`);
+      logger.debug(`Skipped due to Ignored Pattern: ${subject}`);
 
       continue; // skipped
     }
@@ -118,7 +119,7 @@ async function _processMessages(messagesToProcess) {
     if (isEmailSentByMe || isEmailSentToMySelf || hasSomeAttachments) {
       // upload the doc itself
       // only log email if there're some content
-      if (body.length > 0) {
+      if (rawBody.length > 0) {
         const localPath = `${PROCESSED_EMAIL_PREFIX_PATH}/processed.${email.id}.data`;
 
         docFileName = _sanitizeFileName(subject);
@@ -132,10 +133,10 @@ async function _processMessages(messagesToProcess) {
           <div><b><u>threadId:</u></b> ${threadId}</div>
           <div><b><u>messageId:</u></b> ${id}</div>
           <hr />
-          ${body}`.trim();
+          ${rawBody}`.trim();
           fs.writeFileSync(localPath, fileContent.trim());
 
-          logger.debug(`> Upload original note file ${docFileName}`);
+          logger.debug(`Upload original note file ${docFileName}`);
 
           await uploadFile(
             docFileName,
@@ -147,7 +148,7 @@ async function _processMessages(messagesToProcess) {
           );
         } catch (e) {
           logger.error(
-            ` > Error - Failed ot original note - ThreadId=${threadId} MessageId=${id} attachmentName=${docFileName} ${
+            `Error - Failed ot original note - ThreadId=${threadId} MessageId=${id} attachmentName=${docFileName} ${
               attachment.mimeType
             } ${JSON.stringify(e, null, 2)}`
           );
@@ -155,6 +156,9 @@ async function _processMessages(messagesToProcess) {
       }
 
       // then upload the associated attachments
+      logger.debug(
+        `Start upload attachment job ThreadId=${threadId} MessageId=${id} ${attachments.length}`
+      );
       let AttachmentIdx = 0;
       for (let attachment of attachments) {
         AttachmentIdx++;
@@ -163,7 +167,7 @@ async function _processMessages(messagesToProcess) {
         );
 
         logger.debug(
-          ` > Upload Attachment ThreadId=${threadId} MessageId=${id} attachmentName=${attachmentName} ${attachment.mimeType}`
+          `Upload Attachment ThreadId=${threadId} MessageId=${id} attachmentName=${attachmentName} ${attachment.mimeType}`
         );
 
         try {
@@ -177,7 +181,7 @@ async function _processMessages(messagesToProcess) {
           );
         } catch (e) {
           logger.error(
-            ` > Error - Failed ot upload attachment - ThreadId=${threadId} MessageId=${id} attachmentName=${attachmentName} ${
+            `Error - Failed ot upload attachment - ThreadId=${threadId} MessageId=${id} attachmentName=${attachmentName} ${
               attachment.mimeType
             } ${JSON.stringify(e, null, 2)}`
           );

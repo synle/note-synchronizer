@@ -111,6 +111,16 @@ export function _processMessagesByThreadId(
 
       // store raw content
       if (foundFromDb !== true) {
+        // look for parts and parse it. Do decode base 64 of parts
+        const parts = flattenGmailPayloadParts(message.payload);
+        if (parts && parts.length > 0) {
+          for (let part of parts) {
+            if (part.body.data) {
+              part.body.data = _parseGmailMessage(part.body.data);
+            }
+          }
+        }
+
         await Models.RawContent.create({
           messageId: id,
           threadId: threadId,
@@ -128,7 +138,7 @@ export function _processMessagesByThreadId(
     // start processing
     for (let message of threadMessages) {
       try {
-        const { id, threadId } = message;
+        const { id, threadId, labelIds } = message;
         const messageDate = message.internalDate;
 
         let rawBody = "";
@@ -227,13 +237,13 @@ export function _processMessagesByThreadId(
                 case "text/plain":
                   if (!rawBody) {
                     // only store the rawbody if it's not already defined
-                    rawBody = _parseGmailMessage(data);
+                    rawBody = data;
                   }
                   break;
 
                 case "text/x-amp-html":
                 case "text/html":
-                  rawBody = _parseGmailMessage(data);
+                  rawBody = data;
                   break;
               }
             }
@@ -312,6 +322,7 @@ export function _processMessagesByThreadId(
           to: to.join(",") || null,
           bcc: bcc.join(",") || null,
           date,
+          labelIds: (labelIds || []).join(","),
         };
 
         logger.debug(
@@ -362,10 +373,10 @@ export function _processMessagesByThreadId(
     await Models.Attachment.bulkCreate(attachmentsToSave, {
       updateOnDuplicate: ["mimeType", "fileName", "path", "headers"],
     }).catch((err) => {
-      logger.debug(
-        `Bulk create attachment failed, trying to do update instead threadId=${
-          attachment.threadId
-        } id=${attachment.messageId} ${err.stack || JSON.stringify(err)}`
+      logger.error(
+        `Bulk create attachment failed, trying to do update instead threadId=${targetThreadId} ${
+          err.stack || JSON.stringify(err)
+        }`
       );
     });
 
@@ -505,11 +516,10 @@ async function _pollNewEmailThreads(q = "") {
  * @param string
  */
 export function _cleanHtml(string) {
-  return string
-    .replace(
-      /<style( type="[a-zA-Z/+]+")?>[a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/ŤŮ>?&~+µ]+<\/style>/gi,
-      ""
-    );
+  return string.replace(
+    /<style( type="[a-zA-Z/+]+")?>[a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/ŤŮ>?&~+µ]+<\/style>/gi,
+    ""
+  );
 }
 
 /**
@@ -517,9 +527,9 @@ export function _cleanHtml(string) {
  * @param bodyData
  */
 export function _parseGmailMessage(bodyData) {
-  return Base64.decode(
-    (bodyData || "").replace(/-/g, "+").replace(/_/g, "/")
-  ).trim();
+  return Base64.decode((bodyData || "").replace(/-/g, "+").replace(/_/g, "/"))
+    .trim()
+    .replace("\r\n", "");
 }
 
 export function parseHtmlBodyWithoutParser(html) {
@@ -781,13 +791,13 @@ export async function doGmailWorkForAllItems() {
     try {
       const messagesFromDatabase = await Models.RawContent.findAll({});
       if (messagesFromDatabase && messagesFromDatabase.length > 0) {
-        messagesFromDatabase.forEach((message) => {
+        for (let message of messagesFromDatabase) {
           inMemoryLookupContent[message.threadId] =
             inMemoryLookupContent[message.threadId] || [];
           inMemoryLookupContent[message.threadId].push(
             JSON.parse(message.dataValues.rawApiResponse)
           );
-        });
+        }
       }
     } catch (e) {}
 
@@ -827,4 +837,63 @@ export async function doGmailWorkPollThreadList() {
   // get emails in draft
   logger.info(`Get threads from Draft Folders`);
   await _pollNewEmailThreads("in:drafts");
+}
+
+// this job is temporary, will be removed
+export async function doDecodeBase64ForRawContent() {
+  logger.info(`doDecodeBase64ForRawContent`);
+
+  const messagesFromDatabase = await Models.RawContent.findAll({});
+
+  logger.info(
+    `doDecodeBase64ForRawContent : start decoding ${messagesFromDatabase.length}`
+  );
+
+  let processedSofar = 0;
+  let messagesToDecode = [];
+
+  if (messagesFromDatabase && messagesFromDatabase.length > 0) {
+    for (let messageResponse of messagesFromDatabase) {
+      processedSofar++;
+
+      if (processedSofar % 5000 === 0) {
+        logger.info(
+          `${processedSofar} / ${messagesFromDatabase.length} (${(
+            processedSofar / messagesFromDatabase.length
+          ).toFixed(1)}%)`
+        );
+
+        if (messagesToDecode.length > 0)
+          logger.info(` > messageId: ${messagesToDecode[0].messageId}`);
+      }
+
+      const message = JSON.parse(messageResponse.dataValues.rawApiResponse);
+
+      // look for parts and parse it
+      const parts = flattenGmailPayloadParts(message.payload);
+      if (parts && parts.length > 0) {
+        for (let part of parts) {
+          if (part.body.data) {
+            part.body.data = _parseGmailMessage(part.body.data);
+          }
+        }
+      }
+
+      const newRawMessage = {
+        ...messageResponse.dataValues,
+        rawApiResponse: JSON.stringify(message),
+      };
+
+      messagesToDecode.push(newRawMessage);
+
+      if (messagesToDecode.length === 100) {
+        await Models.RawContent.bulkCreate(messagesToDecode, {
+          updateOnDuplicate: ["rawApiResponse"],
+        });
+        messagesToDecode = [];
+      }
+    }
+  }
+
+  logger.info(`doDecodeBase64ForRawContent : done decoding`);
 }
