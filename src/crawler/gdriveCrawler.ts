@@ -86,15 +86,15 @@ async function _processMessages(messagesToProcess) {
 
     let docFileName = subject;
 
-    const isEmailSentToMySelf =
-      myEmails.some((myEmail) => from.includes(myEmail)) &&
-      myEmails.some((myEmail) =>
-        toEmailList.some((toEmail) => toEmail.includes(myEmail))
-      );
+    const isEmailSentToMySelf = myEmails.some((myEmail) =>
+      toEmailList.some((toEmail) => toEmail.includes(myEmail))
+    );
+
+    const isEmailSentByMe = myEmails.some((myEmail) => from.includes(myEmail));
 
     const hasSomeAttachments = attachments.length > 0;
 
-    if (isEmailSentToMySelf || hasSomeAttachments) {
+    if (isEmailSentByMe || isEmailSentToMySelf || hasSomeAttachments) {
       // ignored if content contains the ignored patterns
       if (
         ignoredTokens.some((ignoredToken) =>

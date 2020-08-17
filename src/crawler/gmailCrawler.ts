@@ -90,14 +90,16 @@ function _listLabels() {
 
 /**
  * api to get the list of threads
+ * @param q
  * @param pageToken
  */
-function _getThreads(pageToken) {
+function _getThreads(q, pageToken) {
   return new Promise((resolve, reject) => {
     gmail.users.threads.list(
       {
         userId: "me",
         pageToken,
+        q,
       },
       (err, res) => {
         if (err) {
@@ -422,7 +424,9 @@ export function _processMessagesByThreadId(
           rawApiResponse: JSON.stringify(message),
         }).catch((err) => {
           logger.error(
-            `Insert raw content failed threadId=${threadId} id=${id} ${err}`
+            `Insert raw content failed threadId=${threadId} id=${id} ${
+              err.stack || JSON.stringify(err)
+            }`
           );
         });
       }
@@ -608,7 +612,9 @@ export function _processMessagesByThreadId(
         await Models.Email.create(messageToUse).catch((err) => {
           // attempt to do update
           logger.debug(
-            `Inserting email failed, trying updating threadId=${threadId} id=${id} ${err}`
+            `Inserting email failed, trying updating threadId=${threadId} id=${id} ${
+              err.stack || JSON.stringify(err)
+            }`
           );
           return Models.Email.update(messageToUse, {
             where: {
@@ -616,13 +622,17 @@ export function _processMessagesByThreadId(
             },
           }).catch((err) => {
             logger.error(
-              `Upsert email failed threadId=${threadId} id=${id} ${err}`
+              `Upsert email failed threadId=${threadId} id=${id} ${
+                err.stack || JSON.stringify(err)
+              }`
             );
           });
         });
       } catch (err) {
         logger.error(
-          `Failed to process threadId=${threadId} id=${id}   error=${err}`
+          `Failed to process threadId=${threadId} id=${id}   error=${
+            err.stack || JSON.stringify(err)
+          }`
         );
       }
     }
@@ -636,7 +646,11 @@ export function _processMessagesByThreadId(
       Models.Attachment.create(attachment).catch((err) => {
         // attempt to do update
         logger.debug(
-          `Insert attachment failed, trying to do update instead threadId=${attachment.threadId} id=${attachment.messageId} attachmentId=${attachment.id} ${err}`
+          `Insert attachment failed, trying to do update instead threadId=${
+            attachment.threadId
+          } id=${attachment.messageId} attachmentId=${attachment.id} ${
+            err.stack || JSON.stringify(err)
+          }`
         );
         return Models.Attachment.update(attachment, {
           where: {
@@ -644,7 +658,11 @@ export function _processMessagesByThreadId(
           },
         }).catch((err) => {
           logger.error(
-            `Upsert email attachment failed threadId=${attachment.threadId} id=${attachment.messageId} attachmentId=${attachment.id} ${err}`
+            `Upsert email attachment failed threadId=${
+              attachment.threadId
+            } id=${attachment.messageId} attachmentId=${attachment.id} ${
+              err.stack || JSON.stringify(err)
+            }`
           );
         });
       });
@@ -710,7 +728,7 @@ async function _getThreadIdsToProcess() {
   }
 }
 
-async function _pollNewEmailThreads() {
+async function _pollNewEmailThreads(q = "") {
   let countPageProcessed = 0;
   let pageToken = "";
   let threadIds = [];
@@ -742,7 +760,7 @@ async function _pollNewEmailThreads() {
     countPageProcessed++;
 
     try {
-      const { threads, nextPageToken } = await _getThreads(pageToken);
+      const { threads, nextPageToken } = await _getThreads(q, pageToken);
       allThreads = [...allThreads, ...(threads || []).map((r) => r.id)];
       pageToken = nextPageToken;
 
@@ -755,9 +773,9 @@ async function _pollNewEmailThreads() {
       if (countPageProcessed % 25 === 0 && countPageProcessed > 0) {
         logger.info(`${countPageProcessed} pages crawled so far`);
       }
-    } catch (e) {
+    } catch (err) {
       logger.error(
-        `Failed to get thread list pageToken=${pageToken}  error=${e}`
+        `Failed to get thread list pageToken=${pageToken}  error=${err.stack}`
       );
       break;
     }
@@ -1112,5 +1130,16 @@ export async function doGmailWorkByThreadIds(targetThreadId) {
  */
 export async function doGmailWorkPollThreadList() {
   logger.info(`doGmailWorkPollThreadList`);
-  return _pollNewEmailThreads();
+
+  // get emails from inbox
+  logger.info(`Get threads from Inbox / All Mails`);
+  await _pollNewEmailThreads();
+
+  // get emails sent by me
+  logger.info(`Get threads from emails sent by me`);
+  await _pollNewEmailThreads("from:(me)");
+
+  // get emails in draft
+  logger.info(`Get threads from Draft Folders`);
+  await _pollNewEmailThreads("in:drafts");
 }
