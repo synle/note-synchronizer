@@ -66,7 +66,7 @@ async function _processMessages(messagesToProcess) {
     }
     countProcessedMessages++;
 
-    let { threadId, id, from, bcc, to, subject, date } = email;
+    let { threadId, id, from, bcc, to, subject, date, labelIds } = email;
     const toEmailList = (bcc || "")
       .split(",")
       .concat((to || "").split(","))
@@ -85,6 +85,10 @@ async function _processMessages(messagesToProcess) {
       });
 
     subject = (subject || "").trim();
+
+    const labelIdsList = (labelIds || '').split(',');
+
+    const starred = labelIdsList.some( labelId => labelId.includes('STARRED') );
 
     const rawBody = (email.rawBody || "").trim();
 
@@ -144,6 +148,7 @@ async function _processMessages(messagesToProcess) {
             localPath,
             `ThreadId=${threadId} MessageId=${id} Main Email`,
             date,
+            starred,
             noteDestinationFolderId
           );
         } catch (e) {
@@ -177,6 +182,7 @@ async function _processMessages(messagesToProcess) {
             attachment.path,
             `ThreadId=${threadId} MessageId=${id} Attachment #${AttachmentIdx}`,
             date,
+            starred,
             noteDestinationFolderId
           );
         } catch (e) {

@@ -717,6 +717,7 @@ export async function uploadFile(
   localPath,
   description,
   dateEpochTime,
+  starred = false,
   parentFolderId = process.env.NOTE_GDRIVE_FOLDER_ID
 ) {
   mimeType = mimeType.toLowerCase();
@@ -768,6 +769,7 @@ export async function uploadFile(
     modifiedTime,
     createdTime,
     description,
+    starred,
   };
 
   const media = {
