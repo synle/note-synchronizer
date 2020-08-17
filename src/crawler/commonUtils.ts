@@ -9,8 +9,10 @@ export const mySignatureTokens = (process.env.MY_SIGNATURE_TOKEN || "").split(
   "|||"
 );
 
-export const myEmails = (process.env.MY_EMAIL || "").split("|||");
-export const ignoredTokens = (process.env.IGNORED_TOKEN || "").split("|||");
+export const myEmails = (process.env.MY_EMAIL_TOKENS || "").split("|||");
+export const ignoredTokens = (process.env.IGNORED_WORD_TOKENS || "").split(
+  "|||"
+);
 
 const ignoredUrlTokens = (process.env.IGNORED_URL_TOKENS || "").split("|||");
 
@@ -39,7 +41,8 @@ export enum MimeTypeEnum {
   TEXT_XML = "text/xml",
   TEXT_CSV = "text/csv",
 }
-const REGEX_URL = /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/;
+
+export const REGEX_URL = /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/;
 
 export function isStringUrl(string) {
   string = string || "";

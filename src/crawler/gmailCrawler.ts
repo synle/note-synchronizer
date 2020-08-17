@@ -48,6 +48,7 @@ export function _processMessagesByThreadId(
 ): Promise<Email[]> {
   return new Promise(async (resolve, reject) => {
     // get from gmail api
+    const attachmentsPromises = []; // promises to keep track of attachment async download
     const attachmentsToSave = [];
     const messagesToSave = [];
 
@@ -151,7 +152,7 @@ export function _processMessagesByThreadId(
               continue;
             } else if (attachmentId) {
               logger.debug(
-                `Parsing Message Attachment: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`
+                `Download Message Attachment Async: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType} attachmentId=${attachmentId}`
               );
 
               // is attachment, then download it
@@ -160,25 +161,33 @@ export function _processMessagesByThreadId(
                 attachmentId,
                 fileName,
               };
-              const attachmentPath = await _parseGmailAttachment(
-                id,
-                attachment
-              );
 
-              attachmentsToSave.push({
-                id: attachment.attachmentId,
-                threadId,
-                messageId: id,
-                mimeType: attachment.mimeType,
-                fileName: attachment.fileName,
-                path: attachmentPath,
-                headers: JSON.stringify(_getHeaders(part.headers || [])),
-              });
+              // download attachment async
+              attachmentsPromises.push(
+                _parseGmailAttachment(id, attachment)
+                  .then((attachmentPath) => {
+                    attachmentsToSave.push({
+                      id: attachment.attachmentId,
+                      threadId,
+                      messageId: id,
+                      mimeType: attachment.mimeType,
+                      fileName: attachment.fileName,
+                      path: attachmentPath,
+                      headers: JSON.stringify(_getHeaders(part.headers || [])),
+                    });
+                  })
+                  .catch((err) => {
+                    logger.error(
+                      `Download Message Attachment Async Failed: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType} attachmentId=${attachmentId} ${err}`
+                    );
+                  })
+              );
             } else {
               // regular file
               logger.debug(
                 `Parsing Message as Raw Content: threadId=${threadId} id=${id} partId=${partId}`
               );
+
               switch (mimeType) {
                 case "multipart/alternative":
                 case "multipart/related":
@@ -192,10 +201,16 @@ export function _processMessagesByThreadId(
                 case "image/jpg":
                 case "image/jpeg":
                 case "image/gif":
+                  // this is inline attachment, no need to download it
+                  logger.debug(
+                    `Storing Inline Attachment: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`
+                  );
+
                   const inlineFileName =
                     fileName || `parts.${threadId}.${id}.${partId}`;
 
                   const newFilePath = `${GMAIL_ATTACHMENT_PATH}/${inlineFileName}`;
+
                   _saveBase64DataToFile(newFilePath, data);
 
                   attachmentsToSave.push({
@@ -338,9 +353,12 @@ export function _processMessagesByThreadId(
     });
 
     // save attachments
+    await Promise.all(attachmentsPromises); // waiting for attachment to download
+
     logger.debug(
-      `Saving attachments: threadId=${targetThreadId} total=${attachmentsToSave.length}`
+      `Saving attachments: threadId=${targetThreadId} totalAttachments=${attachmentsToSave.length} totalDownloadJobs=${attachmentsPromises.length}`
     );
+
     await Models.Attachment.bulkCreate(attachmentsToSave, {
       updateOnDuplicate: ["mimeType", "fileName", "path", "headers"],
     }).catch((err) => {
@@ -491,14 +509,6 @@ export function _cleanHtml(string) {
     .replace(
       /<style( type="[a-zA-Z/+]+")?>[a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/ŤŮ>?&~+µ]+<\/style>/gi,
       ""
-    )
-    .replace(
-      /style=["'][a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/ŤŮ>?&~+µ]+["']/gi,
-      ""
-    )
-    .replace(
-      /<script( type="[a-zA-Z/+]+")?>[a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/ŤŮ>?&~+µ]+<\/script>/gi,
-      ""
     );
 }
 
@@ -547,7 +557,7 @@ export function parseHtmlBody(html) {
 
 export function parseHtmlTitle(html) {
   try {
-    const dom = new JSDOM(html);
+    const dom = new JSDOM(_cleanHtml(html));
     return dom.window.document.title.trim();
   } catch (e) {}
 }
