@@ -30,7 +30,8 @@ import {
   MimeTypeEnum,
 } from "./commonUtils";
 
-const useInMemoryCache = false;
+const reprocessEmailFetch = false; // whether or not to rebuild the email details regardless if we already have the record in the database
+const useInMemoryCache = false; // whether or not to build up the map in memory
 
 // google crawler
 const MAX_CONCURRENT_THREAD_QUEUE = 15;
@@ -54,15 +55,33 @@ export function _processMessagesByThreadId(
     const messagesToSave = [];
 
     let threadMessages;
-    let foundFromDb = false;
+    let foundRawEmailsFromDbOrCache = false;
 
     logger.debug(`Start working on thread: threadId=${targetThreadId}`);
+
+    // see if we need to ignore this email
+    if (reprocessEmailFetch !== true) {
+      try {
+        const matchedProcessedEmails = await Models.Email.findAll({
+          where: {
+            threadId: targetThreadId,
+          },
+        });
+
+        if (matchedProcessedEmails.length > 0) {
+          logger.debug(
+            `Skipped processing due to reprocessEmailFetch=false and records exist in the database threadId=${targetThreadId} totalMessages=${matchedProcessedEmails.length}`
+          );
+          return;
+        }
+      } catch (err) {}
+    }
 
     try {
       // attempting at getting it from the in memory map
       if (inMemoryMapForMessages && inMemoryMapForMessages.length > 0) {
         threadMessages = inMemoryMapForMessages;
-        foundFromDb = true;
+        foundRawEmailsFromDbOrCache = true;
         logger.debug(
           `Threads Result threadId=${targetThreadId} from Memory: threadMessages=${threadMessages.length}`
         );
@@ -84,7 +103,7 @@ export function _processMessagesByThreadId(
           threadMessages = messagesFromDatabase.map((message) =>
             JSON.parse(message.dataValues.rawApiResponse)
           );
-          foundFromDb = true;
+          foundRawEmailsFromDbOrCache = true;
         }
       }
 
@@ -111,7 +130,7 @@ export function _processMessagesByThreadId(
       const { id, threadId } = message;
 
       // store raw content
-      if (foundFromDb !== true) {
+      if (foundRawEmailsFromDbOrCache !== true) {
         // look for parts and parse it. Do decode base 64 of parts
         const parts = flattenGmailPayloadParts(message.payload);
         if (parts && parts.length > 0) {
