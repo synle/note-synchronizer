@@ -5,6 +5,7 @@ const fs = require("fs");
 const { JSDOM } = require("jsdom");
 const moment = require("moment");
 const { chunk } = require("lodash");
+const prettier = require("prettier");
 
 import { Email, Headers, GmailAttachmentResponse } from "../types";
 import Models from "../models/modelsSchema";
@@ -199,18 +200,18 @@ export function _processMessagesByThreadId(
               );
 
               switch (mimeType) {
-                case "multipart/alternative":
-                case "multipart/related":
+                case MimeTypeEnum.MULTIPART_ALTERNATIVE:
+                case MimeTypeEnum.MULTIPART_RELATED:
                   logger.error(
                     `Unsupported mimetype threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`
                   );
                   break;
 
                 default:
-                case "image/png":
-                case "image/jpg":
-                case "image/jpeg":
-                case "image/gif":
+                case MimeTypeEnum.IMAGE_GIF:
+                case MimeTypeEnum.IMAGE_PNG:
+                case MimeTypeEnum.IMAGE_JPG:
+                case MimeTypeEnum.IMAGE_JPEG:
                   // this is inline attachment, no need to download it
                   logger.debug(
                     `Storing Inline Attachment: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`
@@ -234,16 +235,16 @@ export function _processMessagesByThreadId(
                   });
                   break;
 
-                case "text/plain":
+                case MimeTypeEnum.TEXT_PLAIN:
                   if (!rawBody) {
                     // only store the rawbody if it's not already defined
                     rawBody = data;
                   }
                   break;
 
-                case "text/x-amp-html":
-                case "text/html":
-                  rawBody = data;
+                case MimeTypeEnum.TEXT_X_AMP_HTML:
+                case MimeTypeEnum.TEXT_HTML:
+                  rawBody = _prettifyHtml(data);
                   break;
               }
             }
@@ -513,6 +514,14 @@ export function _cleanHtml(string) {
     /<style( type="[a-zA-Z/+]+")?>[a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/ŤŮ>?&~+µ]+<\/style>/gi,
     ""
   );
+}
+
+function _prettifyHtml(bodyHtml) {
+  try {
+    return prettier.format(bodyHtml, { parser: "html" });
+  } catch (e) {}
+
+  return bodyHtml;
 }
 
 /**
