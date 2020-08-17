@@ -2,12 +2,17 @@ import axios from "axios";
 import { logger } from "../loggers";
 import { parseHtmlTitle } from "./gmailCrawler";
 
+// default timeout for axios
+axios.defaults.timeout = 350;
+
 export const mySignatureTokens = (process.env.MY_SIGNATURE_TOKEN || "").split(
   "|||"
 );
 
 export const myEmails = (process.env.MY_EMAIL || "").split("|||");
 export const ignoredTokens = (process.env.IGNORED_TOKEN || "").split("|||");
+
+const ignoredUrlTokens = (process.env.IGNORED_URL_TOKENS || "").split("|||");
 
 export enum MimeTypeEnum {
   APP_JSON = "application/json",
@@ -37,7 +42,13 @@ export enum MimeTypeEnum {
 const REGEX_URL = /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/;
 
 export function isStringUrl(string) {
-  return (string.match(REGEX_URL) || []).length > 0;
+  string = string || "";
+  return (
+    (string.match(REGEX_URL) || []).length > 0 &&
+    ignoredUrlTokens.every(
+      (ignoreUrlToken) => !string.toLowerCase().includes(ignoreUrlToken)
+    )
+  );
 }
 
 export function extractUrlFromString(string) {
@@ -46,9 +57,9 @@ export function extractUrlFromString(string) {
 
 export async function crawlUrl(url) {
   try {
-    const response = await axios(url).catch((err) => logger.debug(err));
+    const response = await axios(url);
     if (!response || response.status !== 200) {
-      logger.debug(`Error crawlUrl: ${url} ${JSON.stringify(response)}`);
+      logger.debug(`Error crawlUrl: ${url} ${response}`);
       return;
     }
     const rawHtmlBody = response.data;
@@ -57,7 +68,7 @@ export async function crawlUrl(url) {
       subject: parseHtmlTitle(rawHtmlBody) || "",
       body: rawHtmlBody,
     };
-  } catch (e) {
-    logger.debug(`Error crawlUrl: ${url} ${e}`);
+  } catch (err) {
+    logger.debug(`Error crawlUrl: ${url} ${err} ${err.stack}`);
   }
 }
