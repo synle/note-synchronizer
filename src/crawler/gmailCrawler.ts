@@ -31,6 +31,7 @@ import {
 const useInMemoryCache = false;
 
 // google crawler
+const MAX_CONCURRENT_THREAD_QUEUE = 15;
 const GMAIL_ATTACHMENT_PATH = "./attachments";
 const GMAIL_PATH_THREAD_LIST = `./caches/gmail.threads.data`;
 const GMAIL_PATH_THREAD_LIST_TOKEN = `./caches/gmail.threads_last_tokens.data`;
@@ -53,7 +54,7 @@ export function _processMessagesByThreadId(
     let threadMessages;
     let foundFromDb = false;
 
-    logger.debug(`Working on thread: ${targetThreadId}`);
+    logger.debug(`Start working on thread: threadId=${targetThreadId}`);
 
     try {
       // attempting at getting it from the in memory map
@@ -61,7 +62,7 @@ export function _processMessagesByThreadId(
         threadMessages = inMemoryMapForMessages;
         foundFromDb = true;
         logger.debug(
-          `Threads Result from Memory: threadMessages=${threadMessages.length}`
+          `Threads Result threadId=${targetThreadId} from Memory: threadMessages=${threadMessages.length}`
         );
       }
 
@@ -73,7 +74,9 @@ export function _processMessagesByThreadId(
           },
         });
 
-        logger.debug(`Threads Result from DB: ${messagesFromDatabase.length}`);
+        logger.debug(
+          `Threads Result threadId=${targetThreadId} from DB: ${messagesFromDatabase.length}`
+        );
 
         if (messagesFromDatabase && messagesFromDatabase.length > 0) {
           threadMessages = messagesFromDatabase.map((message) =>
@@ -87,7 +90,9 @@ export function _processMessagesByThreadId(
       if (!threadMessages) {
         const { messages } = await getThreadEmailsByThreadId(targetThreadId);
 
-        logger.debug(`Threads Result from API: ${messages.length}`);
+        logger.debug(
+          `Threads Result threadId=${targetThreadId} from API: ${messages.length}`
+        );
 
         threadMessages = messages;
       }
@@ -96,7 +101,7 @@ export function _processMessagesByThreadId(
     }
 
     logger.debug(
-      `Found and start processing ${threadMessages.length} messages`
+      `Found and start processing threadId=${targetThreadId} totalMessages=${threadMessages.length}`
     );
 
     // persist things into the raw content db...
@@ -171,7 +176,9 @@ export function _processMessagesByThreadId(
               });
             } else {
               // regular file
-              logger.debug(`Parse Message: ${mimeType}`);
+              logger.debug(
+                `Parsing Message as Raw Content: threadId=${threadId} id=${id} partId=${partId}`
+              );
               switch (mimeType) {
                 case "multipart/alternative":
                 case "multipart/related":
@@ -334,7 +341,7 @@ export function _processMessagesByThreadId(
     logger.debug(
       `Saving attachments: threadId=${targetThreadId} total=${attachmentsToSave.length}`
     );
-    Models.Attachment.bulkCreate(attachmentsToSave, {
+    await Models.Attachment.bulkCreate(attachmentsToSave, {
       updateOnDuplicate: ["mimeType", "fileName", "path", "headers"],
     }).catch((err) => {
       logger.debug(
@@ -607,6 +614,9 @@ async function _processEmails(threadIds, inMemoryLookupContent = {}) {
 
   let totalMsgCount = 0;
   let countProcessedThread = 0;
+
+  let promisePool = [];
+
   for (let threadId of threadIds) {
     const percentDone = (
       (countProcessedThread / countTotalThreads) *
@@ -624,11 +634,19 @@ async function _processEmails(threadIds, inMemoryLookupContent = {}) {
     countProcessedThread++;
 
     // search for the thread
-    const processedMessageCount = await _processMessagesByThreadId(
-      threadId,
-      inMemoryLookupContent[threadId]
+    promisePool.push(
+      _processMessagesByThreadId(
+        threadId,
+        inMemoryLookupContent[threadId]
+      ).then(
+        (processedMessageCount) => (totalMsgCount += processedMessageCount)
+      )
     );
-    totalMsgCount += processedMessageCount;
+
+    if (promisePool.length === MAX_CONCURRENT_THREAD_QUEUE) {
+      await Promise.all(promisePool);
+      promisePool = [];
+    }
   }
 
   logger.info(`Total Messages: ${totalMsgCount}`);
