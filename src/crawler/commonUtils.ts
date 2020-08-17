@@ -3,7 +3,7 @@ import { logger } from "../loggers";
 import { parseHtmlTitle } from "./gmailCrawler";
 
 // default timeout for axios
-axios.defaults.timeout = 350;
+axios.defaults.timeout = 300;
 
 export const mySignatureTokens = (process.env.MY_SIGNATURE_TOKEN || "").split(
   "|||"
