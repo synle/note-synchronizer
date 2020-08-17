@@ -12,7 +12,7 @@ import { DataTypes, Model } from "sequelize";
  * this is where we store all the attachments
  */
 @table("attachments", {
-  timestamps: false,
+  timestamps: true,
 })
 @index([
   {
@@ -86,7 +86,7 @@ export class RawContent extends Model {
  * this is the email
  */
 @table("emails", {
-  timestamps: false,
+  timestamps: true,
 })
 @index([
   {
@@ -135,6 +135,9 @@ export class Email extends Model {
 
   @attribute(Email, { type: DataTypes.TEXT })
   public headers!: string;
+
+  @attribute(Email)
+  public labelIds!: string;
 
   @relationship(Email, {
     relationship: Relationship.hasMany,

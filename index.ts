@@ -9,6 +9,7 @@ import {
   doGmailWorkPollThreadList,
   doGmailWorkForAllItems,
   doGmailWorkByThreadIds,
+  doDecodeBase64ForRawContent,
 } from "./src/crawler/gmailCrawler";
 
 import {
@@ -54,6 +55,10 @@ async function _doWork() {
 
       case "process_gdrive_selected_emails":
         await doGdriveWorkByThreadIds(targetThreadIds);
+        break;
+
+      case "decode":
+        await doDecodeBase64ForRawContent();
         break;
     }
   } catch (e) {

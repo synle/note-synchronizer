@@ -10,7 +10,7 @@ export const mySignatureTokens = (process.env.MY_SIGNATURE_TOKEN || "").split(
 );
 
 export const myEmails = (process.env.MY_EMAIL_TOKENS || "").split("|||");
-export const ignoredTokens = (process.env.IGNORED_WORD_TOKENS || "").split(
+export const ignoredWordTokens = (process.env.IGNORED_WORD_TOKENS || "").split(
   "|||"
 );
 
