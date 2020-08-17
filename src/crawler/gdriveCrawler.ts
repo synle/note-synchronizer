@@ -7,10 +7,9 @@ import { createDriveFolder, uploadFile } from "../crawler/gmailCrawler";
 
 import { logger } from "../loggers";
 
+import { myEmails, ignoredTokens } from "./commonUtils";
+
 let noteDestinationFolderId;
-const myEmails = (process.env.MY_EMAIL || "").split("|||");
-const mySignatureTokens = (process.env.MY_SIGNATURE_TOKEN || "").split("|||");
-const ignoredTokens = (process.env.IGNORED_TOKEN || "").split("|||");
 
 const PROCESSED_EMAIL_PREFIX_PATH = "./processed";
 
@@ -68,7 +67,11 @@ async function _processMessages(messagesToProcess) {
     countProcessedMessages++;
 
     let { threadId, id, body, from, bcc, to, subject, date } = email;
-    const toEmailList = (bcc || "").split(",").concat((to || "").split(","));
+    const toEmailList = (bcc || "")
+      .split(",")
+      .concat((to || "").split(","))
+      .map((r) => r.trim())
+      .filter((r) => !!r);
     const attachments: Attachment[] = (email.Attachments || [])
       .map((a) => a.dataValues)
       .filter((attachment) => {
@@ -84,31 +87,35 @@ async function _processMessages(messagesToProcess) {
 
     body = (body || "").trim();
 
-    let docFileName = subject;
+    const toEmailAddresses = toEmailList.join(", ");
 
-    const isEmailSentToMySelf = myEmails.some((myEmail) =>
-      toEmailList.some((toEmail) => toEmail.includes(myEmail))
-    );
+    let docFileName = subject;
 
     const isEmailSentByMe = myEmails.some((myEmail) => from.includes(myEmail));
 
+    const isEmailSentToMySelf =
+      isEmailSentByMe &&
+      myEmails.some((myEmail) =>
+        toEmailList.some((toEmail) => toEmail.includes(myEmail))
+      );
+
     const hasSomeAttachments = attachments.length > 0;
 
+    // ignored if content contains the ignored patterns
+    if (
+      ignoredTokens.some((ignoredToken) =>
+        body.toLowerCase().includes(ignoredToken)
+      ) ||
+      ignoredTokens.some((ignoredToken) =>
+        subject.toLowerCase().includes(ignoredToken)
+      )
+    ) {
+      logger.debug(`> Skipped due to Ignored Pattern: ${subject}`);
+
+      continue; // skipped
+    }
+
     if (isEmailSentByMe || isEmailSentToMySelf || hasSomeAttachments) {
-      // ignored if content contains the ignored patterns
-      if (
-        ignoredTokens.some((ignoredToken) =>
-          body.toLowerCase().includes(ignoredToken)
-        ) ||
-        ignoredTokens.some((ignoredToken) =>
-          subject.toLowerCase().includes(ignoredToken)
-        )
-      ) {
-        logger.debug(`> Skipped due to Ignored Pattern: ${subject}`);
-
-        continue; // skipped
-      }
-
       // upload the doc itself
       // only log email if there're some content
       if (body.length > 0) {
@@ -121,6 +128,7 @@ async function _processMessages(messagesToProcess) {
           <h1>${subject}</h1>
           <hr />
           <div><b><u>from:</u></b> ${from}</div>
+          <div><b><u>to:</u></b> ${toEmailAddresses}</div>
           <div><b><u>threadId:</u></b> ${threadId}</div>
           <div><b><u>messageId:</u></b> ${id}</div>
           <hr />

@@ -1,355 +1,41 @@
 // @ts-nocheck
 const { Readability } = require("@mozilla/readability");
 const { Base64 } = require("js-base64");
-import axios from "axios";
 const fs = require("fs");
 const { JSDOM } = require("jsdom");
-const readline = require("readline");
-const { google } = require("googleapis");
 const moment = require("moment");
 
-import {
-  Email,
-  Headers,
-  DatabaseResponse,
-  GmailAttachmentResponse,
-} from "../types";
+import { Email, Headers, GmailAttachmentResponse } from "../types";
 import Models from "../models/modelsSchema";
 
 import { logger } from "../loggers";
+import {
+  getThreadEmailsByThreadId,
+  getThreadsByQuery,
+  getEmailAttachment,
+  searchDrive,
+  createFileInDrive,
+  updateFileInDrive,
+  createFolderInDrive,
+  flattenGmailPayloadParts,
+} from "./googleApiUtils";
 
-let gmail;
-let drive;
+import {
+  mySignatureTokens,
+  isStringUrl,
+  extractUrlFromString,
+  crawlUrl,
+  MimeTypeEnum,
+} from "./commonUtils";
 
-const useInMemoryCache = true;
-
-const mySignatureTokens = (process.env.MY_SIGNATURE_TOKEN || "").split("|||");
-
-enum MimeTypeEnum {
-  APP_JSON = "application/json",
-  APP_GOOGLE_DOCUMENT = "application/vnd.google-apps.document",
-  APP_GOOGLE_FOLDER = "application/vnd.google-apps.folder",
-  APP_GOOGLE_PRESENTATION = "application/vnd.google-apps.presentation",
-  APP_GOOGLE_SPREADSHEET = "application/vnd.google-apps.spreadsheet",
-  APP_MS_XLS = "application/vnd.ms-excel",
-  APP_MS_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // TODO: confirm
-  APP_MS_PPT = "application/vnd.ms-powerpoint",
-  APP_MS_PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  APP_MS_DOC = "application/msword", // TODO: confirm
-  APP_MS_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  APP_XML = "application/xml",
-  IMAGE_GIF = "image/gif",
-  IMAGE_JPEG = "image/jpeg",
-  IMAGE_JPG = "image/jpg",
-  IMAGE_PNG = "image/png",
-  MULTIPART_ALTERNATIVE = "multipart/alternative",
-  MULTIPART_RELATED = "multipart/related",
-  TEXT_HTML = "text/html",
-  TEXT_PLAIN = "text/plain",
-  TEXT_PLAIN = "text/plain",
-  TEXT_X_AMP_HTML = "text/x-amp-html",
-  TEXT_XML = "text/xml",
-  TEXT_CSV = "text/csv",
-}
+const useInMemoryCache = false;
 
 // google crawler
-// If modifying these scopes, delete token.json.
-const SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"].concat([
-  "https://www.googleapis.com/auth/drive",
-]);
-// The file token.json stores the user's access and refresh tokens, and is
-// created automatically when the authorization flow completes for the first
-// time.
-const GMAIL_TOKEN_PATH = "token.json";
-const GMAIL_CREDENTIALS_PATH = "credentials.json";
 const GMAIL_ATTACHMENT_PATH = "./attachments";
-
 const GMAIL_PATH_THREAD_LIST = `./caches/gmail.threads.data`;
 const GMAIL_PATH_THREAD_LIST_TOKEN = `./caches/gmail.threads_last_tokens.data`;
 
-// core apis
-/**
- * Lists the labels in the user's account.
- */
-function _listLabels() {
-  return new Promise((resolve, reject) => {
-    gmail.users.labels.list(
-      {
-        userId: "me",
-      },
-      (err, res) => {
-        if (err) {
-          logger.error(`API Failed ${JSON.stringify(err)}`);
-          return reject(err.response.data);
-        }
-        resolve(res.data.labels);
-      }
-    );
-  });
-}
-
-/**
- * api to get the list of threads
- * @param q
- * @param pageToken
- */
-function _getThreads(q, pageToken) {
-  return new Promise((resolve, reject) => {
-    gmail.users.threads.list(
-      {
-        userId: "me",
-        pageToken,
-        q,
-      },
-      (err, res) => {
-        if (err) {
-          logger.error(`API Failed ${JSON.stringify(err)}`);
-          return reject(err.response.data);
-        }
-        resolve(res.data);
-      }
-    );
-  });
-}
-
-/**
- * get a list of emails by threads
- * @param targetThreadId
- */
-function _getThreadEmails(targetThreadId) {
-  return new Promise((resolve, reject) => {
-    gmail.users.threads.get(
-      {
-        userId: "me",
-        id: targetThreadId,
-      },
-      (err, res) => {
-        if (err) {
-          logger.error(`API Failed ${JSON.stringify(err)}`);
-          return reject(err.response.data);
-        }
-        resolve(res.data);
-      }
-    );
-  });
-}
-
-function _getAttachment(messageId, attachmentId) {
-  return new Promise((resolve, rejects) => {
-    gmail.users.messages.attachments
-      .get({
-        id: attachmentId,
-        messageId,
-        userId: "me",
-      })
-      .then((res, err) => {
-        if (err) {
-          logger.error(`API Failed ${JSON.stringify(err)}`);
-          return reject(err.response.data);
-        }
-        resolve(res.data.data);
-      });
-  });
-}
-
-function _createFileInDrive(resource, media) {
-  return new Promise((resolve, reject) => {
-    drive.files.create(
-      {
-        resource,
-        media,
-        fields: "id",
-      },
-      function (err, res) {
-        if (err) {
-          logger.error(`API Failed ${JSON.stringify(err)}`);
-          return reject(err.response.data);
-        }
-        resolve(res.data);
-      }
-    );
-  });
-}
-
-function _updateFileInDrive(fileId, resource, media) {
-  return new Promise((resolve, reject) => {
-    drive.files.update(
-      {
-        fileId,
-        media,
-        fields: "id",
-      },
-      function (err, res) {
-        if (err) {
-          logger.error(`API Failed ${JSON.stringify(err)}`);
-          return reject(err.response.data);
-        }
-        resolve(res.data);
-      }
-    );
-  });
-}
-
-function _createFolderInDrive(resource) {
-  return new Promise((resolve, reject) => {
-    drive.files.create(
-      {
-        resource,
-        fields: "id",
-      },
-      function (err, res) {
-        if (err) {
-          logger.error(`API Failed ${JSON.stringify(err)}`);
-          return reject(err.response.data);
-        }
-        resolve(res.data);
-      }
-    );
-  });
-}
-
-const REGEX_URL = /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/;
-
-function _isStringUrl(string) {
-  return (string.match(REGEX_URL) || []).length > 0;
-}
-
-function _extractUrlFromString(string) {
-  return string.match(REGEX_URL)[0];
-}
-
-async function _crawlUrl(url) {
-  try {
-    const response = await axios(url).catch((err) => logger.debug(err));
-    if (!response || response.status !== 200) {
-      logger.debug(`Error crawlUrl: ${url} ${JSON.stringify(response)}`);
-      return;
-    }
-    const rawHtmlBody = response.data;
-
-    return {
-      subject: parseHtmlTitle(rawHtmlBody) || "",
-      body: rawHtmlBody,
-    };
-  } catch (e) {
-    logger.debug(`Error crawlUrl: ${url} ${e}`);
-  }
-}
-
-function _sanatizeGoogleQuery(string) {
-  return (string || "").replace(/'/g, "\\'");
-}
-
-function _searchGoogleDrive(name, mimeType, parentFolderId) {
-  const queries = [];
-
-  queries.push(`trashed=false`);
-
-  queries.push(`name='${_sanatizeGoogleQuery(name)}'`);
-
-  if (parentFolderId) {
-    queries.push(`parents in '${_sanatizeGoogleQuery(parentFolderId)}'`);
-  }
-
-  if (mimeType) {
-    queries.push(`mimeType='${_sanatizeGoogleQuery(mimeType)}'`);
-  }
-
-  const q = queries.join(" AND ");
-
-  return new Promise((resolve, reject) => {
-    drive.files.list(
-      {
-        q,
-        fields: "nextPageToken, files(id, name)",
-        spaces: "drive",
-        // pageToken: pageToken,
-      },
-      function (err, res) {
-        if (err) {
-          return reject({
-            ...err.response.data,
-            q,
-          });
-        }
-        resolve(res.data.files);
-      }
-    );
-  });
-}
-
 // crawler start
-
-/**
- * Create an OAuth2 client with the given credentials, and then execute the
- * given callback function.
- * @param {Object} credentials The authorization client credentials.
- * @param {function} callback The callback to call with the authorized client.
- */
-function _authorize(credentials, callback) {
-  const { client_secret, client_id, redirect_uris } = credentials.installed;
-  const oAuth2Client = new google.auth.OAuth2(
-    client_id,
-    client_secret,
-    redirect_uris[0]
-  );
-
-  // Check if we have previously stored a token.
-  fs.readFile(GMAIL_TOKEN_PATH, (err, token) => {
-    if (err) return _getNewToken(oAuth2Client, callback);
-    oAuth2Client.setCredentials(JSON.parse(token));
-    callback(oAuth2Client);
-  });
-}
-
-/**
- * Get and store new token after prompting for user authorization, and then
- * execute the given callback with the authorized OAuth2 client.
- * @param {google.auth.OAuth2} oAuth2Client The OAuth2 client to get token for.
- * @param {getEventsCallback} callback The callback for the authorized client.
- */
-function _getNewToken(oAuth2Client, callback) {
-  const authUrl = oAuth2Client.generateAuthUrl({
-    access_type: "offline",
-    scope: SCOPES,
-  });
-  logger.info("Authorize this app by visiting this url:", authUrl);
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-  rl.question("Enter the code from that page here: ", (code) => {
-    rl.close();
-    oAuth2Client.getToken(code, (err, token) => {
-      if (err) return logger.error("Error retrieving access token", err);
-      oAuth2Client.setCredentials(token);
-      // Store the token to disk for later program executions
-      fs.writeFile(GMAIL_TOKEN_PATH, JSON.stringify(token), (err) => {
-        if (err) return logger.error(err);
-        logger.info("Token stored to", GMAIL_TOKEN_PATH);
-      });
-      callback(oAuth2Client);
-    });
-  });
-}
-
-function _flattenGmailPayloadParts(initialParts) {
-  const res = [];
-
-  let stack = [initialParts];
-
-  while (stack.length > 0) {
-    const target = stack.pop();
-    const { parts, ...rest } = target;
-    res.push(rest);
-
-    if (parts && parts.length > 0) {
-      stack = [...stack, ...parts];
-    }
-  }
-
-  return res;
-}
 
 /**
  * api to get and process the list of message by a thread id
@@ -398,7 +84,7 @@ export function _processMessagesByThreadId(
 
       // get emails from the database
       if (!threadMessages) {
-        const { messages } = await _getThreadEmails(targetThreadId);
+        const { messages } = await getThreadEmailsByThreadId(targetThreadId);
 
         logger.debug(`Threads Result from API: ${messages.length}`);
 
@@ -439,7 +125,7 @@ export function _processMessagesByThreadId(
         const messageDate = message.internalDate;
 
         let rawBody = "";
-        const parts = _flattenGmailPayloadParts(message.payload);
+        const parts = flattenGmailPayloadParts(message.payload);
         if (parts && parts.length > 0) {
           for (let part of parts) {
             const { mimeType, partId } = part;
@@ -557,13 +243,13 @@ export function _processMessagesByThreadId(
         }
         body = body.trim();
 
-        if (_isStringUrl(subject)) {
+        if (isStringUrl(subject)) {
           // if subject is a url
-          const urlToCrawl = _extractUrlFromString(subject);
+          const urlToCrawl = extractUrlFromString(subject);
 
           // crawl the URL for title
           logger.debug(`Crawling subject with url: id=${id} ${urlToCrawl}`);
-          const websiteRes = await _crawlUrl(urlToCrawl);
+          const websiteRes = await crawlUrl(urlToCrawl);
 
           if (websiteRes && websiteRes.subject) {
             subject = (websiteRes.subject || "").trim();
@@ -572,13 +258,13 @@ export function _processMessagesByThreadId(
             logger.debug(`Crawl failed for id=${id} url${urlToCrawl}`);
             body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr /><h2>404_Page_Not_Found</h2>`.trim();
           }
-        } else if (body.length < 255 && _isStringUrl(body)) {
+        } else if (body.length < 255 && isStringUrl(body)) {
           // if body is a url
-          const urlToCrawl = _extractUrlFromString(body);
+          const urlToCrawl = extractUrlFromString(body);
           if (urlToCrawl) {
             // crawl the URL for title
             logger.debug(`Crawling body with url: id=${id} ${urlToCrawl}`);
-            const websiteRes = await _crawlUrl(urlToCrawl);
+            const websiteRes = await crawlUrl(urlToCrawl);
             if (websiteRes && websiteRes.subject) {
               subject = `${subject} - ${websiteRes.subject || ""}`.trim();
               body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr />${websiteRes.body}`.trim();
@@ -760,7 +446,7 @@ async function _pollNewEmailThreads(q = "") {
     countPageProcessed++;
 
     try {
-      const { threads, nextPageToken } = await _getThreads(q, pageToken);
+      const { threads, nextPageToken } = await getThreadsByQuery(q, pageToken);
       allThreads = [...allThreads, ...(threads || []).map((r) => r.id)];
       pageToken = nextPageToken;
 
@@ -885,7 +571,7 @@ export async function _parseGmailAttachment(
     logger.debug(`Download Gmail attachment from API: ${newFilePath}`);
 
     // if not, then download from upstream
-    const attachmentResponse = await _getAttachment(
+    const attachmentResponse = await getEmailAttachment(
       messageId,
       attachment.attachmentId
     );
@@ -1020,28 +706,28 @@ export async function uploadFile(
     body: fs.createReadStream(localPath),
   };
 
-  const matchedResults = await _searchGoogleDrive(
+  const matchedResults = await searchDrive(
     fileGDriveMetadata.name,
     fileGDriveMetadata.mimeType,
     parentFolderId
   );
   if (matchedResults.length === 0) {
     logger.debug("Upload file with create operation", name);
-    return _createFileInDrive(fileGDriveMetadata, media);
+    return createFileInDrive(fileGDriveMetadata, media);
   } else {
     logger.debug(
       "Upload file with update operation",
       name,
       matchedResults[0].id
     );
-    return _updateFileInDrive(matchedResults[0].id, fileGDriveMetadata, media);
+    return updateFileInDrive(matchedResults[0].id, fileGDriveMetadata, media);
   }
 }
 
 export async function createDriveFolder(name, description, parentFolderId) {
   const mimeType = MimeTypeEnum.APP_GOOGLE_FOLDER;
 
-  const matchedResults = await _searchGoogleDrive(name, mimeType);
+  const matchedResults = await searchDrive(name, mimeType);
   if (matchedResults.length === 0) {
     const fileGDriveMetadata = {
       name,
@@ -1054,32 +740,11 @@ export async function createDriveFolder(name, description, parentFolderId) {
     }
 
     // create the folder itself
-    return (await _createFolderInDrive(fileGDriveMetadata)).id;
+    return (await createFolderInDrive(fileGDriveMetadata)).id;
   } else {
     return matchedResults[0].id;
   }
 }
-
-/**
- * api used to init to be called to get the gmail api setup
- * @param onAfterInitFunc
- */
-export const initGoogleApi = (onAfterInitFunc = () => {}) => {
-  return new Promise((resolve, reject) => {
-    // Load client secrets from a local file.
-    fs.readFile(GMAIL_CREDENTIALS_PATH, (err, content) => {
-      if (err) return reject("Error loading client secret file:" + err);
-      // Authorize a client with credentials, then call the Gmail API.
-      _authorize(JSON.parse(content), function (auth) {
-        gmail = google.gmail({ version: "v1", auth });
-        drive = google.drive({ version: "v3", auth });
-
-        onAfterInitFunc(gmail, drive);
-        resolve();
-      });
-    });
-  });
-};
 
 /**
  * entry point to start work on all items
