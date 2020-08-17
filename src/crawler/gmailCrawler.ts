@@ -4,6 +4,7 @@ const { Base64 } = require("js-base64");
 const fs = require("fs");
 const { JSDOM } = require("jsdom");
 const moment = require("moment");
+const { chunk } = require("lodash");
 
 import { Email, Headers, GmailAttachmentResponse } from "../types";
 import Models from "../models/modelsSchema";
@@ -33,7 +34,6 @@ const useInMemoryCache = false;
 // google crawler
 const MAX_CONCURRENT_THREAD_QUEUE = 15;
 const GMAIL_ATTACHMENT_PATH = "./attachments";
-const GMAIL_PATH_THREAD_LIST = `./caches/gmail.threads.data`;
 const GMAIL_PATH_THREAD_LIST_TOKEN = `./caches/gmail.threads_last_tokens.data`;
 
 // crawler start
@@ -265,16 +265,20 @@ export function _processMessagesByThreadId(
         // see if we need to handle further fetching from here
         // here we might face body of a url or subject of a url
         let subject = rawSubject;
-        let body =
+
+        // stripped down body (remove signatures and clean up the dom)
+        let strippedDownBody =
           parseHtmlBody(rawBody) ||
           parseHtmlBodyWithoutParser(rawBody) ||
           rawBody; // attempt at using one of the parser;
 
         // trim the signatures
         for (let signature of mySignatureTokens) {
-          body = body.replace(signature, "");
+          strippedDownBody = strippedDownBody.replace(signature, "");
         }
-        body = body.trim();
+        strippedDownBody = strippedDownBody.trim();
+
+        let body = strippedDownBody;
 
         if (isStringUrl(subject)) {
           // if subject is a url
@@ -307,7 +311,7 @@ export function _processMessagesByThreadId(
             }
           }
         } else {
-          body = rawBody;
+          body = strippedDownBody;
         }
 
         const messageToSave = {
@@ -332,7 +336,7 @@ export function _processMessagesByThreadId(
         messagesToSave.push(messageToSave);
       } catch (err) {
         logger.error(
-          `Failed to process threadId=${threadId} id=${id}   error=${
+          `Failed to process threadId=${targetThreadId} error=${
             err.stack || JSON.stringify(err)
           }`
         );
@@ -432,8 +436,9 @@ function _parseEmailAddress(emailAddress) {
  */
 async function _getThreadIdsToProcess() {
   try {
-    return JSON.parse(fs.readFileSync(GMAIL_PATH_THREAD_LIST));
-  } catch (GMAIL_PATH_THREAD_LIST_TOKEN) {
+    const databaseResponse = await Models.Thread.findAll({});
+    return databaseResponse.map(({ threadId }) => threadId);
+  } catch (err) {
     // not in cache
     logger.info("Not found in cache, start fetching thread list");
     return [];
@@ -444,11 +449,6 @@ async function _pollNewEmailThreads(q = "") {
   let countPageProcessed = 0;
   let pageToken = "";
   let threadIds = [];
-
-  // parse and track previous threads
-  try {
-    threadIds = JSON.parse(fs.readFileSync(GMAIL_PATH_THREAD_LIST));
-  } catch (err) {}
 
   try {
     pageToken = fs
@@ -464,14 +464,12 @@ async function _pollNewEmailThreads(q = "") {
     `Crawl list of email threads: maxPages=${countTotalPagesToCrawl} lastToken=${pageToken}`
   );
 
-  let allThreads = [];
-
   while (countPageProcessed < countTotalPagesToCrawl) {
     countPageProcessed++;
 
     try {
       const { threads, nextPageToken } = await getThreadsByQuery(q, pageToken);
-      allThreads = [...allThreads, ...(threads || []).map((r) => r.id)];
+      threadIds = [...threadIds, ...(threads || []).map((r) => r.id)];
       pageToken = nextPageToken;
 
       if (!nextPageToken) {
@@ -482,7 +480,7 @@ async function _pollNewEmailThreads(q = "") {
 
       if (countPageProcessed % 25 === 0 && countPageProcessed > 0) {
         logger.info(
-          `So far, ${countPageProcessed} pages crawled. ${allThreads.length} threads found`
+          `So far, ${countPageProcessed} pages crawled. ${threadIds.length} threads found`
         );
       }
     } catch (err) {
@@ -495,20 +493,15 @@ async function _pollNewEmailThreads(q = "") {
 
   logger.info(`${countPageProcessed} total pages crawled`);
 
-  // remove things we don't need
-  const foundIds = {};
-  threadIds = [...threadIds, ...allThreads].filter((threadId) => {
-    if (foundIds[threadId]) {
-      return false; // don't include duplicate
-    }
-    foundIds[threadId] = true;
-    return true;
-  });
-
-  // cache it
-  fs.writeFileSync(GMAIL_PATH_THREAD_LIST, JSON.stringify(threadIds, null, 2));
-
-  return allThreads;
+  // store them into the database as chunks
+  const threadIdsChunks = chunk(threadIds, 50); // maximum page size
+  for (let threadIdsChunk of threadIdsChunks) {
+    await Models.Thread.bulkCreate(
+      threadIdsChunk.map((threadId) => ({
+        threadId,
+      }))
+    ).catch(() => {});
+  }
 }
 
 /**
