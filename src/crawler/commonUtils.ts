@@ -22,6 +22,7 @@ export enum MimeTypeEnum {
   APP_GOOGLE_FOLDER = "application/vnd.google-apps.folder",
   APP_GOOGLE_PRESENTATION = "application/vnd.google-apps.presentation",
   APP_GOOGLE_SPREADSHEET = "application/vnd.google-apps.spreadsheet",
+  APP_GOOGLE_SCRIPT = "application/vnd.google-apps.script",
   APP_MS_XLS = "application/vnd.ms-excel",
   APP_MS_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   APP_MS_PPT = "application/vnd.ms-powerpoint",
