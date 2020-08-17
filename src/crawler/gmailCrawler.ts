@@ -28,7 +28,7 @@ import {
   MimeTypeEnum,
 } from "./commonUtils";
 
-const useInMemoryCache = false;
+const useInMemoryCache = true;
 
 // google crawler
 const GMAIL_ATTACHMENT_PATH = "./attachments";
@@ -47,7 +47,8 @@ export function _processMessagesByThreadId(
 ): Promise<Email[]> {
   return new Promise(async (resolve, reject) => {
     // get from gmail api
-    const attachments = [];
+    const attachmentsToSave = [];
+    const messagesToSave = [];
 
     let threadMessages;
     let foundFromDb = false;
@@ -159,7 +160,7 @@ export function _processMessagesByThreadId(
                 attachment
               );
 
-              attachments.push({
+              attachmentsToSave.push({
                 id: attachment.attachmentId,
                 threadId,
                 messageId: id,
@@ -190,7 +191,7 @@ export function _processMessagesByThreadId(
                   const newFilePath = `${GMAIL_ATTACHMENT_PATH}/${inlineFileName}`;
                   _saveBase64DataToFile(newFilePath, data);
 
-                  attachments.push({
+                  attachmentsToSave.push({
                     id: inlineFileName,
                     threadId,
                     messageId: id,
@@ -277,7 +278,7 @@ export function _processMessagesByThreadId(
           body = rawBody;
         }
 
-        const messageToUse = {
+        const messageToSave = {
           id,
           threadId,
           from: from || null,
@@ -291,29 +292,11 @@ export function _processMessagesByThreadId(
           date,
         };
 
-        // store the message itself
         logger.debug(
-          `Saving message: threadId=${threadId} id=${id} subject=${subject}`
+          `Pushing message to buffer: threadId=${threadId} id=${id} subject=${subject}`
         );
-        await Models.Email.create(messageToUse).catch((err) => {
-          // attempt to do update
-          logger.debug(
-            `Inserting email failed, trying updating threadId=${threadId} id=${id} ${
-              err.stack || JSON.stringify(err)
-            }`
-          );
-          return Models.Email.update(messageToUse, {
-            where: {
-              id: messageToUse.id,
-            },
-          }).catch((err) => {
-            logger.error(
-              `Upsert email failed threadId=${threadId} id=${id} ${
-                err.stack || JSON.stringify(err)
-              }`
-            );
-          });
-        });
+
+        messagesToSave.push(messageToSave);
       } catch (err) {
         logger.error(
           `Failed to process threadId=${threadId} id=${id}   error=${
@@ -323,36 +306,89 @@ export function _processMessagesByThreadId(
       }
     }
 
+    // save messages
+    logger.debug(
+      `Saving messages: threadId=${targetThreadId} total=${messagesToSave.length}`
+    );
+    await Models.Email.bulkCreate(messagesToSave, {
+      updateOnDuplicate: [
+        "from",
+        "body",
+        "rawBody",
+        "subject",
+        "rawSubject",
+        "headers",
+        "to",
+        "bcc",
+        "date",
+      ],
+    }).catch((err) => {
+      logger.debug(
+        `Inserting emails failed threadId=${targetThreadId} ${
+          err.stack || JSON.stringify(err)
+        }`
+      );
+    });
+
+    // await Models.Email.create(messageToUse).catch((err) => {
+    //   // attempt to do update
+    //   logger.debug(
+    //     `Inserting email failed, trying updating threadId=${threadId} id=${id} ${
+    //     err.stack || JSON.stringify(err)
+    //     }`
+    //   );
+    //   return Models.Email.update(messageToUse, {
+    //     where: {
+    //       id: messageToUse.id,
+    //     },
+    //   }).catch((err) => {
+    //     logger.error(
+    //       `Upsert email failed threadId=${threadId} id=${id} ${
+    //       err.stack || JSON.stringify(err)
+    //       }`
+    //     );
+    //   });
+    // });
+
     // save attachments
     logger.debug(
-      `Saving ${attachments.length} attachments threadId=${targetThreadId}`
+      `Saving attachments: threadId=${targetThreadId} total=${attachmentsToSave.length}`
     );
-    for (let attachment of attachments) {
-      // note we don't block sql database here...
-      Models.Attachment.create(attachment).catch((err) => {
-        // attempt to do update
-        logger.debug(
-          `Insert attachment failed, trying to do update instead threadId=${
-            attachment.threadId
-          } id=${attachment.messageId} attachmentId=${attachment.id} ${
-            err.stack || JSON.stringify(err)
-          }`
-        );
-        return Models.Attachment.update(attachment, {
-          where: {
-            id: attachment.id,
-          },
-        }).catch((err) => {
-          logger.error(
-            `Upsert email attachment failed threadId=${
-              attachment.threadId
-            } id=${attachment.messageId} attachmentId=${attachment.id} ${
-              err.stack || JSON.stringify(err)
-            }`
-          );
-        });
-      });
-    }
+    Models.Attachment.bulkCreate(attachmentsToSave, {
+      updateOnDuplicate: ["mimeType", "fileName", "path", "headers"],
+    }).catch((err) => {
+      logger.debug(
+        `Bulk create attachment failed, trying to do update instead threadId=${
+          attachment.threadId
+        } id=${attachment.messageId} ${err.stack || JSON.stringify(err)}`
+      );
+    });
+    // for (let attachment of attachments) {
+    //   // note we don't block sql database here...
+    //   Models.Attachment.create(attachment).catch((err) => {
+    //     // attempt to do update
+    //     logger.debug(
+    //       `Insert attachment failed, trying to do update instead threadId=${
+    //         attachment.threadId
+    //       } id=${attachment.messageId} attachmentId=${attachment.id} ${
+    //         err.stack || JSON.stringify(err)
+    //       }`
+    //     );
+    //     return Models.Attachment.update(attachment, {
+    //       where: {
+    //         id: attachment.id,
+    //       },
+    //     }).catch((err) => {
+    //       logger.error(
+    //         `Upsert email attachment failed threadId=${
+    //           attachment.threadId
+    //         } id=${attachment.messageId} attachmentId=${attachment.id} ${
+    //           err.stack || JSON.stringify(err)
+    //         }`
+    //       );
+    //     });
+    //   });
+    // }
 
     logger.debug(`Done processing threadId=${targetThreadId}`);
 
@@ -409,7 +445,7 @@ async function _getThreadIdsToProcess() {
     return JSON.parse(fs.readFileSync(GMAIL_PATH_THREAD_LIST));
   } catch (GMAIL_PATH_THREAD_LIST_TOKEN) {
     // not in cache
-    logger.info("> Not found in cache, start fetching thread list");
+    logger.info("Not found in cache, start fetching thread list");
     return [];
   }
 }
@@ -419,12 +455,10 @@ async function _pollNewEmailThreads(q = "") {
   let pageToken = "";
   let threadIds = [];
 
+  // parse and track previous threads
   try {
     threadIds = JSON.parse(fs.readFileSync(GMAIL_PATH_THREAD_LIST));
-  } catch (GMAIL_PATH_THREAD_LIST_TOKEN) {
-    // not in cache
-    logger.info("> Not found in cache, start fetching thread list");
-  }
+  } catch (err) {}
 
   try {
     pageToken = fs
@@ -456,8 +490,8 @@ async function _pollNewEmailThreads(q = "") {
 
       fs.appendFileSync(GMAIL_PATH_THREAD_LIST_TOKEN, nextPageToken + "\n");
 
-      if (countPageProcessed % 25 === 0 && countPageProcessed > 0) {
-        logger.info(`${countPageProcessed} pages crawled so far`);
+      if (countPageProcessed % 50 === 0 && countPageProcessed > 0) {
+        logger.info(`So far, ${countPageProcessed} pages crawled. ${allThreads.length} threads found`);
       }
     } catch (err) {
       logger.error(
@@ -466,6 +500,8 @@ async function _pollNewEmailThreads(q = "") {
       break;
     }
   }
+
+  logger.info(`${countPageProcessed} total pages crawled`);
 
   // remove things we don't need
   const foundIds = {};
