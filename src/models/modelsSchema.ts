@@ -8,8 +8,37 @@ import {
 
 import { DataTypes, Model } from "sequelize";
 
+// raw content database
 /**
- * this is where we store all the attachments
+ * this is a raw content response returned from the GMAIL API
+ */
+@table("raw_contents", {
+  timestamps: false,
+})
+@index([
+  {
+    unique: false,
+    fields: ["threadId"],
+  },
+])
+export class RawContent extends Model {
+  @attribute(RawContent, {
+    allowNull: false,
+    primaryKey: true,
+    unique: true,
+  })
+  public messageId!: string;
+
+  @attribute(RawContent, { allowNull: false })
+  public threadId!: string;
+
+  @attribute(RawContent, { type: DataTypes.TEXT, allowNull: false })
+  public rawApiResponse!: string;
+}
+
+// parsed emails and threads
+/**
+ * this is where we store all the email attachments
  */
 @table("attachments", {
   timestamps: true,
@@ -55,11 +84,8 @@ export class Attachment extends Model {
   public headers!: string;
 }
 
-/**
- * this is a raw content response returned from the GMAIL API
- */
-@table("raw_contents", {
-  timestamps: false,
+@table("threads", {
+  timestamps: true,
 })
 @index([
   {
@@ -67,23 +93,17 @@ export class Attachment extends Model {
     fields: ["threadId"],
   },
 ])
-export class RawContent extends Model {
-  @attribute(RawContent, {
+export class Thread extends Model {
+  @attribute(Thread, {
     allowNull: false,
     primaryKey: true,
     unique: true,
   })
-  public messageId!: string;
-
-  @attribute(RawContent, { allowNull: false })
   public threadId!: string;
-
-  @attribute(RawContent, { type: DataTypes.TEXT, allowNull: false })
-  public rawApiResponse!: string;
 }
 
 /**
- * this is the email
+ * this is the email details
  */
 @table("emails", {
   timestamps: true,
@@ -156,10 +176,12 @@ export const ModelsNotes = {
 
 export const ModelsRaw = {
   RawContent,
+  Thread,
 };
 
 export default {
   Attachment,
   Email,
   RawContent,
+  Thread,
 };
