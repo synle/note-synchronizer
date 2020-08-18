@@ -36,5 +36,5 @@ attachments
 *.sqlite-journal
 *.sql
 processed
-./redis-data
+redis-data/
 redis.log

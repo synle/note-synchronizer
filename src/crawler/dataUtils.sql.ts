@@ -1,4 +1,5 @@
 // @ts-nocheck
+// adapter for sql
 import { Op } from "sequelize";
 
 import { Email, DatabaseResponse, Attachment } from "../types";
