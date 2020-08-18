@@ -99,20 +99,21 @@ export function _processMessagesByThreadId(
 
       // attempting at getting the emails from the database
       if (threadMessages.length === 0) {
-        const messagesFromDatabase = await Models.RawContent.findAll({
+        let messagesFromDatabase = await Models.RawContent.findAll({
           where: {
             threadId: targetThreadId,
           },
         });
+        messagesFromDatabase = messagesFromDatabase.map((message) =>
+          JSON.parse(message.dataValues.rawApiResponse)
+        );
 
         logger.debug(
           `Threads Result from DB threadId=${targetThreadId}: ${messagesFromDatabase.length}`
         );
 
         if (messagesFromDatabase && messagesFromDatabase.length > 0) {
-          threadMessages = messagesFromDatabase.map((message) =>
-            JSON.parse(message.dataValues.rawApiResponse)
-          );
+          threadMessages = messagesFromDatabase;
           foundRawEmailsFromDbOrCache = true;
         }
       }
@@ -128,7 +129,9 @@ export function _processMessagesByThreadId(
         threadMessages = messages;
       }
     } catch (e) {
-      logger.error(`Cannot fetch thread : threadId=${targetThreadId} : ${e}`);
+      logger.error(
+        `Cannot fetch thread : threadId=${targetThreadId} : ${e.stack}`
+      );
     }
 
     if (threadMessages.length === 0) {
@@ -509,7 +512,7 @@ function _parseEmailAddress(emailAddress) {
 /**
  * get a list of threads to process
  */
-async function _getThreadIdsToProcess() {
+export async function getThreadIdsToProcess() {
   try {
     const databaseResponse = await Models.Thread.findAll({
       where: {
@@ -521,10 +524,12 @@ async function _getThreadIdsToProcess() {
         ["updatedAt", "DESC"], // start with the one that changes recenty
       ],
     });
-    return databaseResponse.map(({ threadId }) => threadId);
+    return (databaseResponse || []).map((thread) => thread.dataValues.threadId);
   } catch (err) {
     // not in cache
-    logger.info("Not found in cache, start fetching thread list");
+    logger.info(
+      `Not found in cache, start fetching thread list err=${err.stack || err}`
+    );
     return [];
   }
 }
@@ -734,7 +739,7 @@ async function _processEmails(threadIds, inMemoryLookupContent = {}) {
   threadIds = [].concat(threadIds || []);
 
   const countTotalThreads = threadIds.length;
-  logger.info(`Total Threads: ${countTotalThreads}`);
+  logger.warn(`Total Threads to Process: ${countTotalThreads}`);
 
   let totalMsgCount = 0;
   let countProcessedThread = 0;
@@ -752,8 +757,8 @@ async function _processEmails(threadIds, inMemoryLookupContent = {}) {
       countProcessedThread % 250 === 0 ||
       (percentDone % 20 === 0 && percentDone > 0)
     ) {
-      logger.info(
-        `${percentDone}% (${countProcessedThread} / ${countTotalThreads})`
+      logger.warn(
+        `Progress of Processing Emails: ${percentDone}% (${countProcessedThread} / ${countTotalThreads})`
       );
     }
     countProcessedThread++;
@@ -790,7 +795,7 @@ async function _processEmails(threadIds, inMemoryLookupContent = {}) {
 export async function doGmailWorkForAllItems() {
   logger.warn(`doGmailWorkForAllItems`);
 
-  const threadIds = await _getThreadIdsToProcess();
+  const threadIds = await getThreadIdsToProcess();
 
   await _processEmails(threadIds);
 
@@ -813,11 +818,9 @@ export async function doGmailWorkByThreadIds(targetThreadId) {
 export async function doGmailWorkPollThreadList() {
   logger.warn(`doGmailWorkPollThreadList`);
 
-  await Promise.allSettled([
-    _pollNewEmailThreads(), // get emails from inbox
-    _pollNewEmailThreads("from:(me)"), // get emails sent by me
-    _pollNewEmailThreads("in:drafts"), // messages that are in draft
-  ]);
+  _pollNewEmailThreads("from:(me)"); // get emails sent by me
+  _pollNewEmailThreads("in:drafts"); // messages that are in draft
+  _pollNewEmailThreads(); // get emails from inbox
 
   logger.warn(`Done Polling`);
 }
