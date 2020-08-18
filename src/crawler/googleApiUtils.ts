@@ -10,7 +10,10 @@ let driveApiInstance;
 // google auth apis
 // If modifying these scopes, delete token.json.
 const SCOPES = [
+  "https://www.googleapis.com/auth/gmail.labels",
   "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/gmail.compose",
+  "https://www.googleapis.com/auth/gmail.send",
   "https://www.googleapis.com/auth/drive",
 ];
 
@@ -324,4 +327,58 @@ export function flattenGmailPayloadParts(initialParts) {
   }
 
   return res;
+}
+
+function makeMessageBody(
+  to,
+  subject,
+  message,
+  from = process.env.MY_MAIN_EMAIL
+) {
+  var str = [
+    'Content-Type: text/plain; charset="UTF-8"\n',
+    "MIME-Version: 1.0\n",
+    "Content-Transfer-Encoding: 7bit\n",
+    "to: ",
+    to,
+    "\n",
+    "from: ",
+    from,
+    "\n",
+    "subject: ",
+    subject,
+    "\n\n",
+    message,
+  ].join("");
+
+  var encodedMail = new Buffer(str)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+  return encodedMail;
+}
+
+// ready to be used
+export function sendEmail(to, subject, message, from) {
+  return new Promise((resolve, reject) => {
+    gmailApiInstance.users.messages.send(
+      {
+        userId: "me",
+        resource: {
+          raw: makeMessageBody(to, subject, message, from),
+        },
+      },
+      function (err, res) {
+        if (err) {
+          logger.error(
+            `Gmail API Failed: \nError=${JSON.stringify(
+              err
+            )} \nRes=${JSON.stringify(res)}`
+          );
+          return reject(err);
+        }
+        resolve(res.data);
+      }
+    );
+  });
 }
