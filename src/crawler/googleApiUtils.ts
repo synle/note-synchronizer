@@ -299,6 +299,8 @@ export function searchDrive(name, mimeType, parentFolderId) {
 
   const q = queries.join(" AND ");
 
+  logger.debug(`Searching Google Drive: ${q}`);
+
   return new Promise((resolve, reject) => {
     driveApiInstance.files.list(
       {
@@ -352,19 +354,7 @@ export async function uploadFile(
   starred = false,
   parentFolderId
 ) {
-  const originalMimeType = mimeType.toLowerCase();
-
-  mimeType = originalMimeType;
-  switch (mimeType) {
-    case MIME_TYPE_ENUM.TEXT_PLAIN:
-    case MIME_TYPE_ENUM.TEXT_XML:
-    case MIME_TYPE_ENUM.APP_XML:
-    case MIME_TYPE_ENUM.APP_JSON:
-      mimeType = MIME_TYPE_ENUM.TEXT_PLAIN;
-      break;
-  }
-
-  let mimeTypeToUse = "";
+  let mimeTypeToUse = (mimeType || "").toLowerCase();
   if (
     [
       MIME_TYPE_ENUM.TEXT_CSV,
@@ -375,22 +365,22 @@ export async function uploadFile(
     mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_SPREADSHEET;
   } else if (
     [
+      MIME_TYPE_ENUM.APP_XML,
+      MIME_TYPE_ENUM.APP_JSON,
       MIME_TYPE_ENUM.APP_RTF,
       MIME_TYPE_ENUM.APP_MS_DOC,
       MIME_TYPE_ENUM.APP_MS_DOCX,
       MIME_TYPE_ENUM.TEXT_X_AMP_HTML,
       MIME_TYPE_ENUM.TEXT_HTML,
+      MIME_TYPE_ENUM.TEXT_PLAIN,
+      MIME_TYPE_ENUM.TEXT_XML,
     ].includes(mimeType)
   ) {
     mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_DOCUMENT;
-  } else if ([MIME_TYPE_ENUM.TEXT_PLAIN].includes(mimeType)) {
-    mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_SCRIPT;
   } else if (
     [MIME_TYPE_ENUM.APP_MS_PPT, MIME_TYPE_ENUM.APP_MS_PPTX].includes(mimeType)
   ) {
     mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_PRESENTATION;
-  } else {
-    mimeTypeToUse = mimeType;
   }
 
   const createdTime = moment.utc(dateEpochTime).format("YYYY-MM-DDTHH:mm:ssZ");
@@ -400,6 +390,7 @@ export async function uploadFile(
   // https://developers.google.com/drive/api/v3/reference/files/create
   const fileGDriveMetadata = {
     name,
+    parents: [parentFolderId],
     mimeType: mimeTypeToUse,
     modifiedTime,
     createdTime,
@@ -409,9 +400,6 @@ export async function uploadFile(
     enforceSingleParent: true,
   };
 
-  if (parentFolderId) {
-    fileGDriveMetadata.parents = [parentFolderId];
-  }
   const media = {
     mimeType,
     body: fs.createReadStream(localPath),
@@ -422,13 +410,17 @@ export async function uploadFile(
     fileGDriveMetadata.mimeType,
     parentFolderId
   );
-
   if (matchedResults.length === 0) {
-    logger.debug("Upload file with create operation", name);
+    console.debug(
+      "Upload file with create operation",
+      `parent=${parentFolderId}`,
+      name
+    );
     return createFileInDrive(fileGDriveMetadata, media);
   } else {
-    logger.debug(
+    console.debug(
       "Upload file with update operation",
+      `parent=${parentFolderId}`,
       name,
       matchedResults[0].id
     );

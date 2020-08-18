@@ -27,7 +27,8 @@ import {
   THREAD_JOB_STATUS,
 } from "./commonUtils";
 
-const useInMemoryCache = process.env.USE_IN_MEMORY_CACHE_FOR_CONTENT === true || false; // whether or not to build up the map in memory
+const useInMemoryCache =
+  process.env.USE_IN_MEMORY_CACHE_FOR_CONTENT === true || false; // whether or not to build up the map in memory
 
 // google crawler
 const MAX_CONCURRENT_THREAD_QUEUE =
@@ -36,7 +37,7 @@ const MAX_CONCURRENT_THREAD_QUEUE =
 const GMAIL_ATTACHMENT_PATH = "./attachments";
 const GMAIL_PATH_THREAD_LIST_TOKEN = `./caches/gmail.threads_last_tokens.data`;
 
-const MAX_TIME_PER_THREAD = 120000;
+const MAX_TIME_PER_THREAD = 160000;
 // crawler start
 
 /**
@@ -528,34 +529,6 @@ async function _getThreadIdsToProcess() {
   }
 }
 
-async function _getRawContentsFromDatabase() {
-  // attempting at getting the emails from the database
-  let inMemoryLookupContent = {};
-  if (useInMemoryCache) {
-    logger.warn(`Constructing in-memory lookup for messages`);
-    try {
-      const messagesFromDatabase = await Models.RawContent.findAll({});
-      if (messagesFromDatabase && messagesFromDatabase.length > 0) {
-        for (let message of messagesFromDatabase) {
-          inMemoryLookupContent[message.threadId] =
-            inMemoryLookupContent[message.threadId] || [];
-          inMemoryLookupContent[message.threadId].push(
-            JSON.parse(message.dataValues.rawApiResponse)
-          );
-        }
-      }
-    } catch (e) {}
-
-    logger.warn(
-      `Size of in-memory lookup for messages: ${
-        Object.keys(inMemoryLookupContent).length
-      }`
-    );
-  }
-
-  return inMemoryLookupContent;
-}
-
 async function _pollNewEmailThreads(q = "") {
   const startTime = Date.now();
 
@@ -819,9 +792,7 @@ export async function doGmailWorkForAllItems() {
 
   const threadIds = await _getThreadIdsToProcess();
 
-  const inMemoryLookupContent = await _getRawContentsFromDatabase();
-
-  await _processEmails(threadIds, inMemoryLookupContent);
+  await _processEmails(threadIds);
 
   logger.warn("Done doGmailWorkForAllItems");
 }
@@ -849,67 +820,4 @@ export async function doGmailWorkPollThreadList() {
   ]);
 
   logger.warn(`Done Polling`);
-}
-
-// this job is temporary, will be removed
-export async function doDecodeBase64ForRawContent() {
-  logger.warn(`doDecodeBase64ForRawContent`);
-
-  const messagesFromDatabase = await Models.RawContent.findAll({
-    // limit: 1
-  });
-
-  logger.warn(
-    `doDecodeBase64ForRawContent : start decoding ${messagesFromDatabase.length}`
-  );
-
-  let processedSofar = 0;
-  let messagesToDecode = [];
-
-  if (messagesFromDatabase && messagesFromDatabase.length > 0) {
-    for (let messageResponse of messagesFromDatabase) {
-      processedSofar++;
-
-      if (processedSofar % 500 === 0) {
-        logger.info(
-          `${processedSofar} / ${messagesFromDatabase.length} (${(
-            (processedSofar / messagesFromDatabase.length) *
-            100
-          ).toFixed(1)}%)`
-        );
-
-        if (messagesToDecode.length > 0)
-          logger.info(` > messageId: ${messagesToDecode[0].messageId}`);
-      }
-
-      const message = JSON.parse(messageResponse.dataValues.rawApiResponse);
-
-      // // look for parts and parse it
-      // const parts = flattenGmailPayloadParts(message.payload);
-      // if (parts && parts.length > 0) {
-      //   for (let part of parts) {
-      //     if (part.body.data) {
-      //       part.body.data = _parseGmailMessage(part.body.data);
-      //     }
-      //   }
-      // }
-
-      const newRawMessage = {
-        ...messageResponse.dataValues,
-        rawApiResponse: JSON.stringify(message),
-        date: message.internalDate,
-      };
-
-      messagesToDecode.push(newRawMessage);
-
-      if (messagesToDecode.length === 100) {
-        await Models.RawContent.bulkCreate(messagesToDecode, {
-          updateOnDuplicate: ["rawApiResponse", "date"],
-        });
-        messagesToDecode = [];
-      }
-    }
-  }
-
-  logger.warn(`doDecodeBase64ForRawContent : done decoding`);
 }
