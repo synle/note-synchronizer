@@ -17,7 +17,8 @@
     "work_fetch_selected_emails": "echo node --max_old_space_size=12000 ./node_modules/.bin/ts-node index.ts fetch_selected_emails",
     "work_process_gdrive_all_emails": "node --max_old_space_size=12000 ./node_modules/.bin/ts-node index.ts process_gdrive_all_emails",
     "work_process_gdrive_selected_emails": "echo node --max_old_space_size=12000 ./node_modules/.bin/ts-node index.ts process_gdrive_selected_emails",
-    "work_decode": "node --max_old_space_size=12000 ./node_modules/.bin/ts-node index.ts decode",
+    "playground": "node --max_old_space_size=12000 ./node_modules/.bin/ts-node index.ts playground",
+    "test": "ts-node",
     "format": "npm run format:js",
     "format:js": "prettier --write **/**/*.js **/**/*.ts **/*.js **/*.ts *.ts *.md && prettier --parser json --write *.json"
   },

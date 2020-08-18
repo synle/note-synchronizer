@@ -351,7 +351,7 @@ function makeMessageBody(
     message,
   ].join("");
 
-  var encodedMail = new Buffer(str)
+  var encodedMail = Buffer.from(str)
     .toString("base64")
     .replace(/\+/g, "-")
     .replace(/\//g, "_");
