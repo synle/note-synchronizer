@@ -57,7 +57,7 @@ async function _doWork() {
         await doGdriveWorkByThreadIds(targetThreadIds);
         break;
 
-      case "decode":
+      case "playground":
         await doDecodeBase64ForRawContent();
         break;
     }
