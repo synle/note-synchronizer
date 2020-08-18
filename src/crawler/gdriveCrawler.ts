@@ -7,7 +7,11 @@ import { Email, Attachment } from "../types";
 import { getNoteDestinationFolderId, uploadFile } from "./googleApiUtils";
 import { logger } from "../loggers";
 import { myEmails, ignoredWordTokens } from "./commonUtils";
-import {getEmailsAndAttachmentByThreadId, getAllEmailsAndAttachments} from './dataUtils';
+import {
+  getEmailsAndAttachmentByThreadId,
+  getAllEmailsAndAttachments,
+  getAttachmentByThreadIds,
+} from "./dataUtils";
 
 let noteDestinationFolderId;
 
@@ -67,15 +71,17 @@ async function _processMessages(emails: Email[]) {
       .concat((to || "").split(","))
       .map((r) => r.trim())
       .filter((r) => !!r);
-    const attachments = email.Attachments.filter((attachment) => {
-      // only use attachments that is not small images
-      const attachmentStats = fs.statSync(attachment.path);
-      return (
-        (attachmentStats.size < MINIMUM_IMAGE_SIZE_IN_BITS &&
-          attachment.mimeType.includes("images/")) ||
-        !attachment.mimeType.includes("images/")
-      );
-    });
+    const attachments = (await getAttachmentByThreadIds(threadId)).filter(
+      (attachment) => {
+        // only use attachments that is not small images
+        const attachmentStats = fs.statSync(attachment.path);
+        return (
+          (attachmentStats.size < MINIMUM_IMAGE_SIZE_IN_BITS &&
+            attachment.mimeType.includes("images/")) ||
+          !attachment.mimeType.includes("images/")
+        );
+      }
+    );
 
     subject = (subject || "").trim();
 
@@ -201,10 +207,7 @@ export async function doGdriveWorkForAllItems() {
 
   const matchedResults = await getAllEmailsAndAttachments();
 
-  const threadChunks = chunk(
-    matchedResults,
-    15
-  ); // maximum parallel
+  const threadChunks = chunk(matchedResults, 15); // maximum parallel
 
   for (let threads of threadChunks) {
     await _processMessages(threads);

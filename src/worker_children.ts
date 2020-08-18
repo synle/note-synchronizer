@@ -29,7 +29,7 @@ if (isMainThread) {
   throw new Error("Its not a worker");
 }
 
-async function _init(){
+async function _init() {
   await initDatabase();
   await initGoogleApi();
 

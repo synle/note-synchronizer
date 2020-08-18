@@ -5,7 +5,6 @@ import fs from "fs";
 const { JSDOM } = require("jsdom");
 const { chunk } = require("lodash");
 const prettier = require("prettier");
-import { Op } from "sequelize";
 
 import { Email, Headers, GmailAttachmentResponse } from "../types";
 import Models from "../models/modelsSchema";
@@ -26,6 +25,15 @@ import {
   MIME_TYPE_ENUM,
   THREAD_JOB_STATUS,
 } from "./commonUtils";
+
+import {
+  bulkUpsertThreadJobStatuses,
+  bulkUpsertEmails,
+  getAllThreadsToProcess,
+  getAllRawContents,
+  getRawContentsByThreadId,
+  bulkUpsertRawContents,
+} from "./dataUtils";
 
 const useInMemoryCache =
   process.env.USE_IN_MEMORY_CACHE_FOR_CONTENT === true || false; // whether or not to build up the map in memory
@@ -65,19 +73,13 @@ export function _processMessagesByThreadId(
       );
 
       // update the process time and status to error timeout
-      await Models.Thread.update(
-        {
-          processedDate: null,
-          duration: Date.now() - startTime,
-          totalMessages: threadMessages.length,
-          status: THREAD_JOB_STATUS.ERROR_TIMEOUT,
-        },
-        {
-          where: {
-            threadId: targetThreadId,
-          },
-        }
-      );
+      await bulkUpsertThreadJobStatuses({
+        threadId: targetThreadId,
+        processedDate: null,
+        duration: Date.now() - startTime,
+        totalMessages: threadMessages.length,
+        status: THREAD_JOB_STATUS.ERROR_TIMEOUT,
+      });
 
       reject("Timeout for task");
     }, MAX_TIME_PER_THREAD);
@@ -99,11 +101,9 @@ export function _processMessagesByThreadId(
 
       // attempting at getting the emails from the database
       if (threadMessages.length === 0) {
-        const messagesFromDatabase = await Models.RawContent.findAll({
-          where: {
-            threadId: targetThreadId,
-          },
-        });
+        const messagesFromDatabase = await getRawContentsByThreadId(
+          targetThreadId
+        );
 
         logger.debug(
           `Threads Result from DB threadId=${targetThreadId}: ${messagesFromDatabase.length}`
@@ -138,19 +138,13 @@ export function _processMessagesByThreadId(
 
       ignoreTimerForTimeout = true; // clear the timeout timer
 
-      Models.Thread.update(
-        {
-          processedDate: null,
-          duration: Date.now() - startTime,
-          totalMessages: threadMessages.length,
-          status: THREAD_JOB_STATUS.ERROR_THREAD_NOT_FOUND,
-        },
-        {
-          where: {
-            threadId: targetThreadId,
-          },
-        }
-      );
+      await bulkUpsertThreadJobStatuses({
+        threadId: targetThreadId,
+        processedDate: null,
+        duration: Date.now() - startTime,
+        totalMessages: threadMessages.length,
+        status: THREAD_JOB_STATUS.ERROR_THREAD_NOT_FOUND,
+      });
 
       return resolve(threadMessages.length);
     }
@@ -175,7 +169,7 @@ export function _processMessagesByThreadId(
           }
         }
 
-        await Models.RawContent.create({
+        await bulkUpsertRawContents({
           messageId: id,
           threadId: threadId,
           rawApiResponse: JSON.stringify(message),
@@ -406,19 +400,7 @@ export function _processMessagesByThreadId(
     logger.debug(
       `Saving messages: threadId=${targetThreadId} total=${messagesToSave.length}`
     );
-    await Models.Email.bulkCreate(messagesToSave, {
-      updateOnDuplicate: [
-        "from",
-        "body",
-        "rawBody",
-        "subject",
-        "rawSubject",
-        "headers",
-        "to",
-        "bcc",
-        "date",
-      ],
-    }).catch((err) => {
+    await bulkUpsertEmails(messagesToSave).catch((err) => {
       logger.debug(
         `Inserting emails failed threadId=${targetThreadId} ${
           err.stack || JSON.stringify(err)
@@ -447,19 +429,13 @@ export function _processMessagesByThreadId(
 
     logger.debug(`Done processing threadId=${targetThreadId}`);
 
-    await Models.Thread.update(
-      {
-        processedDate: Date.now(),
-        duration: Date.now() - startTime,
-        totalMessages: threadMessages.length,
-        status: THREAD_JOB_STATUS.SUCCESS,
-      },
-      {
-        where: {
-          threadId: targetThreadId,
-        },
-      }
-    );
+    await bulkUpsertThreadJobStatuses({
+      threadId: targetThreadId,
+      processedDate: Date.now(),
+      duration: Date.now() - startTime,
+      totalMessages: threadMessages.length,
+      status: THREAD_JOB_STATUS.SUCCESS,
+    });
 
     resolve(threadMessages.length);
   });
@@ -511,20 +487,10 @@ function _parseEmailAddress(emailAddress) {
  */
 async function _getThreadIdsToProcess() {
   try {
-    const databaseResponse = await Models.Thread.findAll({
-      where: {
-        processedDate: {
-          [Op.eq]: null,
-        },
-      },
-      order: [
-        ["updatedAt", "DESC"], // start with the one that changes recenty
-      ],
-    });
+    const databaseResponse = await getAllThreadsToProcess();
     return databaseResponse.map(({ threadId }) => threadId);
   } catch (err) {
-    // not in cache
-    logger.info("Not found in cache, start fetching thread list");
+    logger.error(`Not found in cache due to error=${err.stack}`);
     return [];
   }
 }
@@ -532,10 +498,11 @@ async function _getThreadIdsToProcess() {
 async function _getRawContentsFromDatabase() {
   // attempting at getting the emails from the database
   let inMemoryLookupContent = {};
+
   if (useInMemoryCache) {
     logger.warn(`Constructing in-memory lookup for messages`);
     try {
-      const messagesFromDatabase = await Models.RawContent.findAll({});
+      const messagesFromDatabase = await getAllRawContents();
       if (messagesFromDatabase && messagesFromDatabase.length > 0) {
         for (let message of messagesFromDatabase) {
           inMemoryLookupContent[message.threadId] =
@@ -611,7 +578,7 @@ async function _pollNewEmailThreads(q = "") {
   // store them into the database as chunks
   const threadIdsChunks = chunk(threadIds, 50); // maximum page size
   for (let threadIdsChunk of threadIdsChunks) {
-    await Models.Thread.bulkCreate(
+    await bulkUpsertThreadJobStatuses(
       threadIdsChunk.map(({ id, historyId, snippet }) => ({
         threadId: id,
         historyId,
@@ -621,10 +588,7 @@ async function _pollNewEmailThreads(q = "") {
         duration: null,
         totalMessages: null,
         status: THREAD_JOB_STATUS.PENDING,
-      })),
-      {
-        updateOnDuplicate: ["processedDate"],
-      }
+      }))
     ).catch(() => {});
   }
 
@@ -856,9 +820,7 @@ export async function doGmailWorkPollThreadList() {
 export async function doDecodeBase64ForRawContent() {
   logger.warn(`doDecodeBase64ForRawContent`);
 
-  const messagesFromDatabase = await Models.RawContent.findAll({
-    // limit: 1
-  });
+  const messagesFromDatabase = await getAllRawContents();
 
   logger.warn(
     `doDecodeBase64ForRawContent : start decoding ${messagesFromDatabase.length}`
@@ -904,9 +866,7 @@ export async function doDecodeBase64ForRawContent() {
       messagesToDecode.push(newRawMessage);
 
       if (messagesToDecode.length === 100) {
-        await Models.RawContent.bulkCreate(messagesToDecode, {
-          updateOnDuplicate: ["rawApiResponse", "date"],
-        });
+        await bulkUpsertRawContents(messagesToDecode);
         messagesToDecode = [];
       }
     }

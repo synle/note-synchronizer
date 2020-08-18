@@ -28,8 +28,8 @@ const workers = [];
 let maxThreadCount = 6;
 
 enum WORKER_STATUS {
-  FREE = 'FREE',
-  BUSY = 'BUSY',
+  FREE = "FREE",
+  BUSY = "BUSY",
 }
 
 function _newWorker(myThreadId) {
@@ -63,7 +63,7 @@ function _newWorker(myThreadId) {
   return workerDetails;
 }
 
-async function _init(){
+async function _init() {
   while (maxThreadCount > 0) {
     maxThreadCount--;
     const myThreadId = workers.length;
@@ -78,8 +78,6 @@ async function _init(){
       worker.work.postMessage("message from parent " + Date.now());
     }
   }, 1000);
-
-
 }
 
 _init();
