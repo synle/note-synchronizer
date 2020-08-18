@@ -1,11 +1,15 @@
 // @ts-nocheck
-const fs = require("fs");
-const readline = require("readline");
-const { google } = require("googleapis");
+import fs from "fs";
+import readline from "readline";
+import { google } from "googleapis";
+import moment from "moment";
+import { MIME_TYPE_ENUM } from "./commonUtils";
 import { logger } from "../loggers";
 
 let gmailApiInstance;
 let driveApiInstance;
+
+let noteDestinationFolderId;
 
 // google auth apis
 // If modifying these scopes, delete token.json.
@@ -23,6 +27,10 @@ const SCOPES = [
 const GMAIL_TOKEN_PATH = "token.json";
 const GMAIL_CREDENTIALS_PATH = "credentials.json";
 
+export function getNoteDestinationFolderId() {
+  return noteDestinationFolderId;
+}
+
 /**
  * api used to init to be called to get the gmail api setup
  * @param onAfterInitFunc
@@ -33,11 +41,18 @@ export function initGoogleApi(onAfterInitFunc = () => {}) {
     fs.readFile(GMAIL_CREDENTIALS_PATH, (err, content) => {
       if (err) return reject("Error loading client secret file:" + err);
       // Authorize a client with credentials, then call the Gmail API.
-      authorizeGoogle(JSON.parse(content), function (auth) {
+      authorizeGoogle(JSON.parse(content), async function (auth) {
         gmailApiInstance = google.gmail({ version: "v1", auth });
         driveApiInstance = google.drive({ version: "v3", auth });
 
+        // create the note folder
+        noteDestinationFolderId = await createDriveFolder(
+          process.env.NOTE_DESTINATION_FOLDER_NAME,
+          "Note Synchronizer Destination Folder"
+        );
+
         onAfterInitFunc(gmailApiInstance, driveApiInstance);
+
         resolve();
       });
     });
@@ -178,7 +193,7 @@ export function getThreadEmailsByThreadId(targetThreadId) {
 }
 
 export function getEmailAttachment(messageId, attachmentId) {
-  return new Promise((resolve, rejects) => {
+  return new Promise((resolve, reject) => {
     gmailApiInstance.users.messages.attachments
       .get({
         id: attachmentId,
@@ -272,14 +287,14 @@ export function searchDrive(name, mimeType, parentFolderId) {
 
   queries.push(`trashed=false`);
 
-  queries.push(`name='${sanatizeGoogleQuery(name)}'`);
+  queries.push(`name='${_sanatizeGoogleQuery(name)}'`);
 
   if (parentFolderId) {
-    queries.push(`parents in '${sanatizeGoogleQuery(parentFolderId)}'`);
+    queries.push(`parents in '${_sanatizeGoogleQuery(parentFolderId)}'`);
   }
 
   if (mimeType) {
-    queries.push(`mimeType='${sanatizeGoogleQuery(mimeType)}'`);
+    queries.push(`mimeType='${_sanatizeGoogleQuery(mimeType)}'`);
   }
 
   const q = queries.join(" AND ");
@@ -306,8 +321,123 @@ export function searchDrive(name, mimeType, parentFolderId) {
   });
 }
 
+export async function createDriveFolder(name, description, parentFolderId) {
+  const mimeType = MIME_TYPE_ENUM.APP_GOOGLE_FOLDER;
+
+  const matchedResults = await searchDrive(name, mimeType);
+  if (matchedResults.length === 0) {
+    const fileGDriveMetadata = {
+      name,
+      mimeType,
+      description,
+    };
+
+    if (parentFolderId) {
+      fileGDriveMetadata.parents = [parentFolderId];
+    }
+
+    // create the folder itself
+    return (await createFolderInDrive(fileGDriveMetadata)).id;
+  } else {
+    return matchedResults[0].id;
+  }
+}
+
+export async function uploadFile(
+  name,
+  mimeType,
+  localPath,
+  description,
+  dateEpochTime,
+  starred = false,
+  parentFolderId
+) {
+  const originalMimeType = mimeType.toLowerCase();
+
+  mimeType = originalMimeType;
+  switch (mimeType) {
+    case MIME_TYPE_ENUM.TEXT_PLAIN:
+    case MIME_TYPE_ENUM.TEXT_XML:
+    case MIME_TYPE_ENUM.APP_XML:
+    case MIME_TYPE_ENUM.APP_JSON:
+      mimeType = MIME_TYPE_ENUM.TEXT_PLAIN;
+      break;
+  }
+
+  let mimeTypeToUse = "";
+  if (
+    [
+      MIME_TYPE_ENUM.TEXT_CSV,
+      MIME_TYPE_ENUM.APP_MS_XLS,
+      MIME_TYPE_ENUM.APP_MS_XLSX,
+    ].includes(mimeType)
+  ) {
+    mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_SPREADSHEET;
+  } else if (
+    [
+      MIME_TYPE_ENUM.APP_RTF,
+      MIME_TYPE_ENUM.APP_MS_DOC,
+      MIME_TYPE_ENUM.APP_MS_DOCX,
+      MIME_TYPE_ENUM.TEXT_X_AMP_HTML,
+      MIME_TYPE_ENUM.TEXT_HTML,
+    ].includes(mimeType)
+  ) {
+    mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_DOCUMENT;
+  } else if ([MIME_TYPE_ENUM.TEXT_PLAIN].includes(mimeType)) {
+    mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_SCRIPT;
+  } else if (
+    [MIME_TYPE_ENUM.APP_MS_PPT, MIME_TYPE_ENUM.APP_MS_PPTX].includes(mimeType)
+  ) {
+    mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_PRESENTATION;
+  } else {
+    mimeTypeToUse = mimeType;
+  }
+
+  const createdTime = moment.utc(dateEpochTime).format("YYYY-MM-DDTHH:mm:ssZ");
+  const modifiedTime = moment.utc(dateEpochTime).format("YYYY-MM-DDTHH:mm:ssZ");
+
+  // refer to this link for more metadata
+  // https://developers.google.com/drive/api/v3/reference/files/create
+  const fileGDriveMetadata = {
+    name,
+    mimeType: mimeTypeToUse,
+    modifiedTime,
+    createdTime,
+    description,
+    starred,
+    useContentAsIndexableText: true,
+    enforceSingleParent: true,
+  };
+
+  if (parentFolderId) {
+    fileGDriveMetadata.parents = [parentFolderId];
+  }
+  const media = {
+    mimeType,
+    body: fs.createReadStream(localPath),
+  };
+
+  const matchedResults = await searchDrive(
+    fileGDriveMetadata.name,
+    fileGDriveMetadata.mimeType,
+    parentFolderId
+  );
+
+  if (matchedResults.length === 0) {
+    logger.debug("Upload file with create operation", name);
+    return createFileInDrive(fileGDriveMetadata, media);
+  } else {
+    logger.debug(
+      "Upload file with update operation",
+      name,
+      matchedResults[0].id
+    );
+    return updateFileInDrive(matchedResults[0].id, fileGDriveMetadata, media);
+  }
+}
+
 // other minor things / utils
-export function sanatizeGoogleQuery(string) {
+function _sanatizeGoogleQuery(string) {
   return (string || "").replace(/'/g, "\\'");
 }
 
@@ -329,7 +459,7 @@ export function flattenGmailPayloadParts(initialParts) {
   return res;
 }
 
-function makeMessageBody(
+function _makeMessageBody(
   to,
   subject,
   message,
@@ -365,7 +495,7 @@ export function sendEmail(to, subject, message, from) {
       {
         userId: "me",
         resource: {
-          raw: makeMessageBody(to, subject, message, from),
+          raw: _makeMessageBody(to, subject, message, from),
         },
       },
       function (err, res) {
