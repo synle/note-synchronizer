@@ -39,8 +39,8 @@ async function _init() {
 
 async function _processMessages(emails: Email[]) {
   const countTotalMessages = emails.length;
-  logger.info(
-    `Total Messages To Sync with Google Drive: ${countTotalMessages}`
+  logger.debug(
+    `Total Messages To Sync with Google Drive: ${countTotalMessages} firstId=${emails[0].id}`
   );
 
   let countProcessedMessages = 0;
