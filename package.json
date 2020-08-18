@@ -21,7 +21,8 @@
     "test": "node --max_old_space_size=12000 ./node_modules/.bin/ts-node index.ts test",
     "format": "npm run format:js",
     "format:js": "prettier --write **/**/*.js **/**/*.ts **/*.js **/*.ts *.ts *.md && prettier --parser json --write *.json",
-    "build": "rm -rf build/* ; tsc"
+    "build": "rm -rf build/* ; tsc",
+    "start2": "npm run build;  node build/src/worker_parents.js"
   },
   "repository": {
     "type": "git",
