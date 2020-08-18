@@ -27,7 +27,8 @@ import {
   THREAD_JOB_STATUS,
 } from "./commonUtils";
 
-const useInMemoryCache = process.env.USE_IN_MEMORY_CACHE_FOR_CONTENT === true || false; // whether or not to build up the map in memory
+const useInMemoryCache =
+  process.env.USE_IN_MEMORY_CACHE_FOR_CONTENT === true || false; // whether or not to build up the map in memory
 
 // google crawler
 const MAX_CONCURRENT_THREAD_QUEUE =

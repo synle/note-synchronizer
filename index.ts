@@ -3,7 +3,11 @@ require("dotenv").config();
 
 import initDatabase from "./src/models/modelsFactory";
 
-import { initGoogleApi, uploadFile } from "./src/crawler/googleApiUtils";
+import {
+  getNoteDestinationFolderId,
+  initGoogleApi,
+  uploadFile,
+} from "./src/crawler/googleApiUtils";
 
 import {
   doGmailWorkPollThreadList,
@@ -22,6 +26,8 @@ import { logger } from "./src/loggers";
 async function _doWork() {
   await initDatabase();
   await initGoogleApi();
+
+  _uploadLogsToDrive(); // do first upload of log on page load
 
   try {
     const command = process.argv[2] || "";
@@ -71,13 +77,30 @@ async function _doWork() {
 }
 
 // periodically upload warning log to gdrive for progress
-function _uploadLogToDrive() {
-  uploadFile("./logs/log_warn.data", "text/plain", "", `Note Synchronizer Log`);
+function _uploadLogsToDrive() {
+  uploadFile(
+    "...Note_Sync_Log.info",
+    "text/plain",
+    "./logs/log_warn.data",
+    `Note Synchronizer Log`,
+    Date.now(),
+    false, // not starred
+    getNoteDestinationFolderId()
+  );
+
+  uploadFile(
+    "...Note_Sync_Log.verbose",
+    "text/plain",
+    "./logs/log_combined.data",
+    `Note Synchronizer Log`,
+    Date.now(),
+    false, // not starred
+    getNoteDestinationFolderId()
+  );
 }
-_uploadLogToDrive();
 setInterval(
-  _uploadLogToDrive,
-  60 * 1000 * 60 // every hour
+  _uploadLogsToDrive,
+  2 * 60 * 1000 * 60 // in hour
 );
 
 _doWork();
