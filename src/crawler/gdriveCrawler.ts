@@ -3,11 +3,11 @@ require("dotenv").config();
 import fs from "fs";
 const { chunk } = require("lodash");
 
-import { Email, DatabaseResponse, Attachment } from "../types";
-import Models from "../models/modelsSchema";
+import { Email, Attachment } from "../types";
 import { getNoteDestinationFolderId, uploadFile } from "./googleApiUtils";
 import { logger } from "../loggers";
 import { myEmails, ignoredWordTokens } from "./commonUtils";
+import {getEmailsAndAttachmentByThreadId, getAllEmailsAndAttachments} from './dataUtils';
 
 let noteDestinationFolderId;
 
@@ -67,7 +67,7 @@ async function _processMessages(emails: Email[]) {
       .concat((to || "").split(","))
       .map((r) => r.trim())
       .filter((r) => !!r);
-    const attachments: Attachment[] = email.Attachments.filter((attachment) => {
+    const attachments = email.Attachments.filter((attachment) => {
       // only use attachments that is not small images
       const attachmentStats = fs.statSync(attachment.path);
       return (
@@ -199,18 +199,10 @@ export async function doGdriveWorkForAllItems() {
 
   logger.info(`doGdriveWorkForAllItems`);
 
-  const matchedResults: DatabaseResponse<Email>[] = await Models.Email.findAll({
-    where: {},
-    include: [
-      {
-        model: Models.Attachment,
-        required: false,
-      },
-    ],
-  });
+  const matchedResults = await getAllEmailsAndAttachments();
 
   const threadChunks = chunk(
-    _transformMatchedThreadsResults(matchedResults),
+    matchedResults,
     15
   ); // maximum parallel
 
@@ -228,25 +220,9 @@ export async function doGdriveWorkByThreadIds(targetThreadId) {
 
   logger.info(`doGdriveWorkByThreadIds threadId=${targetThreadId}`);
 
-  const matchedResults: DatabaseResponse<Email>[] = await Models.Email.findAll({
-    where: {
-      threadId: targetThreadId,
-    },
-    include: [
-      {
-        model: Models.Attachment,
-        required: false,
-      },
-    ],
-  });
+  const matchedResults: Email[] = await getEmailsAndAttachmentByThreadId(
+    threadId
+  );
 
-  await _processMessages(_transformMatchedThreadsResults(matchedResults));
-}
-
-function _transformMatchedThreadsResults(matchedResults: any[]): Email[] {
-  return matchedResults.map((matchedResult) => {
-    const email = matchedResult.dataValues;
-    email.Attachments = (email.Attachments || []).map((a) => a.dataValues);
-    return email;
-  });
+  await _processMessages(matchedResults);
 }

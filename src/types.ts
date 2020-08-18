@@ -41,7 +41,7 @@ export interface Email {
   bcc: string;
   subject: string;
   date: number;
-  Attachments: DatabaseResponse<Attachment>[];
+  Attachments: Attachment[];
 }
 
 export interface Attachment {
