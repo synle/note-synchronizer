@@ -70,10 +70,6 @@ async function _doWork() {
   } catch (e) {
     logger.error(`Main Process Failed: ${e && e.stack} ${e}`);
   }
-
-  logger.error(`Done task. Shutting down..`);
-
-  process.exit();
 }
 
 // periodically upload warning log to gdrive for progress

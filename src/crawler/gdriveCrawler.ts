@@ -118,9 +118,8 @@ async function _processMessages(emails: Email[]) {
     if (isEmailSentByMe || isEmailSentToMySelf || hasSomeAttachments) {
       // upload the doc itself
       // only log email if there're some content
+      const localPath = `${PROCESSED_EMAIL_PREFIX_PATH}/processed.${email.id}.data`;
       if (rawBody.length > 0) {
-        const localPath = `${PROCESSED_EMAIL_PREFIX_PATH}/processed.${email.id}.data`;
-
         docFileName = _sanitizeFileName(subject);
 
         try {
@@ -146,11 +145,11 @@ async function _processMessages(emails: Email[]) {
             starred,
             noteDestinationFolderId
           );
-        } catch (e) {
+        } catch (err) {
           logger.error(
-            `Error - Failed ot original note - threadId=${threadId} id=${id} subject=${subject} attachmentName=${docFileName} ${
-              attachment.mimeType
-            } ${JSON.stringify(e, null, 2)}`
+            `Error - Failed ot original note - threadId=${threadId} id=${id} subject=${subject} attachmentName=${docFileName} localPath=${localPath} ${
+              err.stack || JSON.stringify(err, null, 2)
+            }`
           );
         }
       }
@@ -180,11 +179,13 @@ async function _processMessages(emails: Email[]) {
             starred,
             noteDestinationFolderId
           );
-        } catch (e) {
+        } catch (err) {
           logger.error(
-            `Error - Failed ot upload attachment - threadId=${threadId} id=${id} subject=${subject} attachmentName=${attachmentName} ${
+            `Error - Failed upload attachment - threadId=${threadId} id=${id} subject=${subject} attachmentName=${attachmentName} ${
               attachment.mimeType
-            } ${JSON.stringify(e, null, 2)}`
+            } path=${attachment.path} ${
+              err.stack || JSON.stringify(err, null, 2)
+            }`
           );
         }
       }
