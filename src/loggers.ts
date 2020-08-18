@@ -2,21 +2,11 @@ const winston = require("winston");
 const { format } = require("winston");
 const { combine, timestamp, label, printf } = format;
 
-// polyfill for console.log
-// var logger = { debug: console.log, info: console.log, error: console.log }
-
-// const prettyJson = format.printf((info) => {
-//   if (info.message.constructor === Object) {
-//     info.message = JSON.stringify(info.message, null, 4);
-//   }
-//   return `[${info.level}]: ${info.message}`;
-// });
-
 export const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || "debug", // https://github.com/winstonjs/winston#logging-levels
   format: combine(
     format.timestamp({
-      format: "HH:mm:ss",
+      format: "MM/DD hh:mm:ssA",
     }),
     format.printf(
       (info) =>
@@ -36,6 +26,10 @@ export const logger = winston.createLogger({
       filename: "./logs/log_combined.data",
       level: "debug",
     }),
+    new winston.transports.File({
+      filename: "./logs/log_warn.data",
+      level: "warn",
+    }),
   ],
 });
 
@@ -51,11 +45,17 @@ process.on("unhandledRejection", (reason, p) => {
 
 // Override the base console log with winston
 console.log = function () {
-  return logger.info.apply(logger, [JSON.stringify(arguments)]);
+  return logger.info.apply(logger, [
+    [...arguments].map((s) => JSON.stringify(s)).join(", "),
+  ]);
 };
 console.error = function () {
-  return logger.error.apply(logger, [JSON.stringify(arguments)]);
+  return logger.warn.apply(logger, [
+    [...arguments].map((s) => JSON.stringify(s)).join(", "),
+  ]);
 };
 console.info = function () {
-  return logger.warn.apply(logger, [JSON.stringify(arguments)]);
+  return logger.warn.apply(logger, [
+    [...arguments].map((s) => "  " + JSON.stringify(s)).join(", "),
+  ]);
 };

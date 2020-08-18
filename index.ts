@@ -3,7 +3,7 @@ require("dotenv").config();
 
 import initDatabase from "./src/models/modelsFactory";
 
-import { initGoogleApi } from "./src/crawler/googleApiUtils";
+import { initGoogleApi, uploadFile } from "./src/crawler/googleApiUtils";
 
 import {
   doGmailWorkPollThreadList,
@@ -30,7 +30,7 @@ async function _doWork() {
       .map((r) => (r || "").trim())
       .filter((r) => !!r);
 
-    logger.info(
+    logger.warn(
       `Start job with command=${command} threadIds=${targetThreadIds.length}`
     );
 
@@ -60,10 +60,24 @@ async function _doWork() {
       case "playground":
         await doDecodeBase64ForRawContent();
         break;
+
+      case "test":
+        console.log("Hello world");
+        break;
     }
   } catch (e) {
     logger.error(`Main Process Failed: ${e && e.stack} ${e}`);
   }
 }
+
+// periodically upload warning log to gdrive for progress
+function _uploadLogToDrive() {
+  uploadFile("./logs/log_warn.data", "text/plain", "", `Note Synchronizer Log`);
+}
+_uploadLogToDrive();
+setInterval(
+  _uploadLogToDrive,
+  60 * 1000 * 60 // every hour
+);
 
 _doWork();

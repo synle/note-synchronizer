@@ -1,14 +1,12 @@
 // @ts-nocheck
 require("dotenv").config();
 import fs from "fs";
+const { chunk } = require("lodash");
+
 import { Email, DatabaseResponse, Attachment } from "../types";
 import Models from "../models/modelsSchema";
-
-// TODO: move these into the GoogleApiUtils
-import { createDriveFolder, uploadFile } from "../crawler/gmailCrawler";
-
+import { getNoteDestinationFolderId, uploadFile } from "./googleApiUtils";
 import { logger } from "../loggers";
-
 import { myEmails, ignoredWordTokens } from "./commonUtils";
 
 let noteDestinationFolderId;
@@ -32,27 +30,22 @@ function _sanitizeFileName(string) {
 }
 
 async function _init() {
-  noteDestinationFolderId = await createDriveFolder(
-    process.env.NOTE_DESTINATION_FOLDER_NAME,
-    "Note Synchronizer Destination Folder"
-  );
+  noteDestinationFolderId = getNoteDestinationFolderId();
 
   logger.debug(
     `ID for Google Drive Note Sync Folder: ${noteDestinationFolderId}`
   );
 }
 
-async function _processMessages(messagesToProcess) {
-  const countTotalMessages = messagesToProcess.length;
+async function _processMessages(emails: Email[]) {
+  const countTotalMessages = emails.length;
   logger.info(
     `Total Messages To Sync with Google Drive: ${countTotalMessages}`
   );
 
   let countProcessedMessages = 0;
 
-  for (let messageToProcess of messagesToProcess) {
-    const email: Email = messageToProcess.dataValues;
-
+  for (let email of emails) {
     const percentDone = (
       (countProcessedMessages / countTotalMessages) *
       100
@@ -74,17 +67,15 @@ async function _processMessages(messagesToProcess) {
       .concat((to || "").split(","))
       .map((r) => r.trim())
       .filter((r) => !!r);
-    const attachments: Attachment[] = (email.Attachments || [])
-      .map((a) => a.dataValues)
-      .filter((attachment) => {
-        // only use attachments that is not small images
-        const attachmentStats = fs.statSync(attachment.path);
-        return (
-          (attachmentStats.size < MINIMUM_IMAGE_SIZE_IN_BITS &&
-            attachment.mimeType.includes("images/")) ||
-          !attachment.mimeType.includes("images/")
-        );
-      });
+    const attachments: Attachment[] = email.Attachments.filter((attachment) => {
+      // only use attachments that is not small images
+      const attachmentStats = fs.statSync(attachment.path);
+      return (
+        (attachmentStats.size < MINIMUM_IMAGE_SIZE_IN_BITS &&
+          attachment.mimeType.includes("images/")) ||
+        !attachment.mimeType.includes("images/")
+      );
+    });
 
     subject = (subject || "").trim();
 
@@ -117,7 +108,9 @@ async function _processMessages(messagesToProcess) {
         subject.toLowerCase().includes(ignoredToken)
       )
     ) {
-      logger.debug(`Skipped due to Ignored Pattern: ${subject}`);
+      logger.debug(
+        `Skipped due to Ignored Pattern: threadId=${threadId} id=${id} subject=${subject}`
+      );
 
       continue; // skipped
     }
@@ -148,14 +141,14 @@ async function _processMessages(messagesToProcess) {
             docFileName,
             "text/html",
             localPath,
-            `ThreadId=${threadId} MessageId=${id} Main Email`,
+            `subject=${subject} (threadId=${threadId}) (id=${id}) Main Email`,
             date,
             starred,
             noteDestinationFolderId
           );
         } catch (e) {
           logger.error(
-            `Error - Failed ot original note - ThreadId=${threadId} MessageId=${id} attachmentName=${docFileName} ${
+            `Error - Failed ot original note - threadId=${threadId} id=${id} subject=${subject} attachmentName=${docFileName} ${
               attachment.mimeType
             } ${JSON.stringify(e, null, 2)}`
           );
@@ -164,7 +157,7 @@ async function _processMessages(messagesToProcess) {
 
       // then upload the associated attachments
       logger.debug(
-        `Start upload attachment job ThreadId=${threadId} MessageId=${id} ${attachments.length}`
+        `Start upload attachment job threadId=${threadId} id=${id} subject=${subject} ${attachments.length}`
       );
       let AttachmentIdx = 0;
       for (let attachment of attachments) {
@@ -174,7 +167,7 @@ async function _processMessages(messagesToProcess) {
         );
 
         logger.debug(
-          `Upload Attachment ThreadId=${threadId} MessageId=${id} attachmentName=${attachmentName} ${attachment.mimeType}`
+          `Upload Attachment threadId=${threadId} id=${id} subject=${subject} attachmentName=${attachmentName} ${attachment.mimeType}`
         );
 
         try {
@@ -182,21 +175,21 @@ async function _processMessages(messagesToProcess) {
             attachmentName,
             attachment.mimeType,
             attachment.path,
-            `ThreadId=${threadId} MessageId=${id} Attachment #${AttachmentIdx}`,
+            `subject=${subject} (threadId=${threadId}) (id=${id}) Attachment #${AttachmentIdx}`,
             date,
             starred,
             noteDestinationFolderId
           );
         } catch (e) {
           logger.error(
-            `Error - Failed ot upload attachment - ThreadId=${threadId} MessageId=${id} attachmentName=${attachmentName} ${
+            `Error - Failed ot upload attachment - threadId=${threadId} id=${id} subject=${subject} attachmentName=${attachmentName} ${
               attachment.mimeType
             } ${JSON.stringify(e, null, 2)}`
           );
         }
       }
     } else {
-      logger.debug(`Skipped thread=${threadId} id=${id} subject=${subject}`);
+      logger.debug(`Skipped threadId=${threadId} id=${id} subject=${subject}`);
     }
   }
 }
@@ -216,7 +209,14 @@ export async function doGdriveWorkForAllItems() {
     ],
   });
 
-  await _processMessages(matchedResults);
+  const threadChunks = chunk(
+    _transformMatchedThreadsResults(matchedResults),
+    15
+  ); // maximum parallel
+
+  for (let threads of threadChunks) {
+    await _processMessages(threads);
+  }
 }
 
 /**
@@ -240,5 +240,13 @@ export async function doGdriveWorkByThreadIds(targetThreadId) {
     ],
   });
 
-  await _processMessages(matchedResults);
+  await _processMessages(_transformMatchedThreadsResults(matchedResults));
+}
+
+function _transformMatchedThreadsResults(matchedResults: any[]): Email[] {
+  return matchedResults.map((matchedResult) => {
+    const email = matchedResult.dataValues;
+    email.Attachments = (email.Attachments || []).map((a) => a.dataValues);
+    return email;
+  });
 }

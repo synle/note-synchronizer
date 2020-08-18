@@ -77,7 +77,7 @@ fs.writeFileSync('./newFilePath.txt', data, "base64", function (err) {
 ### Upload Files to Google Drive
 
 ```
-const fs = require("fs");
+import fs from 'fs';
 
 // source meta data
 const media = {

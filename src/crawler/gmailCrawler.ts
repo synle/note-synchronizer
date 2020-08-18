@@ -1,9 +1,8 @@
 // @ts-nocheck
 const { Readability } = require("@mozilla/readability");
 const { Base64 } = require("js-base64");
-const fs = require("fs");
+import fs from "fs";
 const { JSDOM } = require("jsdom");
-const moment = require("moment");
 const { chunk } = require("lodash");
 const prettier = require("prettier");
 import { Op } from "sequelize";
@@ -16,10 +15,6 @@ import {
   getThreadEmailsByThreadId,
   getThreadsByQuery,
   getEmailAttachment,
-  searchDrive,
-  createFileInDrive,
-  updateFileInDrive,
-  createFolderInDrive,
   flattenGmailPayloadParts,
 } from "./googleApiUtils";
 
@@ -32,15 +27,16 @@ import {
   THREAD_JOB_STATUS,
 } from "./commonUtils";
 
-const useInMemoryCache = true; // whether or not to build up the map in memory
+const useInMemoryCache = process.env.USE_IN_MEMORY_CACHE_FOR_CONTENT === true || false; // whether or not to build up the map in memory
 
 // google crawler
-const MAX_CONCURRENT_THREAD_QUEUE = 25;
+const MAX_CONCURRENT_THREAD_QUEUE =
+  parseInt(process.env.MAX_CONCURRENT_THREAD_QUEUE) || 10;
 
 const GMAIL_ATTACHMENT_PATH = "./attachments";
 const GMAIL_PATH_THREAD_LIST_TOKEN = `./caches/gmail.threads_last_tokens.data`;
 
-const MAX_TIME_PER_THREAD = 90000;
+const MAX_TIME_PER_THREAD = 120000;
 // crawler start
 
 /**
@@ -52,21 +48,26 @@ export function _processMessagesByThreadId(
   inMemoryMapForMessages
 ): Promise<Email[]> {
   return new Promise(async (resolve, reject) => {
-    const attachmentsPromises = []; // promises to keep track of attachment async download
+    const attachmentDownloadsPromises = []; // promises to keep track of attachment async download
     const attachmentsToSave = [];
     const messagesToSave = [];
-    const startDuration = Date.now();
+    const startTime = Date.now();
+    let ignoreTimerForTimeout = false;
 
-    const timerTimeoutProcess = setTimeout(async () => {
+    setTimeout(async () => {
+      if (ignoreTimerForTimeout !== false) {
+        return;
+      }
+
       logger.error(
-        `Aborted working on thread No messages found with this threadId: threadId=${targetThreadId}`
+        `Aborted working on thread due to Timeout issues: threadId=${targetThreadId} totalMessages=${threadMessages.length}`
       );
 
       // update the process time and status to error timeout
       await Models.Thread.update(
         {
           processedDate: null,
-          duration: Date.now() - startDuration,
+          duration: Date.now() - startTime,
           totalMessages: threadMessages.length,
           status: THREAD_JOB_STATUS.ERROR_TIMEOUT,
         },
@@ -134,12 +135,12 @@ export function _processMessagesByThreadId(
         `Aborted working on thread No messages found with this threadId: threadId=${targetThreadId}`
       );
 
-      clearTimeout(timerTimeoutProcess);
+      ignoreTimerForTimeout = true; // clear the timeout timer
 
       Models.Thread.update(
         {
           processedDate: null,
-          duration: Date.now() - startDuration,
+          duration: Date.now() - startTime,
           totalMessages: threadMessages.length,
           status: THREAD_JOB_STATUS.ERROR_THREAD_NOT_FOUND,
         },
@@ -226,7 +227,7 @@ export function _processMessagesByThreadId(
               };
 
               // download attachment async
-              attachmentsPromises.push(
+              attachmentDownloadsPromises.push(
                 _parseGmailAttachment(id, attachment)
                   .then((attachmentPath) => {
                     attachmentsToSave.push({
@@ -425,10 +426,12 @@ export function _processMessagesByThreadId(
     });
 
     // save attachments
-    await Promise.all(attachmentsPromises); // waiting for attachment to download
+    await Promise.all(attachmentDownloadsPromises); // waiting for attachment to download
+
+    ignoreTimerForTimeout = true; // clear the timeout timer
 
     logger.debug(
-      `Saving attachments: threadId=${targetThreadId} totalAttachments=${attachmentsToSave.length} totalDownloadJobs=${attachmentsPromises.length}`
+      `Saving attachments: threadId=${targetThreadId} totalAttachments=${attachmentsToSave.length} totalDownloadJobs=${attachmentDownloadsPromises.length}`
     );
 
     await Models.Attachment.bulkCreate(attachmentsToSave, {
@@ -443,13 +446,10 @@ export function _processMessagesByThreadId(
 
     logger.debug(`Done processing threadId=${targetThreadId}`);
 
-    // update the process time and status
-    clearTimeout(timerTimeoutProcess);
-
-    Models.Thread.update(
+    await Models.Thread.update(
       {
         processedDate: Date.now(),
-        duration: Date.now() - startDuration,
+        duration: Date.now() - startTime,
         totalMessages: threadMessages.length,
         status: THREAD_JOB_STATUS.SUCCESS,
       },
@@ -528,7 +528,37 @@ async function _getThreadIdsToProcess() {
   }
 }
 
+async function _getRawContentsFromDatabase() {
+  // attempting at getting the emails from the database
+  let inMemoryLookupContent = {};
+  if (useInMemoryCache) {
+    logger.warn(`Constructing in-memory lookup for messages`);
+    try {
+      const messagesFromDatabase = await Models.RawContent.findAll({});
+      if (messagesFromDatabase && messagesFromDatabase.length > 0) {
+        for (let message of messagesFromDatabase) {
+          inMemoryLookupContent[message.threadId] =
+            inMemoryLookupContent[message.threadId] || [];
+          inMemoryLookupContent[message.threadId].push(
+            JSON.parse(message.dataValues.rawApiResponse)
+          );
+        }
+      }
+    } catch (e) {}
+
+    logger.warn(
+      `Size of in-memory lookup for messages: ${
+        Object.keys(inMemoryLookupContent).length
+      }`
+    );
+  }
+
+  return inMemoryLookupContent;
+}
+
 async function _pollNewEmailThreads(q = "") {
+  const startTime = Date.now();
+
   let countPageProcessed = 0;
   let pageToken = "";
   let threadIds = [];
@@ -543,8 +573,9 @@ async function _pollNewEmailThreads(q = "") {
   } catch (e) {}
 
   let countTotalPagesToCrawl = process.env.GMAIL_PAGES_TO_CRAWL || 1;
-  logger.info(
-    `Crawl list of email threads: maxPages=${countTotalPagesToCrawl} lastToken=${pageToken}`
+
+  logger.warn(
+    `Crawl list of email threads: q=${q} maxPages=${countTotalPagesToCrawl} lastToken=${pageToken}`
   );
 
   while (countPageProcessed < countTotalPagesToCrawl) {
@@ -562,19 +593,19 @@ async function _pollNewEmailThreads(q = "") {
       fs.appendFileSync(GMAIL_PATH_THREAD_LIST_TOKEN, nextPageToken + "\n");
 
       if (countPageProcessed % 25 === 0 && countPageProcessed > 0) {
-        logger.info(
-          `So far, ${countPageProcessed} pages crawled. ${threadIds.length} threads found`
+        logger.warn(
+          `So far, ${countPageProcessed} pages crawled  q=${q}: ${threadIds.length} threads found`
         );
       }
     } catch (err) {
       logger.error(
-        `Failed to get thread list pageToken=${pageToken}  error=${err.stack}`
+        `Failed to get thread list q=${q} pageToken=${pageToken} error=${err.stack}`
       );
       break;
     }
   }
 
-  logger.info(`${countPageProcessed} total pages crawled`);
+  logger.warn(`${countPageProcessed} total pages crawled:  q=${q}`);
 
   // store them into the database as chunks
   const threadIdsChunks = chunk(threadIds, 50); // maximum page size
@@ -595,6 +626,12 @@ async function _pollNewEmailThreads(q = "") {
       }
     ).catch(() => {});
   }
+
+  logger.warn(
+    `Done Crawl list of email threads: q=${q} duration=${
+      Date.now() - startTime
+    }`
+  );
 }
 
 /**
@@ -774,151 +811,19 @@ async function _processEmails(threadIds, inMemoryLookupContent = {}) {
   logger.info(`Total Messages: ${totalMsgCount}`);
 }
 
-export async function uploadFile(
-  name,
-  mimeType,
-  localPath,
-  description,
-  dateEpochTime,
-  starred = false,
-  parentFolderId = process.env.NOTE_GDRIVE_FOLDER_ID
-) {
-  const originalMimeType = mimeType.toLowerCase();
-
-  mimeType = originalMimeType;
-  switch (mimeType) {
-    case MIME_TYPE_ENUM.TEXT_PLAIN:
-    case MIME_TYPE_ENUM.TEXT_XML:
-    case MIME_TYPE_ENUM.APP_XML:
-    case MIME_TYPE_ENUM.APP_JSON:
-      mimeType = MIME_TYPE_ENUM.TEXT_PLAIN;
-      break;
-  }
-
-  let mimeTypeToUse = "";
-  if (
-    [
-      MIME_TYPE_ENUM.TEXT_CSV,
-      MIME_TYPE_ENUM.APP_MS_XLS,
-      MIME_TYPE_ENUM.APP_MS_XLSX,
-    ].includes(mimeType)
-  ) {
-    mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_SPREADSHEET;
-  } else if (
-    [
-      MIME_TYPE_ENUM.APP_RTF,
-      MIME_TYPE_ENUM.APP_MS_DOC,
-      MIME_TYPE_ENUM.APP_MS_DOCX,
-      MIME_TYPE_ENUM.TEXT_X_AMP_HTML,
-      MIME_TYPE_ENUM.TEXT_HTML,
-    ].includes(mimeType)
-  ) {
-    mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_DOCUMENT;
-  } else if ([MIME_TYPE_ENUM.TEXT_PLAIN].includes(mimeType)) {
-    mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_SCRIPT;
-  } else if (
-    [MIME_TYPE_ENUM.APP_MS_PPT, MIME_TYPE_ENUM.APP_MS_PPTX].includes(mimeType)
-  ) {
-    mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_PRESENTATION;
-  } else {
-    mimeTypeToUse = mimeType;
-  }
-
-  const createdTime = moment.utc(dateEpochTime).format("YYYY-MM-DDTHH:mm:ssZ");
-  const modifiedTime = moment.utc(dateEpochTime).format("YYYY-MM-DDTHH:mm:ssZ");
-
-  // refer to this link for more metadata
-  // https://developers.google.com/drive/api/v3/reference/files/create
-  const fileGDriveMetadata = {
-    name,
-    parents: [parentFolderId],
-    mimeType: mimeTypeToUse,
-    modifiedTime,
-    createdTime,
-    description,
-    starred,
-    useContentAsIndexableText: true,
-    enforceSingleParent: true,
-  };
-
-  const media = {
-    mimeType,
-    body: fs.createReadStream(localPath),
-  };
-
-  const matchedResults = await searchDrive(
-    fileGDriveMetadata.name,
-    fileGDriveMetadata.mimeType,
-    parentFolderId
-  );
-  if (matchedResults.length === 0) {
-    logger.debug("Upload file with create operation", name);
-    return createFileInDrive(fileGDriveMetadata, media);
-  } else {
-    logger.debug(
-      "Upload file with update operation",
-      name,
-      matchedResults[0].id
-    );
-    return updateFileInDrive(matchedResults[0].id, fileGDriveMetadata, media);
-  }
-}
-
-export async function createDriveFolder(name, description, parentFolderId) {
-  const mimeType = MIME_TYPE_ENUM.APP_GOOGLE_FOLDER;
-
-  const matchedResults = await searchDrive(name, mimeType);
-  if (matchedResults.length === 0) {
-    const fileGDriveMetadata = {
-      name,
-      mimeType,
-      description,
-    };
-
-    if (parentFolderId) {
-      fileGDriveMetadata.parents = [parentFolderId];
-    }
-
-    // create the folder itself
-    return (await createFolderInDrive(fileGDriveMetadata)).id;
-  } else {
-    return matchedResults[0].id;
-  }
-}
-
 /**
  * entry point to start work on all items
  */
 export async function doGmailWorkForAllItems() {
-  logger.info(`doGmailWorkForAllItems`);
+  logger.warn(`doGmailWorkForAllItems`);
 
   const threadIds = await _getThreadIdsToProcess();
 
-  // attempting at getting the emails from the database
-  let inMemoryLookupContent = {};
-  if (useInMemoryCache) {
-    logger.info(`Constructing in-memory lookup for messages`);
-    try {
-      const messagesFromDatabase = await Models.RawContent.findAll({});
-      if (messagesFromDatabase && messagesFromDatabase.length > 0) {
-        for (let message of messagesFromDatabase) {
-          inMemoryLookupContent[message.threadId] =
-            inMemoryLookupContent[message.threadId] || [];
-          inMemoryLookupContent[message.threadId].push(
-            JSON.parse(message.dataValues.rawApiResponse)
-          );
-        }
-      }
-    } catch (e) {}
+  const inMemoryLookupContent = await _getRawContentsFromDatabase();
 
-    logger.info(
-      `Size of in-memory lookup for messages: ${
-        Object.keys(inMemoryLookupContent).length
-      }`
-    );
-  }
+  await _processEmails(threadIds, inMemoryLookupContent);
 
-  return _processEmails(threadIds, inMemoryLookupContent);
+  logger.warn("Done doGmailWorkForAllItems");
 }
 
 /**
@@ -926,38 +831,35 @@ export async function doGmailWorkForAllItems() {
  * @param targetThreadId
  */
 export async function doGmailWorkByThreadIds(targetThreadId) {
-  logger.info(`doGmailWorkByThreadIds ${targetThreadId}`);
-  return _processEmails(targetThreadId);
+  logger.warn(`doGmailWorkByThreadIds ${targetThreadId}`);
+  await _processEmails(targetThreadId);
+  logger.warn(`Done doGmailWorkByThreadIds ${targetThreadId}`);
 }
 
 /**
  * This is simply to get a list of all email threadIds
  */
 export async function doGmailWorkPollThreadList() {
-  logger.info(`doGmailWorkPollThreadList`);
+  logger.warn(`doGmailWorkPollThreadList`);
 
-  // get emails from inbox
-  logger.info(`Get threads from Inbox / All Mails`);
-  await _pollNewEmailThreads();
+  await Promise.allSettled([
+    _pollNewEmailThreads(), // get emails from inbox
+    _pollNewEmailThreads("from:(me)"), // get emails sent by me
+    _pollNewEmailThreads("in:drafts"), // messages that are in draft
+  ]);
 
-  // get emails sent by me
-  logger.info(`Get threads from emails sent by me`);
-  await _pollNewEmailThreads("from:(me)");
-
-  // get emails in draft
-  logger.info(`Get threads from Draft Folders`);
-  await _pollNewEmailThreads("in:drafts");
+  logger.warn(`Done Polling`);
 }
 
 // this job is temporary, will be removed
 export async function doDecodeBase64ForRawContent() {
-  logger.info(`doDecodeBase64ForRawContent`);
+  logger.warn(`doDecodeBase64ForRawContent`);
 
   const messagesFromDatabase = await Models.RawContent.findAll({
     // limit: 1
   });
 
-  logger.info(
+  logger.warn(
     `doDecodeBase64ForRawContent : start decoding ${messagesFromDatabase.length}`
   );
 
@@ -1009,5 +911,5 @@ export async function doDecodeBase64ForRawContent() {
     }
   }
 
-  logger.info(`doDecodeBase64ForRawContent : done decoding`);
+  logger.warn(`doDecodeBase64ForRawContent : done decoding`);
 }
