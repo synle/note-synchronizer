@@ -28,7 +28,8 @@ import {
   isStringUrl,
   extractUrlFromString,
   crawlUrl,
-  MimeTypeEnum,
+  MIME_TYPE_ENUM,
+  THREAD_JOB_STATUS,
 } from "./commonUtils";
 
 const useInMemoryCache = true; // whether or not to build up the map in memory
@@ -56,10 +57,27 @@ export function _processMessagesByThreadId(
     const messagesToSave = [];
     const startDuration = Date.now();
 
-    setTimeout(() => {
+    const timerTimeoutProcess = setTimeout(async () => {
       logger.error(
         `Aborted working on thread No messages found with this threadId: threadId=${targetThreadId}`
       );
+
+      // update the process time and status to error timeout
+      await Models.Thread.update(
+        {
+          processedDate: null,
+          duration: Date.now() - startDuration,
+          totalMessages: threadMessages.length,
+          status: THREAD_JOB_STATUS.ERROR_TIMEOUT,
+        },
+        {
+          where: {
+            threadId: targetThreadId,
+          },
+        }
+      );
+
+      reject("Timeout for task");
     }, MAX_TIME_PER_THREAD);
 
     let threadMessages = [];
@@ -115,6 +133,23 @@ export function _processMessagesByThreadId(
       logger.error(
         `Aborted working on thread No messages found with this threadId: threadId=${targetThreadId}`
       );
+
+      clearTimeout(timerTimeoutProcess);
+
+      Models.Thread.update(
+        {
+          processedDate: null,
+          duration: Date.now() - startDuration,
+          totalMessages: threadMessages.length,
+          status: THREAD_JOB_STATUS.ERROR_THREAD_NOT_FOUND,
+        },
+        {
+          where: {
+            threadId: targetThreadId,
+          },
+        }
+      );
+
       return resolve(threadMessages.length);
     }
 
@@ -217,18 +252,18 @@ export function _processMessagesByThreadId(
               );
 
               switch (mimeType) {
-                case MimeTypeEnum.MULTIPART_ALTERNATIVE:
-                case MimeTypeEnum.MULTIPART_RELATED:
+                case MIME_TYPE_ENUM.MULTIPART_ALTERNATIVE:
+                case MIME_TYPE_ENUM.MULTIPART_RELATED:
                   logger.error(
                     `Unsupported mimetype threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`
                   );
                   break;
 
                 default:
-                case MimeTypeEnum.IMAGE_GIF:
-                case MimeTypeEnum.IMAGE_PNG:
-                case MimeTypeEnum.IMAGE_JPG:
-                case MimeTypeEnum.IMAGE_JPEG:
+                case MIME_TYPE_ENUM.IMAGE_GIF:
+                case MIME_TYPE_ENUM.IMAGE_PNG:
+                case MIME_TYPE_ENUM.IMAGE_JPG:
+                case MIME_TYPE_ENUM.IMAGE_JPEG:
                   // this is inline attachment, no need to download it
                   logger.debug(
                     `Storing Inline Attachment: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`
@@ -252,15 +287,15 @@ export function _processMessagesByThreadId(
                   });
                   break;
 
-                case MimeTypeEnum.TEXT_PLAIN:
+                case MIME_TYPE_ENUM.TEXT_PLAIN:
                   if (!rawBody) {
                     // only store the rawbody if it's not already defined
                     rawBody = data;
                   }
                   break;
 
-                case MimeTypeEnum.TEXT_X_AMP_HTML:
-                case MimeTypeEnum.TEXT_HTML:
+                case MIME_TYPE_ENUM.TEXT_X_AMP_HTML:
+                case MIME_TYPE_ENUM.TEXT_HTML:
                   rawBody = _prettifyHtml(data);
                   break;
               }
@@ -408,12 +443,15 @@ export function _processMessagesByThreadId(
 
     logger.debug(`Done processing threadId=${targetThreadId}`);
 
-    // update the process time
+    // update the process time and status
+    clearTimeout(timerTimeoutProcess);
+
     Models.Thread.update(
       {
         processedDate: Date.now(),
         duration: Date.now() - startDuration,
         totalMessages: threadMessages.length,
+        status: THREAD_JOB_STATUS.SUCCESS,
       },
       {
         where: {
@@ -514,7 +552,7 @@ async function _pollNewEmailThreads(q = "") {
 
     try {
       const { threads, nextPageToken } = await getThreadsByQuery(q, pageToken);
-      threadIds = [...threadIds, ...threads];
+      threadIds = [...threadIds, ...(threads || [])];
       pageToken = nextPageToken;
 
       if (!nextPageToken) {
@@ -550,6 +588,7 @@ async function _pollNewEmailThreads(q = "") {
         processedDate: null,
         duration: null,
         totalMessages: null,
+        status: THREAD_JOB_STATUS.PENDING,
       })),
       {
         updateOnDuplicate: ["processedDate"],
@@ -748,39 +787,39 @@ export async function uploadFile(
 
   mimeType = originalMimeType;
   switch (mimeType) {
-    case MimeTypeEnum.TEXT_PLAIN:
-    case MimeTypeEnum.TEXT_XML:
-    case MimeTypeEnum.APP_XML:
-    case MimeTypeEnum.APP_JSON:
-      mimeType = MimeTypeEnum.TEXT_PLAIN;
+    case MIME_TYPE_ENUM.TEXT_PLAIN:
+    case MIME_TYPE_ENUM.TEXT_XML:
+    case MIME_TYPE_ENUM.APP_XML:
+    case MIME_TYPE_ENUM.APP_JSON:
+      mimeType = MIME_TYPE_ENUM.TEXT_PLAIN;
       break;
   }
 
   let mimeTypeToUse = "";
   if (
     [
-      MimeTypeEnum.TEXT_CSV,
-      MimeTypeEnum.APP_MS_XLS,
-      MimeTypeEnum.APP_MS_XLSX,
+      MIME_TYPE_ENUM.TEXT_CSV,
+      MIME_TYPE_ENUM.APP_MS_XLS,
+      MIME_TYPE_ENUM.APP_MS_XLSX,
     ].includes(mimeType)
   ) {
-    mimeTypeToUse = MimeTypeEnum.APP_GOOGLE_SPREADSHEET;
+    mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_SPREADSHEET;
   } else if (
     [
-      MimeTypeEnum.APP_RTF,
-      MimeTypeEnum.APP_MS_DOC,
-      MimeTypeEnum.APP_MS_DOCX,
-      MimeTypeEnum.TEXT_X_AMP_HTML,
-      MimeTypeEnum.TEXT_HTML,
+      MIME_TYPE_ENUM.APP_RTF,
+      MIME_TYPE_ENUM.APP_MS_DOC,
+      MIME_TYPE_ENUM.APP_MS_DOCX,
+      MIME_TYPE_ENUM.TEXT_X_AMP_HTML,
+      MIME_TYPE_ENUM.TEXT_HTML,
     ].includes(mimeType)
   ) {
-    mimeTypeToUse = MimeTypeEnum.APP_GOOGLE_DOCUMENT;
-  } else if ([MimeTypeEnum.TEXT_PLAIN].includes(mimeType)) {
-    mimeTypeToUse = MimeTypeEnum.APP_GOOGLE_SCRIPT;
+    mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_DOCUMENT;
+  } else if ([MIME_TYPE_ENUM.TEXT_PLAIN].includes(mimeType)) {
+    mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_SCRIPT;
   } else if (
-    [MimeTypeEnum.APP_MS_PPT, MimeTypeEnum.APP_MS_PPTX].includes(mimeType)
+    [MIME_TYPE_ENUM.APP_MS_PPT, MIME_TYPE_ENUM.APP_MS_PPTX].includes(mimeType)
   ) {
-    mimeTypeToUse = MimeTypeEnum.APP_GOOGLE_PRESENTATION;
+    mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_PRESENTATION;
   } else {
     mimeTypeToUse = mimeType;
   }
@@ -826,7 +865,7 @@ export async function uploadFile(
 }
 
 export async function createDriveFolder(name, description, parentFolderId) {
-  const mimeType = MimeTypeEnum.APP_GOOGLE_FOLDER;
+  const mimeType = MIME_TYPE_ENUM.APP_GOOGLE_FOLDER;
 
   const matchedResults = await searchDrive(name, mimeType);
   if (matchedResults.length === 0) {

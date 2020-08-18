@@ -118,6 +118,9 @@ export class Thread extends Model {
 
   @attribute(Thread)
   public snippet!: string;
+
+  @attribute(Thread)
+  public status!: string;
 }
 
 /**

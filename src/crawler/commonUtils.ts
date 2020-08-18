@@ -16,7 +16,14 @@ export const ignoredWordTokens = (process.env.IGNORED_WORD_TOKENS || "").split(
 
 const ignoredUrlTokens = (process.env.IGNORED_URL_TOKENS || "").split("|||");
 
-export enum MimeTypeEnum {
+export enum THREAD_JOB_STATUS {
+  ERROR_THREAD_NOT_FOUND = "ERROR_THREAD_NOT_FOUND",
+  ERROR_TIMEOUT = "ERROR_TIMEOUT",
+  SUCCESS = "SUCCESS",
+  PENDING = "PENDING",
+}
+
+export enum MIME_TYPE_ENUM {
   APP_JSON = "application/json",
   APP_GOOGLE_DOCUMENT = "application/vnd.google-apps.document",
   APP_GOOGLE_FOLDER = "application/vnd.google-apps.folder",
