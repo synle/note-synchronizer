@@ -13,7 +13,6 @@ import {
   doGmailWorkPollThreadList,
   doGmailWorkForAllItems,
   doGmailWorkByThreadIds,
-  doDecodeBase64ForRawContent,
 } from "./src/crawler/gmailCrawler";
 
 import {
@@ -64,9 +63,6 @@ async function _doWork() {
         break;
 
       case "playground":
-        await doDecodeBase64ForRawContent();
-        break;
-
       case "test":
         console.log("Hello world");
         break;
@@ -74,6 +70,9 @@ async function _doWork() {
   } catch (e) {
     logger.error(`Main Process Failed: ${e && e.stack} ${e}`);
   }
+
+  logger.info("Shutting down process...");
+  process.exit();
 }
 
 // periodically upload warning log to gdrive for progress
