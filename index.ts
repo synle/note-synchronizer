@@ -26,8 +26,6 @@ async function _doWork() {
   await initDatabase();
   await initGoogleApi();
 
-  _uploadLogsToDrive(); // do first upload of log on page load
-
   try {
     const command = process.argv[2] || "";
     const targetThreadIds = (process.argv[3] || "")
@@ -62,6 +60,10 @@ async function _doWork() {
         await doGdriveWorkByThreadIds(targetThreadIds);
         break;
 
+      case "upload_logs":
+        await _uploadLogsToDrive(); // do first upload of log on page load
+        break;
+
       case "playground":
       case "test":
         console.log("Hello world");
@@ -94,9 +96,5 @@ function _uploadLogsToDrive() {
     getNoteDestinationFolderId()
   );
 }
-setInterval(
-  _uploadLogsToDrive,
-  2 * 60 * 1000 * 60 // in hour
-);
 
 _doWork();
