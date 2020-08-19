@@ -92,7 +92,7 @@ function getNewGoogleToken(oAuth2Client, callback) {
     access_type: "offline",
     scope: SCOPES,
   });
-  logger.info("Authorize this app by visiting this url:", authUrl);
+  logger.info(`Authorize this app by visiting this url: ${authUrl}`);
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,

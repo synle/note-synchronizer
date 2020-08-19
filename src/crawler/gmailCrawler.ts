@@ -512,19 +512,22 @@ function _parseEmailAddress(emailAddress) {
 /**
  * get a list of threads to process
  */
-export async function getThreadIdsToProcess() {
+export async function getThreadIdsToProcess(limit = 100) {
   try {
     const databaseResponse = await Models.Thread.findAll({
       where: {
-        processedDate: {
-          [Op.eq]: null,
+        status: {
+          [Op.eq]: "PENDING",
         },
       },
       order: [
         ["updatedAt", "DESC"], // start with the one that changes recenty
       ],
+      limit,
     });
-    return (databaseResponse || []).map((thread) => thread.dataValues.threadId);
+    const threadIds = (databaseResponse || []).map((thread) => thread.dataValues.threadId);
+
+
   } catch (err) {
     // not in cache
     logger.info(
@@ -602,7 +605,7 @@ async function _pollNewEmailThreads(q = "") {
       {
         updateOnDuplicate: ["processedDate"],
       }
-    ).catch(() => {});
+    );
   }
 
   logger.warn(
