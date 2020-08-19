@@ -3,17 +3,18 @@ require("dotenv").config();
 import fs from "fs";
 const { chunk } = require("lodash");
 
-import { Email, DatabaseResponse, Attachment } from "../types";
+import { Email, Attachment } from "../types";
 import Models from "../models/modelsSchema";
 import { getNoteDestinationFolderId, uploadFile } from "./googleApiUtils";
 import { logger } from "../loggers";
-import { myEmails, ignoredWordTokens } from "./commonUtils";
+import { myEmails, ignoredWordTokens, THREAD_JOB_STATUS } from "./commonUtils";
+import * as DataUtils from "./dataUtils";
 
 let noteDestinationFolderId;
 
 const PROCESSED_EMAIL_PREFIX_PATH = "./processed";
 
-const MINIMUM_IMAGE_SIZE_IN_BITS = 30000;
+const MINIMUM_IMAGE_SIZE_IN_BITS = 12000;
 
 function _sanitizeFileName(string) {
   return string
@@ -24,60 +25,49 @@ function _sanitizeFileName(string) {
     .replace("-", " ")
     .replace("_", " ")
     .replace("_", " ")
+    .replace(/re:/gi, "")
+    .replace(/fw/gi, "")
+    .replace(":", "")
     .split(" ")
     .filter((r) => r && r.length > 0)
-    .join(" ");
+    .join(" ")
+    .trim();
 }
 
 async function _init() {
-  noteDestinationFolderId = getNoteDestinationFolderId();
+  noteDestinationFolderId = await getNoteDestinationFolderId();
 
   logger.debug(
     `ID for Google Drive Note Sync Folder: ${noteDestinationFolderId}`
   );
 }
 
-async function _processMessages(emails: Email[]) {
-  const countTotalMessages = emails.length;
-  logger.debug(
-    `Total Messages To Sync with Google Drive: ${countTotalMessages} firstId=${emails[0].id}`
-  );
-
-  let countProcessedMessages = 0;
-
-  for (let email of emails) {
-    const percentDone = (
-      (countProcessedMessages / countTotalMessages) *
-      100
-    ).toFixed(2);
-    if (
-      percentDone === 0 ||
-      percentDone % 20 === 0 ||
-      countProcessedMessages % 100 === 0
-    ) {
-      logger.debug(
-        `Progress for Uploading Notes: ${percentDone}% (${countProcessedMessages}/${countTotalMessages})`
-      );
-    }
-    countProcessedMessages++;
-
+async function _processThreadEmail(email: Email) {
+  try {
     let { threadId, id, from, bcc, to, subject, date, labelIds } = email;
+
+    await DataUtils.updateEmailUploadStatus({
+      id: id,
+      upload_status: THREAD_JOB_STATUS.IN_PROGRESS,
+    });
+
+    const Attachments = await DataUtils.getAttachmentByThreadIds(threadId);
+
     const toEmailList = (bcc || "")
       .split(",")
       .concat((to || "").split(","))
       .map((r) => r.trim())
       .filter((r) => !!r);
-    const attachments: Attachment[] = email.Attachments.filter((attachment) => {
+
+    const attachments: Attachment[] = Attachments.filter((attachment) => {
       // only use attachments that is not small images
       const attachmentStats = fs.statSync(attachment.path);
-      return (
-        (attachmentStats.size < MINIMUM_IMAGE_SIZE_IN_BITS &&
-          attachment.mimeType.includes("images/")) ||
-        !attachment.mimeType.includes("images/")
-      );
-    });
 
-    subject = (subject || "").trim();
+      if (attachment.mimeType.includes("image")) {
+        return attachmentStats.size >= MINIMUM_IMAGE_SIZE_IN_BITS;
+      }
+      return true;
+    });
 
     const labelIdsList = (labelIds || "").split(",");
 
@@ -86,8 +76,6 @@ async function _processMessages(emails: Email[]) {
     const rawBody = (email.rawBody || "").trim();
 
     const toEmailAddresses = toEmailList.join(", ");
-
-    let docFileName = subject;
 
     const isEmailSentByMe = myEmails.some((myEmail) => from.includes(myEmail));
 
@@ -98,6 +86,20 @@ async function _processMessages(emails: Email[]) {
       );
 
     const hasSomeAttachments = attachments.length > 0;
+
+    if (labelIdsList.some((labelId) => labelId.includes("CHAT"))) {
+      if (subject.indexOf("Chat") === -1) {
+        subject = `Chat ${new Date(parseInt(date)).toLocaleDateString()} ${subject}`;
+      }
+    } else {
+      if (subject.indexOf("Email") === -1) {
+        subject = `Email ${new Date(
+          parseInt(date)
+        ).toLocaleDateString()} ${subject}`;
+      }
+    }
+
+    let docFileName = `${subject}`;
 
     // ignored if content contains the ignored patterns
     if (
@@ -112,7 +114,12 @@ async function _processMessages(emails: Email[]) {
         `Skipped due to Ignored Pattern: threadId=${threadId} id=${id} subject=${subject}`
       );
 
-      continue; // skipped
+      await DataUtils.updateEmailUploadStatus({
+        id: id,
+        upload_status: THREAD_JOB_STATUS.SUCCESS,
+      });
+
+      return; // skip this
     }
 
     if (isEmailSentByMe || isEmailSentToMySelf || hasSomeAttachments) {
@@ -126,10 +133,11 @@ async function _processMessages(emails: Email[]) {
           const fileContent = `
           <h1>${subject}</h1>
           <hr />
-          <div><b><u>from:</u></b> ${from}</div>
-          <div><b><u>to:</u></b> ${toEmailAddresses}</div>
-          <div><b><u>threadId:</u></b> ${threadId}</div>
-          <div><b><u>messageId:</u></b> ${id}</div>
+          <div><b><u>Date:</u></b> ${new Date(date).toLocaleString()}</div>
+          <div><b><u>From:</u></b> ${from}</div>
+          <div><b><u>To:</u></b> ${toEmailAddresses}</div>
+          <div><b><u>ThreadId:</u></b> ${threadId}</div>
+          <div><b><u>MessageId:</u></b> ${id}</div>
           <hr />
           ${rawBody}`.trim();
           fs.writeFileSync(localPath, fileContent.trim());
@@ -137,10 +145,17 @@ async function _processMessages(emails: Email[]) {
           logger.debug(`Upload original note file ${docFileName}`);
 
           await uploadFile(
-            docFileName || `${from} Email Message ${id}`,
+            docFileName,
             "text/html",
             localPath,
-            `subject=${subject} (threadId=${threadId}) (id=${id}) Main Email`,
+            `
+            Main Email
+            Date=${new Date().toLocaleDateString()}
+            From=${from}
+            Subject=${subject}
+            threadId=${threadId}
+            id=${id}
+            `.trim(),
             date,
             starred,
             noteDestinationFolderId
@@ -174,7 +189,15 @@ async function _processMessages(emails: Email[]) {
             attachmentName,
             attachment.mimeType,
             attachment.path,
-            `subject=${subject} (threadId=${threadId}) (id=${id}) Attachment #${AttachmentIdx}`,
+            `
+            Attachment #${AttachmentIdx}
+            Date=${new Date().toLocaleDateString()}
+            From=${from}
+            Subject=${subject}
+            threadId=${threadId}
+            id=${id}
+            Path=${attachment.path}
+            `.trim(),
             date,
             starred,
             noteDestinationFolderId
@@ -192,31 +215,48 @@ async function _processMessages(emails: Email[]) {
     } else {
       logger.debug(`Skipped threadId=${threadId} id=${id} subject=${subject}`);
     }
+
+    await DataUtils.updateEmailUploadStatus({
+      id: id,
+      upload_status: THREAD_JOB_STATUS.SUCCESS,
+    });
+  } catch (err) {
+    logger.error(
+      `Failed to process emails with threadId=${email.threadId} messageId=${email.id}`
+    );
+
+    await DataUtils.updateEmailUploadStatus({
+      id: id,
+      upload_status: THREAD_JOB_STATUS.ERROR_GENERIC,
+    });
   }
 }
 
-export async function doGdriveWorkForAllItems() {
-  await _init();
+async function _processThreadEmails(emails: Email[]) {
+  const countTotalMessages = emails.length;
+  logger.debug(
+    `Total Messages To Sync with Google Drive: ${countTotalMessages} firstId=${emails[0].id}`
+  );
 
-  logger.info(`doGdriveWorkForAllItems`);
+  let countProcessedMessages = 0;
 
-  const matchedResults: DatabaseResponse<Email>[] = await Models.Email.findAll({
-    where: {},
-    include: [
-      {
-        model: Models.Attachment,
-        required: false,
-      },
-    ],
-  });
+  for (let email of emails) {
+    const percentDone = (
+      (countProcessedMessages / countTotalMessages) *
+      100
+    ).toFixed(2);
+    if (
+      percentDone === 0 ||
+      percentDone % 20 === 0 ||
+      countProcessedMessages % 100 === 0
+    ) {
+      logger.debug(
+        `Progress for Uploading Notes: ${percentDone}% (${countProcessedMessages}/${countTotalMessages})`
+      );
+    }
+    countProcessedMessages++;
 
-  const threadChunks = chunk(
-    _transformMatchedThreadsResults(matchedResults),
-    15
-  ); // maximum parallel
-
-  for (let threads of threadChunks) {
-    await _processMessages(threads);
+    await _processThreadEmail(email);
   }
 }
 
@@ -224,30 +264,34 @@ export async function doGdriveWorkForAllItems() {
  * entry point to start work on a single item
  * @param targetThreadId
  */
-export async function doGdriveWorkByThreadIds(targetThreadId) {
+export async function uploadEmailThreadToGoogleDrive(targetThreadId) {
   await _init();
-
-  logger.info(`doGdriveWorkByThreadIds threadId=${targetThreadId}`);
-
-  const matchedResults: DatabaseResponse<Email>[] = await Models.Email.findAll({
-    where: {
-      threadId: targetThreadId,
-    },
-    include: [
-      {
-        model: Models.Attachment,
-        required: false,
-      },
-    ],
-  });
-
-  await _processMessages(_transformMatchedThreadsResults(matchedResults));
+  const matchedResults = await DataUtils.getEmailsByThreadId(targetThreadId);
+  await _processThreadEmails(matchedResults);
 }
 
-function _transformMatchedThreadsResults(matchedResults: any[]): Email[] {
-  return matchedResults.map((matchedResult) => {
-    const email = matchedResult.dataValues;
-    email.Attachments = (email.Attachments || []).map((a) => a.dataValues);
-    return email;
-  });
+export async function uploadLogsToDrive() {
+  await _init();
+
+  logger.debug("uploadLogsToDrive");
+
+  uploadFile(
+    "...Note_Sync_Log.info",
+    "text/plain",
+    "./logs/log_warn.data",
+    `Note Synchronizer Log`,
+    Date.now(),
+    false, // not starred
+    noteDestinationFolderId
+  );
+
+  uploadFile(
+    "...Note_Sync_Log.verbose",
+    "text/plain",
+    "./logs/log_combined.data",
+    `Note Synchronizer Log`,
+    Date.now(),
+    false, // not starred
+    noteDestinationFolderId
+  );
 }

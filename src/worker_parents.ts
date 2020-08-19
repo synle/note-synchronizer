@@ -1,65 +1,84 @@
 // @ts-nocheck
+require("dotenv").config();
 import path from "path";
-import { Worker } from "worker_threads";
+import { Worker, threadId } from "worker_threads";
 
 import initDatabase from "./models/modelsFactory";
 
-import {
-  getNoteDestinationFolderId,
-  initGoogleApi,
-  uploadFile,
-} from "./crawler/googleApiUtils";
+import { initGoogleApi } from "./crawler/googleApiUtils";
 
+import { uploadEmailThreadToGoogleDrive } from "./crawler/gdriveCrawler";
 import {
-  doGmailWorkPollThreadList,
-  doGmailWorkForAllItems,
-  doGmailWorkByThreadIds,
-  doDecodeBase64ForRawContent,
-  getThreadIdsToProcess,
+  pollForNewThreadList,
+  fetchEmailsByThreadIds,
 } from "./crawler/gmailCrawler";
 
-import {
-  doGdriveWorkForAllItems,
-  doGdriveWorkByThreadIds,
-} from "./crawler/gdriveCrawler";
+import * as DataUtils from "./crawler/dataUtils";
 
 import { logger } from "./loggers";
 
+// workers
 const workers = [];
-let maxThreadCount = 0;
 
-enum WORKER_STATUS {
-  FREE = "FREE",
-  BUSY = "BUSY",
-}
+// work related
+let intervalWorkSchedule;
+let lastWorkIdx = 0;
+let remainingWorkInputs = [];
 
-function _newWorker(myThreadId) {
-  console.log("spawn", myThreadId);
+const command = process.argv[2] || "";
+const targetThreadIds = (process.argv[3] || "")
+  .split(",")
+  .map((r) => (r || "").trim())
+  .filter((r) => !!r);
 
-  const workerDetails = {};
+import {
+  WORKER_STATUS_ENUM,
+  WORK_ACTION_ENUM,
+  maxThreadCount,
+  THREAD_JOB_STATUS,
+  WorkActionResponse,
+} from "./crawler/commonUtils";
 
+function _newWorker(myThreadId, myThreadName, workerGroup) {
   const worker = new Worker(path.join(__dirname, "worker_children.js"), {
     workerData: {
       myThreadId,
+      myThreadName,
     },
   });
-  worker.on("message", (data) => {
-    console.log("parent received message from worker", myThreadId, data);
-    workers[myThreadId].status = WORKER_STATUS.FREE;
+  worker.on("message", (data: WorkActionResponse) => {
+    if (data.success) {
+      console.debug("Done processing thread", data.threadId);
+    } else {
+      console.error("Failed processing thread", data.error, data);
+    }
+
+    workerGroup[myThreadId].status = WORKER_STATUS_ENUM.FREE;
   });
   worker.on("error", (...err) => {
-    // wip - respawn
-    console.log("worker failed", myThreadId, error);
-    workers[myThreadId] = _newWorker(myThreadId);
+    // console.error("Worker Failed with error", myThreadId, error);
+    setTimeout(() => {
+      workerGroup[myThreadId] = _newWorker(
+        myThreadId,
+        myThreadName,
+        workerGroup
+      );
+    }, 2000);
   });
   worker.on("exit", (...code) => {
-    // wip - respawn
-    console.log("worker exit", myThreadId, code);
-    workers[myThreadId] = _newWorker(myThreadId);
+    // console.error("Worker Exit with code", myThreadId, code);
+    setTimeout(() => {
+      workerGroup[myThreadId] = _newWorker(
+        myThreadId,
+        myThreadName,
+        workerGroup
+      );
+    }, 2000);
   });
 
+  const workerDetails = {};
   workerDetails.work = worker;
-  workerDetails.status = "FREE";
+  workerDetails.status = WORKER_STATUS_ENUM.FREE;
 
   return workerDetails;
 }
@@ -68,35 +87,170 @@ async function _init() {
   await initGoogleApi();
   await initDatabase();
 
-  while (maxThreadCount > 0) {
-    maxThreadCount--;
-    const myThreadId = workers.length;
-    workers.push(_newWorker(myThreadId));
+  logger.debug(`Starting work: command=${command} workers=${maxThreadCount}`);
+
+  let threadToSpawn;
+
+  switch (command) {
+    default:
+      process.exit();
+      break;
+
+    // single run fetch email details
+    case WORK_ACTION_ENUM.SINGLE_RUN_FETCH_EMAIL:
+      await fetchEmailsByThreadIds(targetThreadIds);
+      break;
+
+    // single run upload email
+    case WORK_ACTION_ENUM.SINGLE_RUN_UPLOAD_EMAIL:
+      await uploadEmailThreadToGoogleDrive(targetThreadIds);
+      break;
+
+    // job 1
+    case WORK_ACTION_ENUM.FETCH_THREADS:
+      await pollForNewThreadList(true);
+      break;
+
+    // job 2
+    case WORK_ACTION_ENUM.FETCH_EMAIL:
+      threadToSpawn = maxThreadCount;
+      while (threadToSpawn > 0) {
+        threadToSpawn--;
+        const myThreadId = workers.length;
+        workers.push(_newWorker(myThreadId, command, workers));
+      }
+
+      // reprocess any in progress tasks
+      await DataUtils.recoverInProgressThreadJobStatus();
+
+      // get a list of threads to start workin g
+      remainingWorkInputs = await DataUtils.getAllThreadIdsToFetchDetails();
+      intervalWorkSchedule = setInterval(_enqueueWorkFetchEmails, 500); // every 10 sec
+      _enqueueWorkFetchEmails();
+      break;
+
+    // job 3
+    case WORK_ACTION_ENUM.UPLOAD_EMAIL:
+      threadToSpawn = 3;
+      while (threadToSpawn > 0) {
+        threadToSpawn--;
+        const myThreadId = workers.length;
+        workers.push(_newWorker(myThreadId, command, workers));
+      }
+
+      // reprocess any in progress tasks
+      await DataUtils.recoverInProgressThreadJobStatus();
+
+      // get a list of threads to start workin g
+      remainingWorkInputs = await DataUtils.getAllThreadIdsToSyncWithGoogleDrive();
+      _enqueueUploadEmails();
+      intervalWorkSchedule = setInterval(_enqueueUploadEmails, 500); // every 3 sec
+      break;
+
+    // job 4
+    case WORK_ACTION_ENUM.UPLOAD_LOGS:
+      workers.push(new _newWorker(0, command, workers));
+      _enqueueUploadLogs();
+      intervalWorkSchedule = setInterval(_enqueueUploadLogs, 20 * 60 * 1000); // every 20 mins
+      break;
   }
+}
 
-  // get a list of threads to start working
-  const threadIds = getThreadIdsToProcess();
-  let lastWorkIdx = 0;
+async function _enqueueWorkFetchEmails() {
+  if (lastWorkIdx < remainingWorkInputs.length) {
+    // print progres
+    const countTotalEmailThreads = remainingWorkInputs.length;
+    const percentDone = ((lastWorkIdx / countTotalEmailThreads) * 100).toFixed(
+      2
+    );
 
-  console.log(
-    `parent started with ${threadIds.length} to process, firstID=${threadIds[0]}`
-  );
+    if (
+      lastWorkIdx === 0 ||
+      lastWorkIdx % 500 === 0 ||
+      (percentDone % 20 === 0 && percentDone > 0)
+    ) {
+      logger.warn(
+        `Progress of Fetching Emails: ${percentDone}% (${lastWorkIdx} / ${countTotalEmailThreads})`
+      );
+    }
 
-  // requeue every 5 seconds
-  let intervalWork = setInterval(() => {
     for (let worker of workers) {
-      if (worker.status === WORKER_STATUS.FREE) {
-        worker.status = WORKER_STATUS.BUSY;
-        worker.work.postMessage(threadIds[lastWorkIdx]);
+      if (worker.status === WORKER_STATUS_ENUM.FREE) {
+        // take task
+        const threadId = remainingWorkInputs[lastWorkIdx];
+        worker.status = WORKER_STATUS_ENUM.BUSY;
+        worker.work.postMessage({
+          threadId,
+          action: WORK_ACTION_ENUM.FETCH_EMAIL,
+        });
         lastWorkIdx++;
       }
 
-      if (lastWorkIdx >= threadIds.length) {
-        clearInterval(intervalWork);
-        break;
+      if (lastWorkIdx >= remainingWorkInputs.length) {
+        // done all work, stopped...
+        clearInterval(intervalWorkSchedule);
+        logger.debug("Done processing all task");
+        process.exit();
       }
     }
-  }, 1000);
+  }
+}
+
+async function _enqueueUploadLogs() {
+  for (let worker of workers) {
+    if (worker.status === WORKER_STATUS_ENUM.FREE) {
+      worker.status = WORKER_STATUS_ENUM.BUSY;
+      worker.work.postMessage({
+        action: WORK_ACTION_ENUM.UPLOAD_LOGS,
+      });
+    }
+  }
+}
+
+async function _enqueueUploadEmails() {
+  if (lastWorkIdx < remainingWorkInputs.length) {
+    // print progres
+    const countTotalEmailThreads = remainingWorkInputs.length;
+    const percentDone = ((lastWorkIdx / countTotalEmailThreads) * 100).toFixed(
+      2
+    );
+
+    if (
+      lastWorkIdx === 0 ||
+      lastWorkIdx % 500 === 0 ||
+      (percentDone % 20 === 0 && percentDone > 0)
+    ) {
+      logger.warn(
+        `Progress of Uploading Emails: ${percentDone}% (${lastWorkIdx} / ${countTotalEmailThreads})`
+      );
+    }
+
+    for (let worker of workers) {
+      if (worker.status === WORKER_STATUS_ENUM.FREE) {
+        // take task
+        const threadId = remainingWorkInputs[lastWorkIdx];
+        worker.status = WORKER_STATUS_ENUM.BUSY;
+        worker.work.postMessage({
+          threadId,
+          action: WORK_ACTION_ENUM.UPLOAD_EMAIL,
+        });
+        lastWorkIdx++;
+      }
+
+      if (lastWorkIdx >= remainingWorkInputs.length) {
+        // done all work, stopped...
+        clearInterval(intervalWorkSchedule);
+
+        // refresh task list and do again
+        remainingWorkInputs = [];
+        lastWorkIdx = 0;
+        remainingWorkInputs = await DataUtils.getAllThreadIdsToSyncWithGoogleDrive();
+
+        // stop
+        // process.exit();
+      }
+    }
+  }
 }
 
 _init();

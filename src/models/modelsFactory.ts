@@ -18,10 +18,13 @@ export default async () => {
       dialect: process.env.DB_DIALECT || "mysql" || "sqlite",
       host: process.env.DB_HOST,
       storage: `${dbConnectionString}/database_main.sqlite`,
-      logging: false,
+      logging: process.env.DB_LOGGING === "true",
       pool: {
-        max: 12,
-        min: 2,
+        max: 5,
+        min: 0,
+      },
+      retry: {
+        max: 3,
       },
     }
   );

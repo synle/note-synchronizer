@@ -9,7 +9,7 @@ import { logger } from "../loggers";
 let gmailApiInstance;
 let driveApiInstance;
 
-let noteDestinationFolderId;
+let noteDestinationFolderId = process.env.NOTE_DESTINATION_FOLDER_ID;
 
 // google auth apis
 // If modifying these scopes, delete token.json.
@@ -27,7 +27,15 @@ const SCOPES = [
 const GMAIL_TOKEN_PATH = "token.json";
 const GMAIL_CREDENTIALS_PATH = "credentials.json";
 
-export function getNoteDestinationFolderId() {
+export async function getNoteDestinationFolderId() {
+  if (!noteDestinationFolderId) {
+    // create the note folder
+    noteDestinationFolderId = await createDriveFolder(
+      process.env.NOTE_DESTINATION_FOLDER_NAME,
+      "Note Synchronizer Destination Folder"
+    );
+  }
+
   return noteDestinationFolderId;
 }
 
@@ -44,12 +52,6 @@ export function initGoogleApi(onAfterInitFunc = () => {}) {
       authorizeGoogle(JSON.parse(content), async function (auth) {
         gmailApiInstance = google.gmail({ version: "v1", auth });
         driveApiInstance = google.drive({ version: "v3", auth });
-
-        // create the note folder
-        noteDestinationFolderId = await createDriveFolder(
-          process.env.NOTE_DESTINATION_FOLDER_NAME,
-          "Note Synchronizer Destination Folder"
-        );
 
         onAfterInitFunc(gmailApiInstance, driveApiInstance);
 
@@ -113,6 +115,7 @@ function getNewGoogleToken(oAuth2Client, callback) {
 }
 // google core apis
 
+// gmails apis
 /**
  * Lists the labels in the user's account.
  */
@@ -192,6 +195,28 @@ export function getThreadEmailsByThreadId(targetThreadId) {
   });
 }
 
+export function getDraftsByThreadId(targetThreadId) {
+  return new Promise((resolve, reject) => {
+    gmailApiInstance.users.drafts.get(
+      {
+        userId: "me",
+        id: targetThreadId,
+      },
+      (err, res) => {
+        if (err) {
+          logger.error(
+            `Gmail API Failed: \nError=${JSON.stringify(
+              err
+            )} \nRes=${JSON.stringify(res)}`
+          );
+          return reject(err);
+        }
+        resolve(res.data);
+      }
+    );
+  });
+}
+
 export function getEmailAttachment(messageId, attachmentId) {
   return new Promise((resolve, reject) => {
     gmailApiInstance.users.messages.attachments
@@ -214,6 +239,82 @@ export function getEmailAttachment(messageId, attachmentId) {
   });
 }
 
+export function sendEmail(to, subject, message, from) {
+  return new Promise((resolve, reject) => {
+    gmailApiInstance.users.messages.send(
+      {
+        userId: "me",
+        resource: {
+          raw: _makeMessageBody(to, subject, message, from),
+        },
+      },
+      function (err, res) {
+        if (err) {
+          logger.error(
+            `Gmail API Failed: \nError=${JSON.stringify(
+              err
+            )} \nRes=${JSON.stringify(res)}`
+          );
+          return reject(err);
+        }
+        resolve(res.data);
+      }
+    );
+  });
+}
+
+function _makeMessageBody(
+  to,
+  subject,
+  message,
+  from = process.env.MY_MAIN_EMAIL
+) {
+  var str = [
+    'Content-Type: text/plain; charset="UTF-8"\n',
+    "MIME-Version: 1.0\n",
+    "Content-Transfer-Encoding: 7bit\n",
+    "to: ",
+    to,
+    "\n",
+    "from: ",
+    from,
+    "\n",
+    "subject: ",
+    subject,
+    "\n\n",
+    message,
+  ].join("");
+
+  var encodedMail = Buffer.from(str)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+  return encodedMail;
+}
+
+function _sanatizeGoogleQuery(string) {
+  return (string || "").replace(/'/g, "\\'");
+}
+
+export function flattenGmailPayloadParts(initialParts) {
+  const res = [];
+
+  let stack = [initialParts];
+
+  while (stack.length > 0) {
+    const target = stack.pop();
+    const { parts, ...rest } = target;
+    res.push(rest);
+
+    if (parts && parts.length > 0) {
+      stack = [...stack, ...parts];
+    }
+  }
+
+  return res;
+}
+
+// google drive apis
 export function createFileInDrive(resource, media) {
   return new Promise((resolve, reject) => {
     driveApiInstance.files.create(
@@ -352,7 +453,8 @@ export async function uploadFile(
   description,
   dateEpochTime,
   starred = false,
-  parentFolderId
+  parentFolderId,
+  appProperties = {}
 ) {
   let mimeTypeToUse = (mimeType || "").toLowerCase();
   if (
@@ -374,9 +476,16 @@ export async function uploadFile(
       MIME_TYPE_ENUM.TEXT_HTML,
       MIME_TYPE_ENUM.TEXT_PLAIN,
       MIME_TYPE_ENUM.TEXT_XML,
+      MIME_TYPE_ENUM.TEXT_JAVA,
+      MIME_TYPE_ENUM.TEXT_JAVA_SOURCE,
+      MIME_TYPE_ENUM.TEXT_CSHARP,
     ].includes(mimeType)
   ) {
     mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_DOCUMENT;
+  } else if ([MIME_TYPE_ENUM.APP_OCTLET_STREAM].includes(mimeType)) {
+    if (localPath.includes(".java")) {
+      mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_DOCUMENT;
+    }
   } else if (
     [MIME_TYPE_ENUM.APP_MS_PPT, MIME_TYPE_ENUM.APP_MS_PPTX].includes(mimeType)
   ) {
@@ -394,10 +503,12 @@ export async function uploadFile(
     mimeType: mimeTypeToUse,
     modifiedTime,
     createdTime,
+    viewedByMeTime: createdTime,
     description,
     starred,
     useContentAsIndexableText: true,
     enforceSingleParent: true,
+    appProperties,
   };
 
   const media = {
@@ -407,7 +518,7 @@ export async function uploadFile(
 
   const matchedResults = await searchDrive(
     fileGDriveMetadata.name,
-    fileGDriveMetadata.mimeType,
+    null,
     parentFolderId
   );
   if (matchedResults.length === 0) {
@@ -426,81 +537,4 @@ export async function uploadFile(
     );
     return updateFileInDrive(matchedResults[0].id, fileGDriveMetadata, media);
   }
-}
-
-// other minor things / utils
-function _sanatizeGoogleQuery(string) {
-  return (string || "").replace(/'/g, "\\'");
-}
-
-export function flattenGmailPayloadParts(initialParts) {
-  const res = [];
-
-  let stack = [initialParts];
-
-  while (stack.length > 0) {
-    const target = stack.pop();
-    const { parts, ...rest } = target;
-    res.push(rest);
-
-    if (parts && parts.length > 0) {
-      stack = [...stack, ...parts];
-    }
-  }
-
-  return res;
-}
-
-function _makeMessageBody(
-  to,
-  subject,
-  message,
-  from = process.env.MY_MAIN_EMAIL
-) {
-  var str = [
-    'Content-Type: text/plain; charset="UTF-8"\n',
-    "MIME-Version: 1.0\n",
-    "Content-Transfer-Encoding: 7bit\n",
-    "to: ",
-    to,
-    "\n",
-    "from: ",
-    from,
-    "\n",
-    "subject: ",
-    subject,
-    "\n\n",
-    message,
-  ].join("");
-
-  var encodedMail = Buffer.from(str)
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_");
-  return encodedMail;
-}
-
-// ready to be used
-export function sendEmail(to, subject, message, from) {
-  return new Promise((resolve, reject) => {
-    gmailApiInstance.users.messages.send(
-      {
-        userId: "me",
-        resource: {
-          raw: _makeMessageBody(to, subject, message, from),
-        },
-      },
-      function (err, res) {
-        if (err) {
-          logger.error(
-            `Gmail API Failed: \nError=${JSON.stringify(
-              err
-            )} \nRes=${JSON.stringify(res)}`
-          );
-          return reject(err);
-        }
-        resolve(res.data);
-      }
-    );
-  });
 }

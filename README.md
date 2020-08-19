@@ -8,8 +8,8 @@ Crawled Gmail Notes and push them to Google Drive
 
 ## Stack
 
-- Node JS for backend jobs
-- Sqlite3 for datastore
+- Node JS for backend jobs with Worker Threads APIs
+- MySQL / Sqlite3 for datastore
 - Gmail API
 - Google Drive API
 
@@ -129,12 +129,45 @@ application/vnd.google-apps.presentation (Google Slides)
 SELECT id, threadId,  subject, body, datetime(date / 1000, 'unixepoch') as time FROM "emails" ORDER BY date DESC LIMIT 20
 ```
 
-#### Reset processed and restart the full load
+#### Requeue the task
+Restart all
+```
+UPDATE `threads`
+SET status='PENDING',
+  processedDate=null,
+  totalMessages=null;
+
+UPDATE `emails`
+SET upload_status='PENDING';
+```
+
 
 ```
-UPDATE "threads"
-SET
-  processedDate = null,
-  duration = null,
-  totalMessages = null
+UPDATE `threads`
+SET status='PENDING',
+  processedDate=null,
+  totalMessages=null
+WHERE status != 'SUCCESS';
+
+UPDATE `emails`
+SET upload_status='PENDING'
+WHERE upload_status != 'SUCCESS';
+```
+
+#### Get job status stats
+
+```
+SELECT status, count(*)
+FROM `threads` GROUP by status;
+
+SELECT upload_status, count(*)
+FROM `emails` GROUP by upload_status;
+```
+
+### Useful tips
+
+#### Tail in Windows
+
+```
+Get-Content -Wait .\logs\log_combined.data
 ```

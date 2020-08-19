@@ -41,7 +41,15 @@ export interface Email {
   bcc: string;
   subject: string;
   date: number;
+  status: string;
   Attachments: DatabaseResponse<Attachment>[];
+}
+
+export interface RawContent {
+  messageId: string;
+  threadId: string;
+  rawApiResponse: string;
+  date: string;
 }
 
 export interface Attachment {
@@ -50,6 +58,7 @@ export interface Attachment {
   mimeType: string;
   fileName: string;
   path: string;
+  headers: string;
 }
 
 export interface DatabaseResponse<T> {
