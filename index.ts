@@ -26,7 +26,8 @@ async function _doWork() {
   await initDatabase();
   await initGoogleApi();
 
-  _uploadLogsToDrive(); // do first upload of log on page load
+  // TODO:
+  // _uploadLogsToDrive(); // do first upload of log on page load
 
   try {
     const command = process.argv[2] || "";
@@ -70,9 +71,6 @@ async function _doWork() {
   } catch (e) {
     logger.error(`Main Process Failed: ${e && e.stack} ${e}`);
   }
-
-  logger.info("Shutting down process...");
-  process.exit();
 }
 
 // periodically upload warning log to gdrive for progress

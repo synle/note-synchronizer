@@ -46,6 +46,7 @@ const GMAIL_ATTACHMENT_PATH = "./attachments";
 const GMAIL_PATH_THREAD_LIST_TOKEN = `./caches/gmail.threads_last_tokens.data`;
 
 const MAX_TIME_PER_THREAD = 120000;
+
 // crawler start
 
 /**
@@ -110,7 +111,9 @@ export function _processMessagesByThreadId(
         );
 
         if (messagesFromDatabase && messagesFromDatabase.length > 0) {
-          threadMessages = messagesFromDatabase;
+          threadMessages = messagesFromDatabase.map((message) =>
+            JSON.parse(message.dataValues.rawApiResponse)
+          );
           foundRawEmailsFromDbOrCache = true;
         }
       }
@@ -485,7 +488,8 @@ function _parseEmailAddress(emailAddress) {
  */
 async function _getThreadIdsToProcess() {
   try {
-    return getAllThreadsToProcess();
+    const databaseResponse = await getAllThreadsToProcess();
+    return databaseResponse.map(({ threadId }) => threadId);
   } catch (err) {
     logger.error(`Not found in cache due to error=${err.stack}`);
     return [];
@@ -495,6 +499,28 @@ async function _getThreadIdsToProcess() {
 async function _getRawContentsFromDatabase() {
   // attempting at getting the emails from the database
   let inMemoryLookupContent = {};
+
+  if (useInMemoryCache) {
+    logger.warn(`Constructing in-memory lookup for messages`);
+    try {
+      const messagesFromDatabase = await getAllRawContents();
+      if (messagesFromDatabase && messagesFromDatabase.length > 0) {
+        for (let message of messagesFromDatabase) {
+          inMemoryLookupContent[message.threadId] =
+            inMemoryLookupContent[message.threadId] || [];
+          inMemoryLookupContent[message.threadId].push(
+            JSON.parse(message.dataValues.rawApiResponse)
+          );
+        }
+      }
+    } catch (e) {}
+
+    logger.warn(
+      `Size of in-memory lookup for messages: ${
+        Object.keys(inMemoryLookupContent).length
+      }`
+    );
+  }
 
   return inMemoryLookupContent;
 }
@@ -526,7 +552,7 @@ async function _pollNewEmailThreads(q = "") {
 
     try {
       const { threads, nextPageToken } = await getThreadsByQuery(q, pageToken);
-      threadIds = [...threadIds, ...(threads || [])];
+      threadIds = threads || [];
       pageToken = nextPageToken;
 
       if (!nextPageToken) {
@@ -535,11 +561,24 @@ async function _pollNewEmailThreads(q = "") {
 
       fs.appendFileSync(GMAIL_PATH_THREAD_LIST_TOKEN, nextPageToken + "\n");
 
-      if (countPageProcessed % 25 === 0 && countPageProcessed > 0) {
+      if (countPageProcessed % 5 === 0 && countPageProcessed > 0) {
         logger.warn(
-          `So far, ${countPageProcessed} pages crawled  q=${q}: ${threadIds.length} threads found`
+          `So far, ${countPageProcessed} pages crawled q=${q}`
         );
       }
+
+      await bulkUpsertThreadJobStatuses(
+        threadIds.map(({ id, historyId, snippet }) => ({
+          threadId: id,
+          historyId,
+          snippet,
+          // this is to re-trigger the thread fetch, basically we want to reprocess this...
+          processedDate: null,
+          duration: null,
+          totalMessages: null,
+          status: THREAD_JOB_STATUS.PENDING,
+        }))
+      );
     } catch (err) {
       logger.error(
         `Failed to get thread list q=${q} pageToken=${pageToken} error=${err.stack}`
@@ -548,29 +587,10 @@ async function _pollNewEmailThreads(q = "") {
     }
   }
 
-  logger.warn(`${countPageProcessed} total pages crawled:  q=${q}`);
-
-  // store them into the database as chunks
-  const threadIdsChunks = chunk(threadIds, 50); // maximum page size
-  for (let threadIdsChunk of threadIdsChunks) {
-    await bulkUpsertThreadJobStatuses(
-      threadIdsChunk.map(({ id, historyId, snippet }) => ({
-        threadId: id,
-        historyId,
-        snippet,
-        // this is to re-trigger the thread fetch, basically we want to reprocess this...
-        processedDate: null,
-        duration: null,
-        totalMessages: null,
-        status: THREAD_JOB_STATUS.PENDING,
-      }))
-    ).catch((e) => console.log("err", e.stack));
-  }
-
   logger.warn(
-    `Done Crawl list of email threads: q=${q} duration=${
+    `Done Crawl list of email threads: q=${q} totalPages=${countPageProcessed} duration=${
       Date.now() - startTime
-    } total=${threadIds.length}`
+    }`
   );
 }
 
@@ -779,4 +799,14 @@ export async function doGmailWorkByThreadIds(targetThreadId) {
 /**
  * This is simply to get a list of all email threadIds
  */
-export async function doGmailWorkPollThreadList() {}
+export async function doGmailWorkPollThreadList() {
+  logger.warn(`doGmailWorkPollThreadList`);
+
+  await Promise.allSettled([
+    _pollNewEmailThreads(), // get emails from inbox
+    _pollNewEmailThreads("from:(me)"), // get emails sent by me
+    _pollNewEmailThreads("in:drafts"), // messages that are in draft
+  ]);
+
+  logger.warn(`Done Polling`);
+}

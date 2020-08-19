@@ -1,10 +1,17 @@
 // @ts-nocheck
-// adapter for sql
+// adapter for redis
+import Redis from "ioredis";
 import { Op } from "sequelize";
 
-import { Email, DatabaseResponse, Attachment } from "../types";
+import { Email, DatabaseResponse, Attachment, RawContent } from "../types";
 
 import Models from "../models/modelsSchema";
+
+const redis = new Redis(); // uses defaults unless given configuration object
+
+enum REDIS_KEYS {
+  ALL_THREAD_IDS = "threadIds",
+}
 
 function _makeArray(arr) {
   return [].concat(arr || []);
@@ -19,12 +26,14 @@ function _transformMatchedThreadsResults(matchedResults: any[]): Email[] {
 }
 
 // attachments
+// TODO: implement me
 export async function bulkUpsertAttachments(attachments) {
   return Models.Attachment.bulkCreate(_makeArray(attachments), {
     updateOnDuplicate: ["mimeType", "fileName", "path", "headers"],
   });
 }
 
+// TODO: implement me
 export async function getAttachmentByThreadIds(threadId) {
   return Models.Attachment.findAll({
     where: {
@@ -34,6 +43,7 @@ export async function getAttachmentByThreadIds(threadId) {
 }
 
 // emails
+// TODO: implement me
 export async function getEmailsAndAttachmentByThreadId(threadId): Email[] {
   const matchedResults: DatabaseResponse<Email>[] = await Models.Email.findAll({
     where: {
@@ -43,6 +53,7 @@ export async function getEmailsAndAttachmentByThreadId(threadId): Email[] {
   return _transformMatchedThreadsResults(matchedResults);
 }
 
+// TODO: implement me
 export async function getAllEmailsAndAttachments(): Email[] {
   const matchedResults: DatabaseResponse<Email>[] = await Models.Email.findAll(
     {}
@@ -50,6 +61,7 @@ export async function getAllEmailsAndAttachments(): Email[] {
   return _transformMatchedThreadsResults(matchedResults);
 }
 
+// TODO: implement me
 export async function bulkUpsertEmails(emails) {
   return Models.Email.bulkCreate(_makeArray(emails), {
     updateOnDuplicate: [
@@ -68,50 +80,51 @@ export async function bulkUpsertEmails(emails) {
 
 // threads
 export async function getAllThreadsToProcess() {
-  return Models.Thread.findAll({
-    where: {
-      processedDate: {
-        [Op.eq]: null,
-      },
-    },
-    order: [
-      ["updatedAt", "DESC"], // start with the one that changes recenty
-    ],
-  }).map(({ threadId }) => threadId);
+  return redis.smembers(REDIS_KEYS.ALL_THREAD_IDS);
 }
 
 export async function bulkUpsertThreadJobStatuses(threads) {
-  return Models.Thread.bulkCreate(_makeArray(threads), {
-    updateOnDuplicate: [
-      "processedDate",
-      "duration",
-      "totalMessages",
-      "historyId",
-      "snippet",
-      "status",
-    ],
-  });
-}
-
-// raw content
-export async function getAllRawContents() {
-  return Models.RawContent.findAll({});
-}
-
-export async function getRawContentsByThreadId(threadId) {
-  const matchedResults = await Models.RawContent.findAll({
-    where: {
-      threadId,
-    },
-  });
-
-  return matchedResults.map((message) =>
-    JSON.parse(message.dataValues.rawApiResponse)
+  return redis.sadd(
+    REDIS_KEYS.ALL_THREAD_IDS,
+    _makeArray(threads).map((thread) => thread.threadId)
   );
 }
 
-export async function bulkUpsertRawContents(rawContents) {
-  return Models.RawContent.bulkCreate(_makeArray(rawContents), {
-    updateOnDuplicate: ["rawApiResponse", "date"],
-  });
+// raw content
+// TODO: implement me
+export async function getAllRawContents() {
+  return [];
 }
+
+// TODO: implement me
+export async function getRawContentsByThreadId(threadId) {
+  const res = [];
+
+  // get the list of all message by by this thread id
+  const messageIds = await redis.smembers(`messageIdsByThreadId.${threadId}`);
+
+  // then look up one by one
+  const rawContents = redis.hmget(`rawContents`, ...messageIds);
+
+  console.log(rawContents);
+
+  return res;
+}
+
+export async function bulkUpsertRawContents(rawContents) {
+  for (let item of _makeArray(rawContents)) {
+    const rawContent : RawContent = item;
+    const threadId = rawContent.threadId;
+
+    // store the list of related messageIds by threadIds
+    await redis.sadd(`messageIdsByThreadId.${threadId}`, rawContent.messageId);
+
+    // store the message by messageId
+    await redis.hmset(`rawContents`, {
+      [rawContent.messageId]: rawContent.rawApiResponse,
+    });
+  }
+}
+
+// lrange messageIdsByThreadId._threadId_ 0 -1
+// hmget rawContents _messageId1_ _mesageId2_

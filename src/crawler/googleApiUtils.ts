@@ -45,7 +45,6 @@ export function initGoogleApi(onAfterInitFunc = () => {}) {
         gmailApiInstance = google.gmail({ version: "v1", auth });
         driveApiInstance = google.drive({ version: "v3", auth });
 
-        // TODO:
         // create the note folder
         noteDestinationFolderId = await createDriveFolder(
           process.env.NOTE_DESTINATION_FOLDER_NAME,

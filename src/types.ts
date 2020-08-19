@@ -1,4 +1,5 @@
 export interface Headers {
+import { RawContent } from './models/modelsSchema';
   date: string;
   subject: string;
   from: string;
@@ -50,6 +51,13 @@ export interface Attachment {
   mimeType: string;
   fileName: string;
   path: string;
+}
+
+export interface RawContent{
+  threadId : string;
+  messageId : string;
+  rawApiResponse : string;
+  date: number;
 }
 
 export interface DatabaseResponse<T> {

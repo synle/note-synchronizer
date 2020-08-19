@@ -77,7 +77,7 @@ export async function getAllThreadsToProcess() {
     order: [
       ["updatedAt", "DESC"], // start with the one that changes recenty
     ],
-  }).map(({ threadId }) => threadId);
+  });
 }
 
 export async function bulkUpsertThreadJobStatuses(threads) {
@@ -99,15 +99,11 @@ export async function getAllRawContents() {
 }
 
 export async function getRawContentsByThreadId(threadId) {
-  const matchedResults = await Models.RawContent.findAll({
+  return Models.RawContent.findAll({
     where: {
       threadId,
     },
   });
-
-  return matchedResults.map((message) =>
-    JSON.parse(message.dataValues.rawApiResponse)
-  );
 }
 
 export async function bulkUpsertRawContents(rawContents) {
