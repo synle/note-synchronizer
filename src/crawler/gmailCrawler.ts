@@ -37,7 +37,7 @@ const MAX_CONCURRENT_THREAD_QUEUE =
 const GMAIL_ATTACHMENT_PATH = "./attachments";
 const GMAIL_PATH_THREAD_LIST_TOKEN = `./caches/gmail.threads_last_tokens.data`;
 
-const MAX_TIME_PER_THREAD = 160000;
+const MAX_TIME_PER_THREAD = 10 * 60 * 1000; // spend up to this many mins per thread
 // crawler start
 
 /**

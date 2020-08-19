@@ -33,7 +33,7 @@ export class RawContent extends Model {
   @attribute(RawContent, { allowNull: false })
   public threadId!: string;
 
-  @attribute(RawContent, { type: DataTypes.TEXT, allowNull: false })
+  @attribute(RawContent, { type: "LONGTEXT", allowNull: false })
   public rawApiResponse!: string;
 
   @attribute(RawContent, { type: DataTypes.BIGINT })
@@ -169,7 +169,7 @@ export class Email extends Model {
   @attribute(Email, { type: DataTypes.TEXT })
   public body!: string;
 
-  @attribute(Email, { type: DataTypes.TEXT })
+  @attribute(Email, { type: "LONGTEXT" })
   public rawBody!: string;
 
   @attribute(Email, { type: DataTypes.BIGINT })
