@@ -56,7 +56,7 @@ async function _processMessages(emails: Email[]) {
       countProcessedMessages % 100 === 0
     ) {
       logger.debug(
-        `${percentDone}% (${countProcessedMessages}/${countTotalMessages})`
+        `Progress for Uploading Notes: ${percentDone}% (${countProcessedMessages}/${countTotalMessages})`
       );
     }
     countProcessedMessages++;
