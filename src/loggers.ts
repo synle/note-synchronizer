@@ -50,7 +50,7 @@ console.log = function () {
   ]);
 };
 console.error = function () {
-  return logger.debug.apply(logger, [
+  return logger.error.apply(logger, [
     "console.error: " + [...arguments].map((s) => JSON.stringify(s)).join(", "),
   ]);
 };

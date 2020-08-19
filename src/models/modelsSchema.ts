@@ -35,7 +35,7 @@ export class RawContent extends Model {
   @attribute(RawContent, { type: DataTypes.TEXT, allowNull: false })
   public rawApiResponse!: string;
 
-  @attribute(RawContent)
+  @attribute(RawContent, { type: DataTypes.INTEGER })
   public date!: number;
 }
 
@@ -104,13 +104,13 @@ export class Thread extends Model {
   })
   public threadId!: string;
 
-  @attribute(Thread)
+  @attribute(Thread, { type: DataTypes.INTEGER })
   public processedDate!: number;
 
-  @attribute(Thread)
+  @attribute(Thread, { type: DataTypes.INTEGER })
   public duration!: number;
 
-  @attribute(Thread)
+  @attribute(Thread, { type: DataTypes.INTEGER })
   public totalMessages!: number;
 
   @attribute(Thread)
@@ -171,7 +171,7 @@ export class Email extends Model {
   @attribute(Email, { type: DataTypes.TEXT })
   public rawBody!: string;
 
-  @attribute(Email)
+  @attribute(Email, { type: DataTypes.INTEGER })
   public date!: number;
 
   @attribute(Email, { type: DataTypes.TEXT })

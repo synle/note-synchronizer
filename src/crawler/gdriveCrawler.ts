@@ -138,7 +138,7 @@ async function _processMessages(emails: Email[]) {
           logger.debug(`Upload original note file ${docFileName}`);
 
           await uploadFile(
-            docFileName,
+            docFileName || `${from} Email Message ${id}`,
             "text/html",
             localPath,
             `subject=${subject} (threadId=${threadId}) (id=${id}) Main Email`,
