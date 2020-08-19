@@ -9,16 +9,18 @@ export default async () => {
   const dbConnectionString = process.env.DB_URL || "";
 
   // notes such as emails and attachments
-  const sequelizeNotes = new Sequelize(
-    "note_synchronize",
-    "username",
-    "password",
-    {
-      dialect: "sqlite",
-      storage: `${dbConnectionString}/database_main.sqlite`,
-      logging: false,
-    }
-  );
+  const sequelizeNotes = new Sequelize("note_synchronize", "root", "password", {
+    dialect: "mysql" || "sqlite",
+    host: "localhost",
+    storage: `${dbConnectionString}/database_main.sqlite`,
+    logging: false,
+    pool: {
+      max: 5,
+      min: 0,
+      acquire: 30000,
+      idle: 10000,
+    },
+  });
 
   const modelsNotes = Object.keys(ModelsNotes).map(
     (modelName) => ModelsNotes[modelName]
@@ -27,16 +29,18 @@ export default async () => {
   await initDatabase(sequelizeNotes, modelsNotes);
 
   // raw response database
-  const sequelizeRaw = new Sequelize(
-    "note_synchronize",
-    "username",
-    "password",
-    {
-      dialect: "sqlite",
-      storage: `${dbConnectionString}/database_raw.sqlite`,
-      logging: false,
-    }
-  );
+  const sequelizeRaw = new Sequelize("note_synchronize", "root", "password", {
+    dialect: "mysql" || "sqlite",
+    host: "localhost",
+    storage: `${dbConnectionString}/database_raw.sqlite`,
+    logging: false,
+    pool: {
+      max: 5,
+      min: 0,
+      acquire: 30000,
+      idle: 10000,
+    },
+  });
 
   const modelsRaw = Object.keys(ModelsRaw).map(
     (modelName) => ModelsRaw[modelName]

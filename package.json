@@ -41,6 +41,7 @@
     "jsdom": "^16.4.0",
     "lodash": "^4.17.20",
     "moment": "^2.27.0",
+    "mysql2": "^2.1.0",
     "sequelize-typescript-decorators": "^2.1.7",
     "sqlite3": "^5.0.0"
   },
