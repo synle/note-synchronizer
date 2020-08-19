@@ -1,28 +1,25 @@
 // @ts-nocheck
+require("dotenv").config();
 import { isMainThread } from "worker_threads";
 import { workerData } from "worker_threads";
 import { parentPort } from "worker_threads";
 
 import initDatabase from "./models/modelsFactory";
 
-import {
-  getNoteDestinationFolderId,
-  initGoogleApi,
-  uploadFile,
-} from "./crawler/googleApiUtils";
+import { initGoogleApi } from "./crawler/googleApiUtils";
+
+import { processMessagesByThreadId } from "./crawler/gmailCrawler";
 
 import {
-  doGmailWorkPollThreadList,
-  doGmailWorkForAllItems,
-  doGmailWorkByThreadIds,
-  doDecodeBase64ForRawContent,
-  getThreadIdsToProcess,
-} from "./crawler/gmailCrawler";
-
-import {
-  doGdriveWorkForAllItems,
-  doGdriveWorkByThreadIds,
+  uploadLogsToDrive,
+  uploadEmailThreadToGoogleDrive,
 } from "./crawler/gdriveCrawler";
+
+import {
+  WORKER_STATUS_ENUM,
+  WORK_ACTION_ENUM,
+  workAction,
+} from "./crawler/commonUtils";
 
 import { logger } from "./loggers";
 
@@ -34,14 +31,41 @@ async function _init() {
   await initDatabase();
   await initGoogleApi();
 
-  parentPort.on("message", (data: any) => {
-    console.log("child message do", data);
-    setTimeout(() => {
-      parentPort.postMessage("hello parents: " + data);
-    }, 3000);
+  parentPort.on("message", async (data: workAction) => {
+    try {
+      switch (data.action) {
+        case WORK_ACTION_ENUM.FETCH_EMAIL:
+          await processMessagesByThreadId(data.threadId);
+          parentPort.postMessage({
+            success: true,
+            ...data,
+          });
+          break;
+        case WORK_ACTION_ENUM.UPLOAD_EMAIL:
+          await uploadEmailThreadToGoogleDrive(data.threadId);
+          parentPort.postMessage({
+            success: true,
+            ...data,
+          });
+          break;
+        case WORK_ACTION_ENUM.UPLOAD_LOGS:
+          await uploadLogsToDrive();
+          parentPort.postMessage({
+            success: true,
+            ...data,
+          });
+          break;
+      }
+    } catch (err) {
+      parentPort.postMessage({
+        success: false,
+        error: err.stack || err,
+        ...data,
+      });
+    }
   });
 
-  console.log("child started", workerData);
+  console.debug("Worker started:", workerData);
 }
 
 _init();

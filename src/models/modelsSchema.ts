@@ -9,6 +9,8 @@ import {
 
 import { DataTypes, Model } from "sequelize";
 
+import { THREAD_JOB_STATUS } from "../crawler/commonUtils";
+
 // raw content database
 /**
  * this is a raw content response returned from the GMAIL API
@@ -33,7 +35,7 @@ export class RawContent extends Model {
   @attribute(RawContent, { allowNull: false })
   public threadId!: string;
 
-  @attribute(RawContent, { type: "LONGTEXT", allowNull: false })
+  @attribute(RawContent, { type: "MEDIUMTEXT", allowNull: false })
   public rawApiResponse!: string;
 
   @attribute(RawContent, { type: DataTypes.BIGINT })
@@ -66,6 +68,7 @@ export class Attachment extends Model {
     allowNull: false,
     primaryKey: true,
     unique: true,
+    type: DataTypes.STRING(750),
   })
   public id!: string;
 
@@ -154,22 +157,22 @@ export class Email extends Model {
   @attribute(Email, { allowNull: false })
   public from!: string;
 
-  @attribute(Email)
+  @attribute(Email, { type: DataTypes.TEXT })
   public to!: string;
 
-  @attribute(Email)
+  @attribute(Email, { type: DataTypes.TEXT })
   public bcc!: string;
 
-  @attribute(Email)
+  @attribute(Email, { type: DataTypes.TEXT })
   public subject!: string;
 
-  @attribute(Email)
+  @attribute(Email, { type: DataTypes.TEXT })
   public rawSubject!: string;
 
   @attribute(Email, { type: DataTypes.TEXT })
   public body!: string;
 
-  @attribute(Email, { type: "LONGTEXT" })
+  @attribute(Email, { type: "MEDIUMTEXT" })
   public rawBody!: string;
 
   @attribute(Email, { type: DataTypes.BIGINT })
@@ -178,17 +181,13 @@ export class Email extends Model {
   @attribute(Email, { type: DataTypes.TEXT })
   public headers!: string;
 
-  @attribute(Email)
+  @attribute(Email, { type: DataTypes.TEXT })
   public labelIds!: string;
 
-  @relationship(Email, {
-    relationship: Relationship.hasMany,
-    sourceKey: "id",
-    foreignModel: Attachment,
-    foreignKey: "messageId",
-    as: "attachments",
+  @attribute(Email, {
+    defaultValue: THREAD_JOB_STATUS.PENDING,
   })
-  public Attachments!: any[];
+  public upload_status!: string;
 }
 
 export default {

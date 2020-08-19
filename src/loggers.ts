@@ -65,3 +65,8 @@ console.debug = function () {
     "console.debug: " + [...arguments].map((s) => JSON.stringify(s)).join(", "),
   ]);
 };
+console.warn = function () {
+  return logger.debug.apply(logger, [
+    "console.debug: " + [...arguments].map((s) => JSON.stringify(s)).join(", "),
+  ]);
+};

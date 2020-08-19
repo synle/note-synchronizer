@@ -17,6 +17,7 @@
     "isolatedModules": false,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
+    "sourceMap": true,
     "baseUrl": "./"
   },
   "exclude": ["node_modules"],
