@@ -37,3 +37,4 @@ attachments
 *.sql
 processed
 redis-data
+logs

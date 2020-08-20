@@ -112,7 +112,7 @@ async function _init() {
       break;
 
     case WORK_ACTION_ENUM.FETCH_RAW_CONTENT:
-      threadToSpawn = Math.min(maxThreadCount, 12);
+      threadToSpawn = Math.min(maxThreadCount, 4);
       while (threadToSpawn > 0) {
         threadToSpawn--;
         const myThreadId = workers.length;
