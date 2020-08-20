@@ -86,8 +86,8 @@ async function _processThreadEmail(email: Email) {
 
     const friendlyDateTimeString = new Date(
       parseInt(date)
-    ).toLocaleDateString();
-    const friendlyDateString = new Date(parseInt(date)).toLocaleDateString();
+    ).toLocaleString();
+    const friendlyTimeString = new Date(parseInt(date)).toLocaleTimeString();
 
     subject = `${friendlyDateTimeString} ${subject}`;
 
@@ -147,7 +147,7 @@ async function _processThreadEmail(email: Email) {
           const fileContent = `
           <h1>${subject}</h1>
           <hr />
-          <div><b><u>Date:</u></b> ${new Date(date).toLocaleString()}</div>
+          <div><b><u>Date:</u></b> ${friendlyDateTimeString}</div>
           <div><b><u>From:</u></b> ${from}</div>
           <div><b><u>To:</u></b> ${toEmailAddresses}</div>
           <div><b><u>ThreadId:</u></b> ${threadId}</div>
@@ -206,7 +206,7 @@ async function _processThreadEmail(email: Email) {
       for (let attachment of attachments) {
         AttachmentIdx++;
         const attachmentName = _sanitizeFileName(
-          `${docFileName} - ${friendlyDateString} - #${AttachmentIdx} - ${attachment.fileName}`
+          `${docFileName} - File#${AttachmentIdx} - ${attachment.fileName}`
         );
 
         logger.debug(

@@ -34,7 +34,7 @@ function _logAndWrapApiError(err, res, ...extra) {
     )}`
   );
 
-  console.error(`Gmail API Failed:`, extra, err.stack || err, res);
+  console.error(`Gmail API Failed:`, extra.join(', '), err.stack || err, res);
 
   return err;
 }

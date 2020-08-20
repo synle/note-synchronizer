@@ -8,7 +8,10 @@ import initDatabase from "./models/modelsFactory";
 
 import { initGoogleApi } from "./crawler/googleApiUtils";
 
-import { processMessagesByThreadId } from "./crawler/gmailCrawler";
+import {
+  fetchRawContentsByThreadId,
+  processMessagesByThreadId,
+} from "./crawler/gmailCrawler";
 
 import {
   uploadLogsToDrive,
@@ -34,6 +37,13 @@ async function _init() {
   parentPort.on("message", async (data: workAction) => {
     try {
       switch (data.action) {
+        case WORK_ACTION_ENUM.FETCH_RAW_CONTENT:
+          await fetchRawContentsByThreadId(data.threadId);
+          parentPort.postMessage({
+            success: true,
+            ...data,
+          });
+          break;
         case WORK_ACTION_ENUM.FETCH_EMAIL:
           await processMessagesByThreadId(data.threadId);
           parentPort.postMessage({

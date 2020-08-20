@@ -3,7 +3,7 @@ require("dotenv").config();
 
 globalThis.LOG_LEVEL = "debug";
 
-import initDatabase from "./src/models/modelsFactory";
+import initDatabase, { sequelize } from "./src/models/modelsFactory";
 
 import { Op } from "sequelize";
 
@@ -116,7 +116,7 @@ async function _doWork4() {
 
   try {
     await googleApiUtils.uploadFile(
-      'test.html',
+      "test.html",
       "text/html",
       "./test.html",
       "test html file",

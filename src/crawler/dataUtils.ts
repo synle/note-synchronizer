@@ -92,15 +92,12 @@ export async function updateEmailUploadStatus(email) {
 }
 
 // threads
-export async function getAllThreadIdsToFetchDetails(
-  limit,
-  status = THREAD_JOB_STATUS.PENDING
-) {
+export async function getAllThreadIdsToParseEmails(limit) {
   const req = {
     attributes: ["threadId"], // only fetch threadId
     where: {
       status: {
-        [Op.eq]: status,
+        [Op.eq]: THREAD_JOB_STATUS.PENDING,
       },
     },
     order: [
@@ -113,6 +110,25 @@ export async function getAllThreadIdsToFetchDetails(
   if (limit) {
     req.limit = limit;
   }
+
+  const res = await Models.Thread.findAll(req);
+  return res.map((thread) => thread.threadId);
+}
+
+
+export async function getAllThreadIdsToFetchRawContents() {
+  const req = {
+    attributes: ["threadId"], // only fetch threadId
+    where: {
+      status: {
+        [Op.eq]: THREAD_JOB_STATUS.PENDING_CRAWL,
+      },
+    },
+    order: [
+      ["updatedAt", "DESC"], // start with the one that changes recenty
+    ],
+    raw: true,
+  };
 
   const res = await Models.Thread.findAll(req);
   return res.map((thread) => thread.threadId);
