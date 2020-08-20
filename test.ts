@@ -3,7 +3,7 @@ require("dotenv").config();
 
 globalThis.LOG_LEVEL = "debug";
 
-import initDatabase, { sequelize } from "./src/models/modelsFactory";
+import initDatabase from "./src/models/modelsFactory";
 
 import { Op } from "sequelize";
 
@@ -130,6 +130,7 @@ async function _doWork4() {
 }
 
 async function _doWork5() {
+  await _init();
   const res = await crawlUrl(
     "www.cnet.com/news/iphone-se-these-are-the-best-prepaid-plans-for-apples-399-iphone/"
   );
