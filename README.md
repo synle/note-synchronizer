@@ -152,7 +152,6 @@ SET status='PENDING',
   processedDate=null,
   totalMessages=null
 WHERE status IN (
-  'ERROR_TIMEOUT',
   'IN_PROGRESS'
 );
 

@@ -221,16 +221,18 @@ function _getDraftsByThreadId(targetThreadId) {
 }
 
 export function getEmailContentByThreadId(targetThreadId) {
-  try{
+  try {
     return _getThreadEmailsByThreadId(targetThreadId);
-  } catch(err){}
+  } catch (err) {}
 
   try {
     return _getDraftsByThreadId(targetThreadId);
   } catch (err) {}
 
   // if not found at all
-  logger.error(`Cannot find content in message for draft GMAIL API for threadId=${targetThreadId}`);
+  logger.error(
+    `Cannot find content in message for draft GMAIL API for threadId=${targetThreadId}`
+  );
   return Promise.reject(`Cannot find content for threadId${targetThreadId}`);
 }
 
@@ -537,7 +539,7 @@ export async function uploadFile(
   // https://developers.google.com/drive/api/v3/reference/files/create
   const fileGDriveMetadata = {
     name,
-    parents: [parentFolderId],
+    parents: [].concat(parentFolderId || []),
     mimeType: mimeTypeToUse,
     modifiedTime,
     createdTime,
@@ -554,11 +556,15 @@ export async function uploadFile(
     body: fs.createReadStream(localPath),
   };
 
-  const matchedResults = await searchDrive(
-    fileGDriveMetadata.name,
-    null,
-    parentFolderId
-  );
+  let matchedResults;
+
+  if (parentFolderId) {
+    matchedResults = await searchDrive(
+      fileGDriveMetadata.name,
+      null,
+      parentFolderId
+    );
+  }
 
   if (!matchedResults || matchedResults.length === 0) {
     console.debug(

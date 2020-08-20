@@ -63,6 +63,7 @@ export enum THREAD_JOB_STATUS {
   ERROR_TIMEOUT = "ERROR_TIMEOUT",
   IN_PROGRESS = "IN_PROGRESS",
   SUCCESS = "SUCCESS",
+  SKIPPED = "SKIPPED",
   PENDING = "PENDING",
 }
 
@@ -85,7 +86,7 @@ export interface WorkActionResponse extends WorkActionRequest {
   error: any;
 }
 
-export const REGEX_URL = /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/;
+export const REGEX_URL = /[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/gi;
 
 export function isStringUrl(string) {
   string = string || "";

@@ -25,7 +25,7 @@ let intervalWorkSchedule;
 let lastWorkIdx = 0;
 let remainingWorkInputs = [];
 
-const command = process.argv[2] || "";
+const action = process.argv[2] || "";
 const targetThreadIds = (process.argv[3] || "")
   .split(",")
   .map((r) => (r || "").trim())
@@ -48,9 +48,9 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
   });
   worker.on("message", (data: WorkActionResponse) => {
     if (data.success) {
-      console.debug("Done processing thread", data.threadId);
+      console.debug("Worker Thread Done", myThreadName, data.threadId);
     } else {
-      console.error("Failed processing thread", data.error, data);
+      console.error("Worker Thread Failed", myThreadName, data.error, data);
     }
 
     workerGroup[myThreadId].status = WORKER_STATUS_ENUM.FREE;
@@ -87,11 +87,11 @@ async function _init() {
   await initGoogleApi();
   await initDatabase();
 
-  logger.debug(`Starting work: command=${command} workers=${maxThreadCount}`);
+  logger.debug(`Starting work: command=${action} workers=${maxThreadCount}`);
 
   let threadToSpawn;
 
-  switch (command) {
+  switch (action) {
     default:
       process.exit();
       break;
@@ -117,7 +117,7 @@ async function _init() {
       while (threadToSpawn > 0) {
         threadToSpawn--;
         const myThreadId = workers.length;
-        workers.push(_newWorker(myThreadId, command, workers));
+        workers.push(_newWorker(myThreadId, action, workers));
       }
 
       // reprocess any in progress tasks
@@ -131,11 +131,11 @@ async function _init() {
 
     // job 3
     case WORK_ACTION_ENUM.UPLOAD_EMAIL:
-      threadToSpawn = 5;
+      threadToSpawn = 3;
       while (threadToSpawn > 0) {
         threadToSpawn--;
         const myThreadId = workers.length;
-        workers.push(_newWorker(myThreadId, command, workers));
+        workers.push(_newWorker(myThreadId, action, workers));
       }
 
       // reprocess any in progress tasks
@@ -149,7 +149,7 @@ async function _init() {
 
     // job 4
     case WORK_ACTION_ENUM.UPLOAD_LOGS:
-      workers.push(new _newWorker(0, command, workers));
+      workers.push(new _newWorker(0, action, workers));
       _enqueueUploadLogs();
       intervalWorkSchedule = setInterval(_enqueueUploadLogs, 20 * 60 * 1000); // every 20 mins
       break;
@@ -181,7 +181,7 @@ async function _enqueueWorkFetchEmails() {
         worker.status = WORKER_STATUS_ENUM.BUSY;
         worker.work.postMessage({
           threadId,
-          action: WORK_ACTION_ENUM.FETCH_EMAIL,
+          action,
         });
         lastWorkIdx++;
       }
@@ -201,7 +201,7 @@ async function _enqueueUploadLogs() {
     if (worker.status === WORKER_STATUS_ENUM.FREE) {
       worker.status = WORKER_STATUS_ENUM.BUSY;
       worker.work.postMessage({
-        action: WORK_ACTION_ENUM.UPLOAD_LOGS,
+        action,
       });
     }
   }
@@ -221,7 +221,7 @@ async function _enqueueUploadEmails() {
         worker.status = WORKER_STATUS_ENUM.BUSY;
         worker.work.postMessage({
           threadId,
-          action: WORK_ACTION_ENUM.UPLOAD_EMAIL,
+          action,
         });
         lastWorkIdx++;
       }
