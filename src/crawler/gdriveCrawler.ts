@@ -85,19 +85,8 @@ async function _processThreadEmail(email: Email) {
     const hasSomeAttachments = attachments.length > 0;
 
     const friendlyDateString = new Date(parseInt(date)).toLocaleDateString();
-    if (labelIdsList.some((labelId) => labelId.includes("CHAT"))) {
-      if (subject.indexOf("Chat") === -1) {
-        subject = `Chat ${friendlyDateString} ${subject}`;
-      } else {
-        subject = `${subject} ${friendlyDateString}`;
-      }
-    } else {
-      if (subject.indexOf("Email") === -1) {
-        subject = `Email ${friendlyDateString} ${subject}`;
-      } else {
-        subject = `${subject} ${friendlyDateString} `;
-      }
-    }
+
+    subject = `${friendlyDateString} ${subject}`;
 
     let docFileName = `${subject}`;
 
@@ -122,9 +111,27 @@ async function _processThreadEmail(email: Email) {
       return; // skip this
     }
 
-    let folderToUse = noteDestinationFolderId;
-
     if (isEmailSentByMe || isEmailSentToMySelf || hasSomeAttachments) {
+      let folderToUse = noteDestinationFolderId;
+
+      if (labelIdsList.some((labelId) => labelId.includes("CHAT"))) {
+        // create the sub folder
+        const folderName = `Chats With ${from}`.trim();
+        noteDestinationFolderId = await createDriveFolder(
+          folderName,
+          folderName,
+          noteDestinationFolderId
+        );
+      } else {
+        // create the sub folder
+        const folderName = `Emails With ${from}`.trim();
+        noteDestinationFolderId = await createDriveFolder(
+          folderName,
+          folderName,
+          noteDestinationFolderId
+        );
+      }
+
       // upload the doc itself
       // only log email if there're some content
       const localPath = `${PROCESSED_EMAIL_PREFIX_PATH}/processed.${email.id}.data`;
@@ -158,11 +165,20 @@ async function _processThreadEmail(email: Email) {
             localPath,
             `
             Main Email
-            Date=${new Date().toLocaleDateString()}
-            From=${from}
-            Subject=${subject}
-            threadId=${threadId}
-            id=${id}
+            Date:
+            ${new Date().toLocaleDateString()}
+
+            From:
+            ${from}
+
+            Subject:
+            ${subject}
+
+            threadId:
+            ${threadId}
+
+            id:
+            ${id}
             `.trim(),
             date,
             starred,
@@ -185,7 +201,9 @@ async function _processThreadEmail(email: Email) {
       for (let attachment of attachments) {
         AttachmentIdx++;
         const attachmentName = _sanitizeFileName(
-          `${docFileName} - #${AttachmentIdx} - ${attachment.fileName}`
+          `${docFileName} - ${new Date().toLocaleDateString()} - #${AttachmentIdx} - ${
+            attachment.fileName
+          }`
         );
 
         logger.debug(
@@ -199,12 +217,24 @@ async function _processThreadEmail(email: Email) {
             attachment.path,
             `
             Attachment #${AttachmentIdx}
-            Date=${new Date().toLocaleDateString()}
-            From=${from}
-            Subject=${subject}
-            threadId=${threadId}
-            id=${id}
-            Path=${attachment.path}
+
+            Date
+            ${new Date().toLocaleDateString()}
+
+            From
+            ${from}
+
+            Subject
+            ${subject}
+
+            threadId
+            ${threadId}
+
+            id
+            ${id}
+
+            Path
+            ${attachment.path}
             `.trim(),
             date,
             starred,
