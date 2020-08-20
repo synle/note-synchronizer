@@ -121,8 +121,8 @@ async function _init() {
 
       // get a list of threads to start workin g
       remainingWorkInputs = await DataUtils.getAllThreadIdsToFetchRawContents();
-      intervalWorkSchedule = setInterval(_enqueueWorkFetchRawContents, 500); // every 10 sec
-      _enqueueWorkFetchRawContents();
+      intervalWorkSchedule = setInterval(_enqueueWorkWithRemainingInputs, 500); // every 10 sec
+      _enqueueWorkWithRemainingInputs();
       break;
 
     // job 2
@@ -139,8 +139,8 @@ async function _init() {
 
       // get a list of threads to start workin g
       remainingWorkInputs = await DataUtils.getAllThreadIdsToParseEmails();
-      intervalWorkSchedule = setInterval(_enqueueWorkFetchEmails, 500); // every 10 sec
-      _enqueueWorkFetchEmails();
+      intervalWorkSchedule = setInterval(_enqueueWorkWithRemainingInputs, 500); // every 10 sec
+      _enqueueWorkWithRemainingInputs();
       break;
 
     // job 3
@@ -157,100 +157,20 @@ async function _init() {
 
       // get a list of threads to start workin g
       remainingWorkInputs = await DataUtils.getAllThreadIdsToSyncWithGoogleDrive();
-      _enqueueUploadEmails();
-      intervalWorkSchedule = setInterval(_enqueueUploadEmails, 500); // every 3 sec
+      intervalWorkSchedule = setInterval(_enqueueWorkWithRemainingInputs, 500); // every 3 sec
+      _enqueueWorkWithRemainingInputs();
       break;
 
     // job 4
     case WORK_ACTION_ENUM.UPLOAD_LOGS:
       workers.push(new _newWorker(0, action, workers));
-      _enqueueUploadLogs();
-      intervalWorkSchedule = setInterval(_enqueueUploadLogs, 20 * 60 * 1000); // every 20 mins
+      _enqueueWorkWithoutInput();
+      intervalWorkSchedule = setInterval(_enqueueWorkWithoutInput, 20 * 60 * 1000); // every 20 mins
       break;
   }
 }
 
-async function _enqueueWorkFetchRawContents() {
-  if (lastWorkIdx < remainingWorkInputs.length) {
-    // print progres
-    const countTotalEmailThreads = remainingWorkInputs.length;
-    const percentDone = ((lastWorkIdx / countTotalEmailThreads) * 100).toFixed(
-      2
-    );
-
-    if (
-      lastWorkIdx === 0 ||
-      lastWorkIdx % 500 === 0 ||
-      (percentDone % 20 === 0 && percentDone > 0)
-    ) {
-      logger.warn(
-        `Progress of ${action}: ${percentDone}% (${lastWorkIdx} / ${countTotalEmailThreads})`
-      );
-    }
-
-    for (let worker of workers) {
-      if (worker.status === WORKER_STATUS_ENUM.FREE) {
-        // take task
-        const threadId = remainingWorkInputs[lastWorkIdx];
-        worker.status = WORKER_STATUS_ENUM.BUSY;
-        worker.work.postMessage({
-          threadId,
-          action,
-        });
-        lastWorkIdx++;
-      }
-
-      if (lastWorkIdx >= remainingWorkInputs.length) {
-        // done all work, stopped...
-        clearInterval(intervalWorkSchedule);
-        logger.debug(`Done processing all task: ${action}`);
-        process.exit();
-      }
-    }
-  }
-}
-
-async function _enqueueWorkFetchEmails() {
-  if (lastWorkIdx < remainingWorkInputs.length) {
-    // print progres
-    const countTotalEmailThreads = remainingWorkInputs.length;
-    const percentDone = ((lastWorkIdx / countTotalEmailThreads) * 100).toFixed(
-      2
-    );
-
-    if (
-      lastWorkIdx === 0 ||
-      lastWorkIdx % 500 === 0 ||
-      (percentDone % 20 === 0 && percentDone > 0)
-    ) {
-      logger.warn(
-        `Progress of ${action}: ${percentDone}% (${lastWorkIdx} / ${countTotalEmailThreads})`
-      );
-    }
-
-    for (let worker of workers) {
-      if (worker.status === WORKER_STATUS_ENUM.FREE) {
-        // take task
-        const threadId = remainingWorkInputs[lastWorkIdx];
-        worker.status = WORKER_STATUS_ENUM.BUSY;
-        worker.work.postMessage({
-          threadId,
-          action,
-        });
-        lastWorkIdx++;
-      }
-
-      if (lastWorkIdx >= remainingWorkInputs.length) {
-        // done all work, stopped...
-        clearInterval(intervalWorkSchedule);
-        logger.debug(`Done processing all task: ${action}`);
-        process.exit();
-      }
-    }
-  }
-}
-
-async function _enqueueUploadLogs() {
+async function _enqueueWorkWithoutInput() {
   for (let worker of workers) {
     if (worker.status === WORKER_STATUS_ENUM.FREE) {
       worker.status = WORKER_STATUS_ENUM.BUSY;
@@ -261,7 +181,7 @@ async function _enqueueUploadLogs() {
   }
 }
 
-async function _enqueueUploadEmails() {
+async function _enqueueWorkWithRemainingInputs() {
   if (lastWorkIdx < remainingWorkInputs.length) {
     // print progres
     let shouldPostUpdates = false;
