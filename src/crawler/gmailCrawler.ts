@@ -26,7 +26,7 @@ import * as DataUtils from "./dataUtils";
 const GMAIL_ATTACHMENT_PATH = "./attachments";
 const GMAIL_PATH_THREAD_LIST_TOKEN = `./caches/gmail.threads_last_tokens.data`;
 
-const MAX_TIME_PER_THREAD = 15 * 60 * 1000; // spend up to this many mins per thread
+const MAX_TIME_PER_THREAD = 20 * 60 * 1000; // spend up to this many mins per thread
 // crawler start
 
 /**
@@ -384,7 +384,8 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
         logger.debug(
           `Saving message: threadId=${targetThreadId} id=${messageToSave.id}`
         );
-        await DataUtils.bulkUpsertEmails(messageToSave).catch((err) => {
+        // await
+        DataUtils.bulkUpsertEmails(messageToSave).catch((err) => {
           logger.debug(
             `Inserting emails failed threadId=${targetThreadId} ${
               err.stack || JSON.stringify(err)
@@ -522,7 +523,7 @@ async function _pollNewEmailThreads(doFullLoad, q = "") {
             processedDate: null,
             duration: null,
             totalMessages: null,
-            status: THREAD_JOB_STATUS.PENDING,
+            status: THREAD_JOB_STATUS.PENDING_CRAWL,
           }))
         );
       }
@@ -794,12 +795,19 @@ export async function fetchRawContentsByThreadId(threadIds) {
           `Found raw content from cache for threadId=${targetThreadId}`
         );
       }
-    } catch (err) {}
 
-    await DataUtils.bulkUpsertThreadJobStatuses({
-      threadId: targetThreadId,
-      status: THREAD_JOB_STATUS.PENDING,
-    });
+      // move on to next stage
+      await DataUtils.bulkUpsertThreadJobStatuses({
+        threadId: targetThreadId,
+        status: THREAD_JOB_STATUS.PENDING,
+      });
+    } catch (err) {
+      logger.error(`Fetch raw content failed threadId=${threadId} ${err}`);
+      await DataUtils.bulkUpsertThreadJobStatuses({
+        threadId: targetThreadId,
+        status: THREAD_JOB_STATUS.ERROR_CRAWL,
+      });
+    }
   }
 
   logger.debug(`DONE fetchRawContentsByThreadId firstThreadId=${threadIds[0]}`);

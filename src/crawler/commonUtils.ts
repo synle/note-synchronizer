@@ -60,6 +60,7 @@ export enum WORKER_STATUS_ENUM {
 
 export enum THREAD_JOB_STATUS {
   ERROR_GENERIC = "ERROR_GENERIC",
+  ERROR_CRAWL = "ERROR_CRAWL",
   ERROR_THREAD_NOT_FOUND = "ERROR_THREAD_NOT_FOUND",
   ERROR_TIMEOUT = "ERROR_TIMEOUT",
   IN_PROGRESS = "IN_PROGRESS",
@@ -92,30 +93,35 @@ export interface WorkActionResponse extends WorkActionRequest {
 export const REGEX_URL = /[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/i;
 
 export function isStringUrl(string) {
-  string = string || "";
-  return (
-    (string.match(REGEX_URL) || []).length > 0 &&
-    ignoredUrlTokens.every(
-      (ignoreUrlToken) => !string.toLowerCase().includes(ignoreUrlToken)
-    )
-  );
-}
-
-export function extractUrlFromString(string) {
-  const urlMatches = string.match(REGEX_URL);
-  if (urlMatches && urlMatches.length > 0) {
-    const matchedUrl = urlMatches[0];
-
-    if (matchedUrl.length > 15)
-      return matchedUrl;
-    else {
-      return null;
-    }
+  try {
+    string = string || "";
+    return (
+      (string.match(REGEX_URL) || []).length > 0 &&
+      ignoredUrlTokens.every(
+        (ignoreUrlToken) => !string.toLowerCase().includes(ignoreUrlToken)
+      )
+    );
+  } catch (err) {
+    logger.error(`isStringUrl failed with err=${err} ${string}`);
   }
 }
 
+export function extractUrlFromString(string) {
+  try {
+    const urlMatches = string.match(REGEX_URL);
+    if (urlMatches && urlMatches.length > 0) {
+      const matchedUrl = urlMatches[0];
+
+      if (matchedUrl.length > 15) return matchedUrl;
+    }
+  } catch (err) {
+    logger.error(`extractUrlFromString failed "${string}" err=${err}`);
+  }
+  return "";
+}
+
 export async function crawlUrl(url): Promise<WebContent> {
-  if(!url){
+  if (!url || !isStringUrl(url)) {
     throw `${url} url is is not valid`;
   }
 
