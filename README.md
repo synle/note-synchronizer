@@ -131,8 +131,7 @@ SELECT id, threadId,  subject, body, datetime(date / 1000, 'unixepoch') as time 
 
 #### Requeue the task
 
-Restart all
-
+##### Clean up everything
 ```
 DELETE FROM emails;
 DELETE FROM attachments;
@@ -140,25 +139,12 @@ DELETE FROM attachments;
 UPDATE `threads`
 SET status='PENDING',
   processedDate=null,
-  totalMessages=null;
-
-UPDATE `emails`
-SET upload_status='PENDING';
-```
-
-```
-UPDATE `threads`
-SET status='PENDING',
-  processedDate=null,
   totalMessages=null
-WHERE status IN (
-  'IN_PROGRESS'
+WHERE status NOT IN (
+  'PENDING_CRAWL',
 );
-
-UPDATE `emails`
-SET upload_status='PENDING'
-WHERE upload_status != 'SUCCESS';
 ```
+
 
 #### Get job status stats
 

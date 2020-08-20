@@ -314,35 +314,46 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           // if subject is a url
           const urlToCrawl = extractUrlFromString(subject);
 
-          // crawl the URL for title
-          logger.debug(`Crawling subject with url: id=${id} ${urlToCrawl}`);
-          const websiteRes = await crawlUrl(urlToCrawl);
+          try {
+            logger.debug(`Crawl subject with url: id=${id} url=${urlToCrawl}`);
+            const websiteRes = await crawlUrl(urlToCrawl);
 
-          if (websiteRes && websiteRes.subject) {
+            logger.debug(
+              `Done CrawlUrl threadId=${threadId} id=${id} url=${urlToCrawl} res=${websiteRes.subject}`
+            );
+
             subject = (websiteRes.subject || "").trim();
             body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr />${_prettifyHtml(
               websiteRes.body
             )}`.trim();
-          } else {
-            logger.debug(`Crawl failed for id=${id} url${urlToCrawl}`);
-            body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr /><h2>404_Page_Not_Found</h2>`.trim();
+          } catch (err) {
+            logger.debug(
+              `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
+            );
+            body = strippedDownBody;
           }
         } else if (body.length < 255 && isStringUrl(body)) {
           // if body is a url
-          const urlToCrawl = extractUrlFromString(body);
-          if (urlToCrawl) {
+          const urlToCrawl = extractUrlFromString(parseHtmlBody(body));
+
+          try {
             // crawl the URL for title
-            logger.debug(`Crawling body with url: id=${id} ${urlToCrawl}`);
+            logger.debug(`Crawl body with url: id=${id} url=${urlToCrawl}`);
             const websiteRes = await crawlUrl(urlToCrawl);
-            if (websiteRes && websiteRes.subject) {
-              subject = `${subject} - ${websiteRes.subject || ""}`.trim();
-              body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr />${_prettifyHtml(
-                websiteRes.body
-              )}`.trim();
-            } else {
-              logger.debug(`Crawl failed for id=${id} url${urlToCrawl}`);
-              body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr /><h2>404_Page_Not_Found</h2>`.trim();
-            }
+
+            logger.debug(
+              `Done CrawlUrl threadId=${threadId} id=${id} url=${urlToCrawl} res=${websiteRes.subject}`
+            );
+
+            subject = `${subject} - ${websiteRes.subject || ""}`.trim();
+            body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr />${_prettifyHtml(
+              websiteRes.body
+            )}`.trim();
+          } catch (err) {
+            logger.debug(
+              `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
+            );
+            body = strippedDownBody;
           }
         } else {
           body = strippedDownBody;
