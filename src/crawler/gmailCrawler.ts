@@ -26,7 +26,7 @@ import * as DataUtils from "./dataUtils";
 const GMAIL_ATTACHMENT_PATH = "./attachments";
 const GMAIL_PATH_THREAD_LIST_TOKEN = `./caches/gmail.threads_last_tokens.data`;
 
-const MAX_TIME_PER_THREAD = 30 * 60 * 1000; // spend up to this many mins per thread
+const MAX_TIME_PER_THREAD = 15 * 60 * 1000; // spend up to this many mins per thread
 // crawler start
 
 /**
@@ -37,7 +37,6 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
   return new Promise(async (resolve, reject) => {
     const attachmentDownloadsPromises = []; // promises to keep track of attachment async download
     const attachmentsToSave = [];
-    const messagesToSave = [];
     const startTime = Date.now();
     let ignoreTimerForTimeout = false;
 
@@ -370,7 +369,17 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           `Pushing message to buffer: threadId=${threadId} id=${id} subject=${subject}`
         );
 
-        messagesToSave.push(messageToSave);
+        // save messages
+        logger.debug(
+          `Saving message: threadId=${targetThreadId} id=${messageToSave.id}`
+        );
+        await DataUtils.bulkUpsertEmails(messageToSave).catch((err) => {
+          logger.debug(
+            `Inserting emails failed threadId=${targetThreadId} ${
+              err.stack || JSON.stringify(err)
+            }`
+          );
+        });
       } catch (err) {
         logger.error(
           `Failed to process threadId=${targetThreadId} error=${
@@ -379,18 +388,6 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
         );
       }
     }
-
-    // save messages
-    logger.debug(
-      `Saving messages: threadId=${targetThreadId} total=${messagesToSave.length}`
-    );
-    await DataUtils.bulkUpsertEmails(messagesToSave).catch((err) => {
-      logger.debug(
-        `Inserting emails failed threadId=${targetThreadId} ${
-          err.stack || JSON.stringify(err)
-        }`
-      );
-    });
 
     // save attachments
     await Promise.all(attachmentDownloadsPromises); // waiting for attachment to download
@@ -401,7 +398,8 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
       `Saving attachments: threadId=${targetThreadId} totalAttachments=${attachmentsToSave.length} totalDownloadJobs=${attachmentDownloadsPromises.length}`
     );
 
-    await DataUtils.bulkUpsertAttachments(attachmentsToSave).catch((err) => {
+    // no need to wait for this attachments
+    DataUtils.bulkUpsertAttachments(attachmentsToSave).catch((err) => {
       logger.error(
         `Bulk create attachment failed, trying to do update instead threadId=${targetThreadId} ${
           err.stack || JSON.stringify(err)

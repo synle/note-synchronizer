@@ -2,7 +2,7 @@
 require("dotenv").config();
 import fs from "fs";
 import { Email, Attachment } from "../types";
-import { getNoteDestinationFolderId, uploadFile } from "./googleApiUtils";
+import * as googleApiUtils from "./googleApiUtils";
 import { logger } from "../loggers";
 import { myEmails, ignoredWordTokens, THREAD_JOB_STATUS } from "./commonUtils";
 import * as DataUtils from "./dataUtils";
@@ -32,7 +32,7 @@ function _sanitizeFileName(string) {
 }
 
 async function _init() {
-  noteDestinationFolderId = await getNoteDestinationFolderId();
+  noteDestinationFolderId = await googleApiUtils.getNoteDestinationFolderId();
 
   logger.debug(
     `ID for Google Drive Note Sync Folder: ${noteDestinationFolderId}`
@@ -40,11 +40,11 @@ async function _init() {
 }
 
 async function _processThreadEmail(email: Email) {
-  try {
-    let { threadId, id, from, bcc, to, subject, date, labelIds } = email;
+  let { threadId, id, from, bcc, to, subject, date, labelIds } = email;
 
+  try {
     await DataUtils.updateEmailUploadStatus({
-      id: id,
+      id,
       upload_status: THREAD_JOB_STATUS.IN_PROGRESS,
     });
 
@@ -84,9 +84,12 @@ async function _processThreadEmail(email: Email) {
 
     const hasSomeAttachments = attachments.length > 0;
 
+    const friendlyDateTimeString = new Date(
+      parseInt(date)
+    ).toLocaleDateString();
     const friendlyDateString = new Date(parseInt(date)).toLocaleDateString();
 
-    subject = `${friendlyDateString} ${subject}`;
+    subject = `${friendlyDateTimeString} ${subject}`;
 
     let docFileName = `${subject}`;
 
@@ -104,8 +107,8 @@ async function _processThreadEmail(email: Email) {
       );
 
       await DataUtils.updateEmailUploadStatus({
-        id: id,
-        upload_status: THREAD_JOB_STATUS.SUCCESS,
+        id,
+        upload_status: THREAD_JOB_STATUS.SKIPPED,
       });
 
       return; // skip this
@@ -117,7 +120,7 @@ async function _processThreadEmail(email: Email) {
       if (labelIdsList.some((labelId) => labelId.includes("CHAT"))) {
         // create the sub folder
         const folderName = `Chats With ${from}`.trim();
-        noteDestinationFolderId = await createDriveFolder(
+        folderToUse = await googleApiUtils.createDriveFolder(
           folderName,
           folderName,
           noteDestinationFolderId,
@@ -126,7 +129,7 @@ async function _processThreadEmail(email: Email) {
       } else {
         // create the sub folder
         const folderName = `Emails With ${from}`.trim();
-        noteDestinationFolderId = await createDriveFolder(
+        folderToUse = await googleApiUtils.createDriveFolder(
           folderName,
           folderName,
           noteDestinationFolderId,
@@ -161,14 +164,14 @@ async function _processThreadEmail(email: Email) {
 
           logger.debug(`Upload original note file ${docFileName}`);
 
-          await uploadFile(
+          await googleApiUtils.uploadFile(
             docFileName,
             "text/html",
             localPath,
             `
             Main Email
             Date:
-            ${new Date().toLocaleDateString()}
+            ${friendlyDateTimeString}
 
             From:
             ${from}
@@ -203,9 +206,7 @@ async function _processThreadEmail(email: Email) {
       for (let attachment of attachments) {
         AttachmentIdx++;
         const attachmentName = _sanitizeFileName(
-          `${docFileName} - ${new Date().toLocaleDateString()} - #${AttachmentIdx} - ${
-            attachment.fileName
-          }`
+          `${docFileName} - ${friendlyDateString} - #${AttachmentIdx} - ${attachment.fileName}`
         );
 
         logger.debug(
@@ -213,7 +214,7 @@ async function _processThreadEmail(email: Email) {
         );
 
         try {
-          await uploadFile(
+          await googleApiUtils.uploadFile(
             attachmentName,
             attachment.mimeType,
             attachment.path,
@@ -221,7 +222,7 @@ async function _processThreadEmail(email: Email) {
             Attachment #${AttachmentIdx}
 
             Date
-            ${new Date().toLocaleDateString()}
+            ${friendlyDateTimeString}
 
             From
             ${from}
@@ -262,7 +263,7 @@ async function _processThreadEmail(email: Email) {
     });
   } catch (err) {
     logger.error(
-      `Failed to process emails with threadId=${email.threadId} messageId=${email.id}`
+      `Failed to process emails with threadId=${email.threadId} messageId=${email.id} err=${err.stack}`
     );
 
     await DataUtils.updateEmailUploadStatus({
@@ -315,7 +316,7 @@ export async function uploadLogsToDrive() {
 
   logger.debug("uploadLogsToDrive");
 
-  uploadFile(
+  googleApiUtils.uploadFile(
     "...Note_Sync_Log.info",
     "text/plain",
     "./logs/log_warn.data",
@@ -325,7 +326,7 @@ export async function uploadLogsToDrive() {
     noteDestinationFolderId
   );
 
-  uploadFile(
+  googleApiUtils.uploadFile(
     "...Note_Sync_Log.verbose",
     "text/plain",
     "./logs/log_combined.data",

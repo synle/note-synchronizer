@@ -7,7 +7,8 @@ import initDatabase from "./src/models/modelsFactory";
 
 import { Op } from "sequelize";
 
-import { initGoogleApi, uploadFile } from "./src/crawler/googleApiUtils";
+import { initGoogleApi } from "./src/crawler/googleApiUtils";
+import * as googleApiUtils from "./src/crawler/googleApiUtils";
 
 import {
   pollForNewThreadList,
@@ -23,7 +24,7 @@ async function _init() {
   console.log("test inits");
 
   await initDatabase();
-  // await initGoogleApi();
+  await initGoogleApi();
 
   console.log("test starts");
 }
@@ -98,4 +99,33 @@ async function _doWork2() {
   }
 }
 
-_doWork2();
+async function _doWork3() {
+  await _init();
+
+  const targetThreadId = "13089ea274e32128";
+
+  try {
+    await uploadEmailThreadToGoogleDrive(targetThreadId);
+  } catch (e) {
+    console.log(e.stack);
+  }
+}
+
+async function _doWork4() {
+  await _init();
+
+  try {
+    await googleApiUtils.uploadFile(
+      'test.html',
+      "text/html",
+      "./test.html",
+      "test html file",
+      new Date().getTime(),
+      true
+    );
+  } catch (e) {
+    console.log(e.stack);
+  }
+}
+
+_doWork3();

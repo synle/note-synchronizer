@@ -18,7 +18,7 @@ export default async () => {
       storage: `./database.sqlite`,
       logging: process.env.DB_LOGGING === "true",
       pool: {
-        max: 3,
+        max: 2,
         min: 0,
       },
       retry: {
