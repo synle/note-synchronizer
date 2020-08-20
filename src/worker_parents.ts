@@ -112,7 +112,7 @@ async function _init() {
       break;
 
     case WORK_ACTION_ENUM.FETCH_RAW_CONTENT:
-      threadToSpawn = Math.max(maxThreadCount, 50);
+      threadToSpawn = Math.min(maxThreadCount, 12);
       while (threadToSpawn > 0) {
         threadToSpawn--;
         const myThreadId = workers.length;
@@ -127,7 +127,7 @@ async function _init() {
 
     // job 2
     case WORK_ACTION_ENUM.FETCH_EMAIL:
-      threadToSpawn = Math.max(maxThreadCount, 12);
+      threadToSpawn = Math.min(maxThreadCount, 3);
       while (threadToSpawn > 0) {
         threadToSpawn--;
         const myThreadId = workers.length;
@@ -145,7 +145,7 @@ async function _init() {
 
     // job 3
     case WORK_ACTION_ENUM.UPLOAD_EMAIL:
-      threadToSpawn = Math.max(maxThreadCount, 5);
+      threadToSpawn = Math.min(maxThreadCount, 3);
       while (threadToSpawn > 0) {
         threadToSpawn--;
         const myThreadId = workers.length;

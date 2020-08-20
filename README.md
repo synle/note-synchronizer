@@ -132,19 +132,26 @@ SELECT id, threadId,  subject, body, datetime(date / 1000, 'unixepoch') as time 
 #### Requeue the task
 
 ##### Clean up everything
+
 ```
 DELETE FROM emails;
 DELETE FROM attachments;
+
+UPDATE `threads`
+SET status='PENDING_CRAWL',
+  processedDate=null,
+  totalMessages=null;
+
+-- or this to only reprocess pending items...
 
 UPDATE `threads`
 SET status='PENDING',
   processedDate=null,
   totalMessages=null
 WHERE status NOT IN (
-  'PENDING_CRAWL',
+  'PENDING_CRAWL'
 );
 ```
-
 
 #### Get job status stats
 
