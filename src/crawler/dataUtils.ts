@@ -8,9 +8,13 @@ import Models from "../models/modelsSchema";
 
 import { THREAD_JOB_STATUS } from "./commonUtils";
 
+import { chunk } from "lodash";
+
 function _makeArray(arr) {
   return [].concat(arr || []);
 }
+
+const DB_CHUNK_SIZE = 10;
 
 // attachments
 export async function getAttachmentByThreadIds(threadId) {
@@ -23,9 +27,13 @@ export async function getAttachmentByThreadIds(threadId) {
 }
 
 export async function bulkUpsertAttachments(attachments) {
-  return Models.Attachment.bulkCreate(_makeArray(attachments), {
-    updateOnDuplicate: ["mimeType", "fileName", "path", "headers"],
-  });
+  const jobChunks = chunk(_makeArray(attachments), DB_CHUNK_SIZE);
+
+  for (items of jobChunks) {
+    await Models.Attachment.bulkCreate(items, {
+      updateOnDuplicate: ["mimeType", "fileName", "path", "headers"],
+    })
+  }
 }
 
 // emails
@@ -68,20 +76,23 @@ export async function getEmailsByThreadId(threadId): Email[] {
 }
 
 export async function bulkUpsertEmails(emails) {
-  const
-  return Models.Email.bulkCreate(_makeArray(emails), {
-    updateOnDuplicate: [
-      "from",
-      "body",
-      "rawBody",
-      "subject",
-      "rawSubject",
-      "headers",
-      "to",
-      "bcc",
-      "date",
-    ],
-  });
+  const jobChunks = chunk(_makeArray(emails), DB_CHUNK_SIZE);
+
+  for (items of jobChunks) {
+    await Models.Email.bulkCreate(items, {
+      updateOnDuplicate: [
+        "from",
+        "body",
+        "rawBody",
+        "subject",
+        "rawSubject",
+        "headers",
+        "to",
+        "bcc",
+        "date",
+      ],
+    })
+  }
 }
 
 export async function updateEmailUploadStatus(email) {
@@ -120,19 +131,23 @@ export async function getAllThreadIdsToFetchDetails(
 }
 
 export async function bulkUpsertThreadJobStatuses(threads) {
-  return Models.Thread.bulkCreate(_makeArray(threads), {
-    updateOnDuplicate: [
-      "processedDate",
-      "duration",
-      "totalMessages",
-      "historyId",
-      "snippet",
-      "status",
-    ],
-  });
+  const jobChunks = chunk(_makeArray(threads), DB_CHUNK_SIZE);
+
+  for (items of jobChunks) {
+    await Models.Thread.bulkCreate(items, {
+      updateOnDuplicate: [
+        "processedDate",
+        "duration",
+        "totalMessages",
+        "historyId",
+        "snippet",
+        "status",
+      ],
+    })
+  }
 }
 
-export async function recoverInProgressThreadJobStatus(oldStatus, newStatus) {
+export async function recoverInProgressThreadJobStatus() {
   await Models.Thread.update(
     {
       status: THREAD_JOB_STATUS.PENDING,
@@ -173,7 +188,11 @@ export async function getRawContentsByThreadId(
 }
 
 export async function bulkUpsertRawContents(rawContents: RawContent[]) {
-  return Models.RawContent.bulkCreate(_makeArray(rawContents), {
-    updateOnDuplicate: ["rawApiResponse", "date"],
-  });
+  const jobChunks = chunk(_makeArray(rawContents), DB_CHUNK_SIZE);
+
+  for (items of jobChunks) {
+    await Models.RawContent.bulkCreate(items, {
+      updateOnDuplicate: ["rawApiResponse", "date"],
+    })
+  }
 }

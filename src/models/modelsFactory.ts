@@ -24,7 +24,7 @@ export default async () => {
         min: 0,
       },
       retry: {
-        max: 3,
+        max: 10,
       },
     }
   );
