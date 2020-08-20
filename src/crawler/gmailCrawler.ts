@@ -731,49 +731,64 @@ export async function fetchRawContentsByThreadId(threadIds) {
   logger.debug(`fetchRawContentsByThreadId firstThreadId=${threadIds[0]}`);
 
   for (let targetThreadId of threadIds) {
-    let threadMessages = await DataUtils.getRawContentsByThreadId(
-      targetThreadId
-    );
-
-    // if not found from db, then fetch its raw content
-    if (!threadMessages || threadMessages.length === 0) {
-      logger.debug(
-        `fetch Gmail API to get raw content for threadId=${targetThreadId}`
-      );
-
-      const { messages } = await googleApiUtils.getEmailContentByThreadId(
+    try {
+      let threadMessages = await DataUtils.getRawContentsByThreadId(
         targetThreadId
       );
-      for (let message of messages) {
-        const { id, threadId } = message;
 
-        const parts = googleApiUtils.flattenGmailPayloadParts(message.payload);
-        if (parts && parts.length > 0) {
-          for (let part of parts) {
-            if (part.body.data) {
-              part.body.data = _parseGmailMessage(part.body.data);
+      // if not found from db, then fetch its raw content
+      if (!threadMessages || threadMessages.length === 0) {
+        logger.debug(
+          `fetch Gmail API to get raw content for threadId=${targetThreadId}`
+        );
+
+        const { messages } = await googleApiUtils.getEmailContentByThreadId(
+          targetThreadId
+        );
+
+        // parse the content
+        const rawContentsToSave = messages.map((message) => {
+          const { id, threadId } = message;
+
+          const parts = googleApiUtils.flattenGmailPayloadParts(
+            message.payload
+          );
+          if (parts && parts.length > 0) {
+            for (let part of parts) {
+              if (part.body.data) {
+                part.body.data = _parseGmailMessage(part.body.data);
+              }
             }
           }
-        }
 
-        await DataUtils.bulkUpsertRawContents({
-          messageId: id,
-          threadId: threadId,
-          rawApiResponse: JSON.stringify(message),
-          date: message.internalDate || Date.now(),
-        }).catch((err) => {
-          logger.error(
-            `Insert raw content failed threadId=${threadId} id=${id} ${
-              err.stack || JSON.stringify(err)
-            }`
-          );
+          return {
+            messageId: id,
+            threadId: threadId,
+            rawApiResponse: JSON.stringify(message),
+            date: message.internalDate || Date.now(),
+          };
         });
+
+        await DataUtils.bulkUpsertRawContents(rawContentsToSave).catch(
+          (err) => {
+            logger.error(
+              `Insert raw content failed threadId=${threadId} ${
+                err.stack || JSON.stringify(err)
+              }`
+            );
+          }
+        );
+      } else {
+        logger.debug(
+          `Found raw content from cache for threadId=${targetThreadId}`
+        );
       }
-    } else {
-      logger.debug(
-        `Found raw content from cache for threadId=${targetThreadId}`
-      );
-    }
+    } catch (err) {}
+
+    await DataUtils.bulkUpsertThreadJobStatuses({
+      threadId: targetThreadId,
+      status: THREAD_JOB_STATUS.PENDING,
+    });
   }
 
   logger.debug(`DONE fetchRawContentsByThreadId firstThreadId=${threadIds[0]}`);

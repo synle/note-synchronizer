@@ -58,8 +58,6 @@ console.debug = function () {
   return _formatConsoleLogs(logger.debug, arguments);
 };
 
-function _formatConsoleLogs(logMethod, args){
-  logMethod.apply(logger, [
-    [...args].map((s) => JSON.stringify(s)).join(", "),
-  ]);
+function _formatConsoleLogs(logMethod, args) {
+  logMethod.apply(logger, [[...args].map((s) => JSON.stringify(s)).join(", ")]);
 }
