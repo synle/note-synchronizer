@@ -120,7 +120,8 @@ async function _processThreadEmail(email: Email) {
         noteDestinationFolderId = await createDriveFolder(
           folderName,
           folderName,
-          noteDestinationFolderId
+          noteDestinationFolderId,
+          "0000FF" // blue for chat
         );
       } else {
         // create the sub folder
@@ -128,7 +129,8 @@ async function _processThreadEmail(email: Email) {
         noteDestinationFolderId = await createDriveFolder(
           folderName,
           folderName,
-          noteDestinationFolderId
+          noteDestinationFolderId,
+          "FF0000" // red for email
         );
       }
 

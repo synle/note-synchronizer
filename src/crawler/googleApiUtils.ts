@@ -177,7 +177,7 @@ export function getThreadsByQuery(q, pageToken) {
  * get a list of emails by threads
  * @param targetThreadId
  */
-export function getThreadEmailsByThreadId(targetThreadId) {
+function _getThreadEmailsByThreadId(targetThreadId) {
   return new Promise((resolve, reject) => {
     gmailApiInstance.users.threads.get(
       {
@@ -201,7 +201,7 @@ export function getThreadEmailsByThreadId(targetThreadId) {
   });
 }
 
-export function getDraftsByThreadId(targetThreadId) {
+function _getDraftsByThreadId(targetThreadId) {
   return new Promise((resolve, reject) => {
     gmailApiInstance.users.drafts.get(
       {
@@ -218,6 +218,20 @@ export function getDraftsByThreadId(targetThreadId) {
       }
     );
   });
+}
+
+export function getEmailContentByThreadId(targetThreadId) {
+  try{
+    return _getThreadEmailsByThreadId(targetThreadId);
+  } catch(err){}
+
+  try {
+    return _getDraftsByThreadId(targetThreadId);
+  } catch (err) {}
+
+  // if not found at all
+  logger.error(`Cannot find content in message for draft GMAIL API for threadId=${targetThreadId}`);
+  return Promise.reject(`Cannot find content for threadId${targetThreadId}`);
 }
 
 export function getEmailAttachment(messageId, attachmentId) {
@@ -437,7 +451,12 @@ export function searchDrive(name, mimeType, parentFolderId) {
   });
 }
 
-export async function createDriveFolder(name, description, parentFolderId) {
+export async function createDriveFolder(
+  name,
+  description,
+  parentFolderId,
+  folderColorRgb = "FFFF00"
+) {
   try {
     const mimeType = MIME_TYPE_ENUM.APP_GOOGLE_FOLDER;
 
@@ -447,6 +466,7 @@ export async function createDriveFolder(name, description, parentFolderId) {
         name,
         mimeType,
         description,
+        folderColorRgb,
       };
 
       if (parentFolderId) {

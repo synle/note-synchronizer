@@ -94,12 +94,6 @@ export class Attachment extends Model {
 @table("threads", {
   timestamps: true,
 })
-@index([
-  {
-    unique: false,
-    fields: ["threadId"],
-  },
-])
 export class Thread extends Model {
   @attribute(Thread, {
     allowNull: false,
