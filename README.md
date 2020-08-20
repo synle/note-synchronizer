@@ -166,9 +166,9 @@ FROM `threads` GROUP by status;
 SELECT upload_status, count(*)
 FROM `emails` GROUP by upload_status;
 
-SELECT COUNT(*) FROM `emails`;
+SELECT COUNT(*) as TotalMessages FROM `emails`;
 
-SELECT COUNT(*) FROM `raw_contents`;
+SELECT COUNT(*) as RawContents FROM `raw_contents`;
 ```
 
 ### Useful tips
@@ -177,4 +177,15 @@ SELECT COUNT(*) FROM `raw_contents`;
 
 ```
 Get-Content -Wait .\logs\log_combined.data
+```
+
+
+#### MySQL Sequelize timeout issues
+```
+{
+  ...
+  dialectOptions: {
+    connectTimeout: 120000,
+  },
+}
 ```
