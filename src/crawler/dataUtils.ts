@@ -115,7 +115,6 @@ export async function getAllThreadIdsToParseEmails(limit) {
   return res.map((thread) => thread.threadId);
 }
 
-
 export async function getAllThreadIdsToFetchRawContents() {
   const req = {
     attributes: ["threadId"], // only fetch threadId

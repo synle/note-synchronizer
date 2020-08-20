@@ -84,9 +84,7 @@ async function _processThreadEmail(email: Email) {
 
     const hasSomeAttachments = attachments.length > 0;
 
-    const friendlyDateTimeString = new Date(
-      parseInt(date)
-    ).toLocaleString();
+    const friendlyDateTimeString = new Date(parseInt(date)).toLocaleString();
     const friendlyTimeString = new Date(parseInt(date)).toLocaleTimeString();
 
     subject = `${friendlyDateTimeString} ${subject}`;
