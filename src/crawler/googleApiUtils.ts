@@ -27,6 +27,18 @@ const SCOPES = [
 const GMAIL_TOKEN_PATH = "token.json";
 const GMAIL_CREDENTIALS_PATH = "credentials.json";
 
+function _logAndWrapApiError(err, res, ...extra) {
+  logger.error(
+    `Gmail API Failed: \nError=${JSON.stringify(err)} \nRes=${JSON.stringify(
+      res
+    )}`
+  );
+
+  console.error(`Gmail API Failed:`, extra, err.stack || err, res);
+
+  return err;
+}
+
 export async function getNoteDestinationFolderId() {
   if (!noteDestinationFolderId) {
     // create the note folder
@@ -102,12 +114,12 @@ function getNewGoogleToken(oAuth2Client, callback) {
   rl.question("Enter the code from that page here: ", (code) => {
     rl.close();
     oAuth2Client.getToken(code, (err, token) => {
-      if (err) return logger.error("Error retrieving access token", err);
+      if (err) return console.error("Error retrieving access token", err);
       oAuth2Client.setCredentials(token);
       // Store the token to disk for later program executions
       fs.writeFile(GMAIL_TOKEN_PATH, JSON.stringify(token), (err) => {
-        if (err) return logger.error(err);
-        logger.info("Token stored to", GMAIL_TOKEN_PATH);
+        if (err) return console.error(err);
+        console.info("Token stored to", GMAIL_TOKEN_PATH);
       });
       callback(oAuth2Client);
     });
@@ -127,12 +139,7 @@ function getGmailLabels() {
       },
       (err, res) => {
         if (err) {
-          logger.error(
-            `Gmail API Failed: \nError=${JSON.stringify(
-              err
-            )} \nRes=${JSON.stringify(res)}`
-          );
-          return reject(err);
+          return reject(_logAndWrapApiError(err, res, "getGmailLabels"));
         }
         resolve(res.data.labels);
       }
@@ -156,12 +163,9 @@ export function getThreadsByQuery(q, pageToken) {
       },
       (err, res) => {
         if (err) {
-          logger.error(
-            `Gmail API Failed: \nError=${JSON.stringify(
-              err
-            )} \nRes=${JSON.stringify(res)}`
+          return reject(
+            _logAndWrapApiError(err, res, "getThreadsByQuery", q, pageToken)
           );
-          return reject(err);
         }
         resolve(res.data);
       }
@@ -182,12 +186,14 @@ export function getThreadEmailsByThreadId(targetThreadId) {
       },
       (err, res) => {
         if (err) {
-          logger.error(
-            `Gmail API Failed: \nError=${JSON.stringify(
-              err
-            )} \nRes=${JSON.stringify(res)}`
+          return reject(
+            _logAndWrapApiError(
+              err,
+              res,
+              "getThreadEmailsByThreadId",
+              targetThreadId
+            )
           );
-          return reject(err);
         }
         resolve(res.data);
       }
@@ -204,12 +210,9 @@ export function getDraftsByThreadId(targetThreadId) {
       },
       (err, res) => {
         if (err) {
-          logger.error(
-            `Gmail API Failed: \nError=${JSON.stringify(
-              err
-            )} \nRes=${JSON.stringify(res)}`
+          return reject(
+            _logAndWrapApiError(err, res, "getDraftsByThreadId", targetThreadId)
           );
-          return reject(err);
         }
         resolve(res.data);
       }
@@ -227,12 +230,15 @@ export function getEmailAttachment(messageId, attachmentId) {
       })
       .then((res, err) => {
         if (err) {
-          logger.error(
-            `Gmail API Failed: \nError=${JSON.stringify(
-              err
-            )} \nRes=${JSON.stringify(res)}`
+          return reject(
+            _logAndWrapApiError(
+              err,
+              res,
+              "getEmailAttachment",
+              messageId,
+              attachmentId
+            )
           );
-          return reject(err);
         }
         resolve(res.data.data);
       });
@@ -250,12 +256,17 @@ export function sendEmail(to, subject, message, from) {
       },
       function (err, res) {
         if (err) {
-          logger.error(
-            `Gmail API Failed: \nError=${JSON.stringify(
-              err
-            )} \nRes=${JSON.stringify(res)}`
+          return reject(
+            _logAndWrapApiError(
+              err,
+              res,
+              "sendEmail",
+              to,
+              subject,
+              message,
+              from
+            )
           );
-          return reject(err);
         }
         resolve(res.data);
       }
@@ -325,12 +336,9 @@ export function createFileInDrive(resource, media) {
       },
       function (err, res) {
         if (err) {
-          logger.error(
-            `Gmail API Failed: \nError=${JSON.stringify(
-              err
-            )} \nRes=${JSON.stringify(res)}`
+          return reject(
+            _logAndWrapApiError(err, res, "createFileInDrive", resource, media)
           );
-          return reject(err);
         }
         resolve(res.data);
       }
@@ -348,12 +356,16 @@ export function updateFileInDrive(fileId, resource, media) {
       },
       function (err, res) {
         if (err) {
-          logger.error(
-            `Gmail API Failed: \nError=${JSON.stringify(
-              err
-            )} \nRes=${JSON.stringify(res)}`
+          return reject(
+            _logAndWrapApiError(
+              err,
+              res,
+              "updateFileInDrive",
+              fileId,
+              resource,
+              media
+            )
           );
-          return reject(err);
         }
         resolve(res.data);
       }
@@ -370,12 +382,9 @@ export function createFolderInDrive(resource) {
       },
       function (err, res) {
         if (err) {
-          logger.error(
-            `Gmail API Failed: \nError=${JSON.stringify(
-              err
-            )} \nRes=${JSON.stringify(res)}`
+          return reject(
+            _logAndWrapApiError(err, res, "createFolderInDrive", resource)
           );
-          return reject(err);
         }
         resolve(res.data);
       }
@@ -411,12 +420,16 @@ export function searchDrive(name, mimeType, parentFolderId) {
       },
       function (err, res) {
         if (err) {
-          logger.error(
-            `Gmail API Failed: \nError=${JSON.stringify(
-              err
-            )} \nRes=${JSON.stringify(res)}`
+          return reject(
+            _logAndWrapApiError(
+              err,
+              res,
+              "searchDrive",
+              name,
+              mimeType,
+              parentFolderId
+            )
           );
-          return reject(err);
         }
         resolve(res.data.files);
       }
@@ -425,24 +438,29 @@ export function searchDrive(name, mimeType, parentFolderId) {
 }
 
 export async function createDriveFolder(name, description, parentFolderId) {
-  const mimeType = MIME_TYPE_ENUM.APP_GOOGLE_FOLDER;
+  try {
+    const mimeType = MIME_TYPE_ENUM.APP_GOOGLE_FOLDER;
 
-  const matchedResults = await searchDrive(name, mimeType);
-  if (matchedResults.length === 0) {
-    const fileGDriveMetadata = {
-      name,
-      mimeType,
-      description,
-    };
+    const matchedResults = await searchDrive(name, mimeType);
+    if (matchedResults.length === 0) {
+      const fileGDriveMetadata = {
+        name,
+        mimeType,
+        description,
+      };
 
-    if (parentFolderId) {
-      fileGDriveMetadata.parents = [parentFolderId];
+      if (parentFolderId) {
+        fileGDriveMetadata.parents = [parentFolderId];
+      }
+
+      // create the folder itself
+      return (await createFolderInDrive(fileGDriveMetadata)).id;
+    } else {
+      return matchedResults[0].id;
     }
-
-    // create the folder itself
-    return (await createFolderInDrive(fileGDriveMetadata)).id;
-  } else {
-    return matchedResults[0].id;
+  } catch (err) {
+    _logAndWrapApiError(err, null, "createDriveFolder");
+    return null;
   }
 }
 
@@ -521,7 +539,8 @@ export async function uploadFile(
     null,
     parentFolderId
   );
-  if (matchedResults.length === 0) {
+
+  if (!matchedResults || matchedResults.length === 0) {
     console.debug(
       "Upload file with create operation",
       `parent=${parentFolderId}`,
