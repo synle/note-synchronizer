@@ -23,6 +23,18 @@ import { THREAD_JOB_STATUS } from "../crawler/commonUtils";
     unique: false,
     fields: ["threadId"],
   },
+  {
+    unique: false,
+    fields: ["date"],
+  },
+  {
+    unique: false,
+    fields: ["createdAt"],
+  },
+  {
+    unique: false,
+    fields: ["updatedAt"],
+  },
 ])
 export class RawContent extends Model {
   @attribute(RawContent, {
@@ -94,6 +106,20 @@ export class Attachment extends Model {
 @table("threads", {
   timestamps: true,
 })
+@index([
+  {
+    unique: false,
+    fields: ["status"],
+  },
+  {
+    unique: false,
+    fields: ["createdAt"],
+  },
+  {
+    unique: false,
+    fields: ["updatedAt"],
+  },
+])
 export class Thread extends Model {
   @attribute(Thread, {
     allowNull: false,
@@ -141,6 +167,14 @@ export class Thread extends Model {
   {
     unique: false,
     fields: ["upload_status"],
+  },
+  {
+    unique: false,
+    fields: ["createdAt"],
+  },
+  {
+    unique: false,
+    fields: ["updatedAt"],
   },
 ])
 export class Email extends Model {

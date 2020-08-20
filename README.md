@@ -142,6 +142,10 @@ SET status='PENDING_CRAWL',
   processedDate=null,
   totalMessages=null;
 
+UPDATE threads
+INNER JOIN raw_contents ON (threads.threadId = raw_contents.threadId)
+SET threads.status='PENDING';
+
 -- or this to only reprocess pending items...
 
 UPDATE `threads`
@@ -161,6 +165,10 @@ FROM `threads` GROUP by status;
 
 SELECT upload_status, count(*)
 FROM `emails` GROUP by upload_status;
+
+SELECT COUNT(*) FROM `emails`;
+
+SELECT COUNT(*) FROM `raw_contents`;
 ```
 
 ### Useful tips
