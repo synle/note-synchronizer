@@ -130,8 +130,13 @@ SELECT id, threadId,  subject, body, datetime(date / 1000, 'unixepoch') as time 
 ```
 
 #### Requeue the task
+
 Restart all
+
 ```
+DELETE FROM emails;
+DELETE FROM attachments;
+
 UPDATE `threads`
 SET status='PENDING',
   processedDate=null,
@@ -141,13 +146,15 @@ UPDATE `emails`
 SET upload_status='PENDING';
 ```
 
-
 ```
 UPDATE `threads`
 SET status='PENDING',
   processedDate=null,
   totalMessages=null
-WHERE status != 'SUCCESS';
+WHERE status IN (
+  'ERROR_TIMEOUT',
+  'IN_PROGRESS'
+)
 
 UPDATE `emails`
 SET upload_status='PENDING'
