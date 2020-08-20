@@ -10,6 +10,7 @@ export default async () => {
   // notes such as emails and attachments
   const dialect = process.env.DB_DIALECT || "mysql" || "sqlite"
   if (dialect === 'mysql'){
+    // mysql
     const sequelize = new Sequelize(
       process.env.DB_NAME || "note_synchronize",
       process.env.DB_USERNAME || "root",
@@ -17,7 +18,6 @@ export default async () => {
       {
         dialect,
         host: process.env.DB_HOST,
-        storage: `./database.sqlite`,
         logging: process.env.DB_LOGGING === "true",
         pool: {
           max: 2,
