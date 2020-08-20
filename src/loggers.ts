@@ -46,22 +46,20 @@ process.on("unhandledRejection", (reason, p) => {
 
 // Override the base console log with winston
 console.log = function () {
-  return logger.debug.apply(logger, [
-    [...arguments].map((s) => JSON.stringify(s)).join(", "),
-  ]);
+  return _formatConsoleLogs(logger.debug, arguments);
 };
 console.error = function () {
-  return logger.error.apply(logger, [
-    [...arguments].map((s) => JSON.stringify(s)).join(", "),
-  ]);
+  return _formatConsoleLogs(logger.error, arguments);
 };
 console.info = function () {
-  return logger.debug.apply(logger, [
-    [...arguments].map((s) => "  " + JSON.stringify(s)).join(", "),
-  ]);
+  return _formatConsoleLogs(logger.debug, arguments);
 };
 console.debug = function () {
-  return logger.debug.apply(logger, [
-    [...arguments].map((s) => JSON.stringify(s)).join(", "),
-  ]);
+  return _formatConsoleLogs(logger.debug, arguments);
 };
+
+function _formatConsoleLogs(logMethod, args){
+  logMethod.apply(logger, [
+    [...args].map((s) => JSON.stringify(s)).join(", "),
+  ]);
+}

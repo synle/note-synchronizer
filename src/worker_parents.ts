@@ -111,6 +111,20 @@ async function _init() {
       await pollForNewThreadList(true);
       break;
 
+    case WORK_ACTION_ENUM.FETCH_RAW_CONTENT:
+      threadToSpawn = maxThreadCount;
+      while (threadToSpawn > 0) {
+        threadToSpawn--;
+        const myThreadId = workers.length;
+        workers.push(_newWorker(myThreadId, action, workers));
+      }
+
+      // get a list of threads to start workin g
+      remainingWorkInputs = await DataUtils.getAllThreadIdsToFetchRawContents();
+      intervalWorkSchedule = setInterval(_enqueueWorkFetchRawContents, 500); // every 10 sec
+      _enqueueWorkFetchRawContents();
+      break;
+
     // job 2
     case WORK_ACTION_ENUM.FETCH_EMAIL:
       threadToSpawn = maxThreadCount;
@@ -124,7 +138,7 @@ async function _init() {
       await DataUtils.recoverInProgressThreadJobStatus();
 
       // get a list of threads to start workin g
-      remainingWorkInputs = await DataUtils.getAllThreadIdsToFetchDetails();
+      remainingWorkInputs = await DataUtils.getAllThreadIdsToParseEmails();
       intervalWorkSchedule = setInterval(_enqueueWorkFetchEmails, 500); // every 10 sec
       _enqueueWorkFetchEmails();
       break;
@@ -156,7 +170,7 @@ async function _init() {
   }
 }
 
-async function _enqueueWorkFetchEmails() {
+async function _enqueueWorkFetchRawContents() {
   if (lastWorkIdx < remainingWorkInputs.length) {
     // print progres
     const countTotalEmailThreads = remainingWorkInputs.length;
@@ -170,7 +184,7 @@ async function _enqueueWorkFetchEmails() {
       (percentDone % 20 === 0 && percentDone > 0)
     ) {
       logger.warn(
-        `Progress of Fetching Emails: ${percentDone}% (${lastWorkIdx} / ${countTotalEmailThreads})`
+        `Progress of ${action}: ${percentDone}% (${lastWorkIdx} / ${countTotalEmailThreads})`
       );
     }
 
@@ -189,7 +203,47 @@ async function _enqueueWorkFetchEmails() {
       if (lastWorkIdx >= remainingWorkInputs.length) {
         // done all work, stopped...
         clearInterval(intervalWorkSchedule);
-        logger.debug("Done processing all task");
+        logger.debug(`Done processing all task: ${action}`);
+        process.exit();
+      }
+    }
+  }
+}
+
+async function _enqueueWorkFetchEmails() {
+  if (lastWorkIdx < remainingWorkInputs.length) {
+    // print progres
+    const countTotalEmailThreads = remainingWorkInputs.length;
+    const percentDone = ((lastWorkIdx / countTotalEmailThreads) * 100).toFixed(
+      2
+    );
+
+    if (
+      lastWorkIdx === 0 ||
+      lastWorkIdx % 500 === 0 ||
+      (percentDone % 20 === 0 && percentDone > 0)
+    ) {
+      logger.warn(
+        `Progress of ${action}: ${percentDone}% (${lastWorkIdx} / ${countTotalEmailThreads})`
+      );
+    }
+
+    for (let worker of workers) {
+      if (worker.status === WORKER_STATUS_ENUM.FREE) {
+        // take task
+        const threadId = remainingWorkInputs[lastWorkIdx];
+        worker.status = WORKER_STATUS_ENUM.BUSY;
+        worker.work.postMessage({
+          threadId,
+          action,
+        });
+        lastWorkIdx++;
+      }
+
+      if (lastWorkIdx >= remainingWorkInputs.length) {
+        // done all work, stopped...
+        clearInterval(intervalWorkSchedule);
+        logger.debug(`Done processing all task: ${action}`);
         process.exit();
       }
     }
@@ -254,7 +308,7 @@ async function _enqueueUploadEmails() {
         (percentDone % 20 === 0 && percentDone > 0)
       ) {
         logger.warn(
-          `Progress of Uploading Emails: ${percentDone}% (${lastWorkIdx} / ${countTotalEmailThreads})`
+          `Progress of ${action}: ${percentDone}% (${lastWorkIdx} / ${countTotalEmailThreads})`
         );
       }
     }

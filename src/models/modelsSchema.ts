@@ -117,7 +117,9 @@ export class Thread extends Model {
   @attribute(Thread)
   public snippet!: string;
 
-  @attribute(Thread)
+  @attribute(Thread, {
+    defaultValue: THREAD_JOB_STATUS.PENDING_CRAWL,
+  })
   public status!: string;
 }
 
@@ -135,6 +137,10 @@ export class Thread extends Model {
   {
     unique: false,
     fields: ["from"],
+  },
+  {
+    unique: false,
+    fields: ["upload_status"],
   },
 ])
 export class Email extends Model {
