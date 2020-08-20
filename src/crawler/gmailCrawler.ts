@@ -92,7 +92,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
       // get emails from the google messages api
       if (threadMessages.length === 0) {
-        const { messages } = await googleApiUtils.getThreadEmailsByThreadId(
+        const { messages } = await googleApiUtils.getEmailContentByThreadId(
           targetThreadId
         );
 

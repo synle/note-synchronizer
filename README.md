@@ -154,7 +154,7 @@ SET status='PENDING',
 WHERE status IN (
   'ERROR_TIMEOUT',
   'IN_PROGRESS'
-)
+);
 
 UPDATE `emails`
 SET upload_status='PENDING'
