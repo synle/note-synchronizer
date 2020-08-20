@@ -1,10 +1,9 @@
 // @ts-nocheck
-const { Readability } = require("@mozilla/readability");
-const { Base64 } = require("js-base64");
 import fs from "fs";
-const { JSDOM } = require("jsdom");
-const { chunk } = require("lodash");
-const prettier = require("prettier");
+import { Readability } from "@mozilla/readability";
+import { Base64 } from "js-base64";
+import { JSDOM } from "jsdom";
+import prettier from "prettier";
 
 import { Email, Headers, GmailAttachmentResponse } from "../types";
 
@@ -27,7 +26,7 @@ import * as DataUtils from "./dataUtils";
 const GMAIL_ATTACHMENT_PATH = "./attachments";
 const GMAIL_PATH_THREAD_LIST_TOKEN = `./caches/gmail.threads_last_tokens.data`;
 
-const MAX_TIME_PER_THREAD = 10 * 60 * 1000; // spend up to this many mins per thread
+const MAX_TIME_PER_THREAD = 30 * 60 * 1000; // spend up to this many mins per thread
 // crawler start
 
 /**
@@ -491,6 +490,8 @@ async function _pollNewEmailThreads(doFullLoad, q = "") {
     `Crawl list of email threads: q=${q} maxPages=${countTotalPagesToCrawl} lastToken=${pageToken}`
   );
 
+  let countThreadsSoFar = 0;
+
   while (countPageProcessed < countTotalPagesToCrawl) {
     countPageProcessed++;
 
@@ -499,8 +500,25 @@ async function _pollNewEmailThreads(doFullLoad, q = "") {
         q,
         pageToken
       );
-      threadIds = [...threadIds, ...(threads || [])];
+      threadIds = [...(threads || [])];
       pageToken = nextPageToken;
+
+      if (threadIds.length > 0) {
+        await DataUtils.bulkUpsertThreadJobStatuses(
+          threadIds.map(({ id, historyId, snippet }) => ({
+            threadId: id,
+            historyId,
+            snippet,
+            // this is to re-trigger the thread fetch, basically we want to reprocess this...
+            processedDate: null,
+            duration: null,
+            totalMessages: null,
+            status: THREAD_JOB_STATUS.PENDING,
+          }))
+        );
+      }
+
+      countThreadsSoFar += threadIds.length;
 
       if (!nextPageToken) {
         break;
@@ -510,7 +528,7 @@ async function _pollNewEmailThreads(doFullLoad, q = "") {
 
       if (countPageProcessed % 25 === 0 && countPageProcessed > 0) {
         logger.debug(
-          `So far, ${countPageProcessed} pages crawled  q=${q}: ${threadIds.length} threads found`
+          `So far, ${countPageProcessed} pages crawled  q=${q}: ${countThreadsSoFar} threads found`
         );
       }
     } catch (err) {
@@ -522,23 +540,6 @@ async function _pollNewEmailThreads(doFullLoad, q = "") {
   }
 
   logger.debug(`${countPageProcessed} total pages crawled:  q=${q}`);
-
-  // store them into the database as chunks
-  const threadIdsChunks = chunk(threadIds, 50); // maximum page size
-  for (let threadIdsChunk of threadIdsChunks) {
-    await DataUtils.bulkUpsertThreadJobStatuses(
-      threadIdsChunk.map(({ id, historyId, snippet }) => ({
-        threadId: id,
-        historyId,
-        snippet,
-        // this is to re-trigger the thread fetch, basically we want to reprocess this...
-        processedDate: null,
-        duration: null,
-        totalMessages: null,
-        status: THREAD_JOB_STATUS.PENDING,
-      }))
-    );
-  }
 
   logger.debug(
     `Done Crawl list of email threads: q=${q} duration=${

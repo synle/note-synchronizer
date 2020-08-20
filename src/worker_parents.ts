@@ -131,7 +131,7 @@ async function _init() {
 
     // job 3
     case WORK_ACTION_ENUM.UPLOAD_EMAIL:
-      threadToSpawn = 3;
+      threadToSpawn = 5;
       while (threadToSpawn > 0) {
         threadToSpawn--;
         const myThreadId = workers.length;
@@ -210,24 +210,13 @@ async function _enqueueUploadLogs() {
 async function _enqueueUploadEmails() {
   if (lastWorkIdx < remainingWorkInputs.length) {
     // print progres
-    const countTotalEmailThreads = remainingWorkInputs.length;
-    const percentDone = ((lastWorkIdx / countTotalEmailThreads) * 100).toFixed(
-      2
-    );
-
-    if (
-      lastWorkIdx === 0 ||
-      lastWorkIdx % 500 === 0 ||
-      (percentDone % 20 === 0 && percentDone > 0)
-    ) {
-      logger.warn(
-        `Progress of Uploading Emails: ${percentDone}% (${lastWorkIdx} / ${countTotalEmailThreads})`
-      );
-    }
+    let shouldPostUpdates = false;
 
     for (let worker of workers) {
       if (worker.status === WORKER_STATUS_ENUM.FREE) {
         // take task
+        shouldPostUpdates = true;
+
         const threadId = remainingWorkInputs[lastWorkIdx];
         worker.status = WORKER_STATUS_ENUM.BUSY;
         worker.work.postMessage({
@@ -248,6 +237,25 @@ async function _enqueueUploadEmails() {
 
         // stop
         // process.exit();
+      }
+    }
+
+    if (shouldPostUpdates) {
+      const countTotalEmailThreads = remainingWorkInputs.length;
+      const percentDone = (
+        (lastWorkIdx / countTotalEmailThreads) *
+        100
+      ).toFixed(2);
+
+      if (
+        remainingWorkInputs.length > 1000 ||
+        lastWorkIdx === 0 ||
+        lastWorkIdx % 500 === 0 ||
+        (percentDone % 20 === 0 && percentDone > 0)
+      ) {
+        logger.warn(
+          `Progress of Uploading Emails: ${percentDone}% (${lastWorkIdx} / ${countTotalEmailThreads})`
+        );
       }
     }
   }

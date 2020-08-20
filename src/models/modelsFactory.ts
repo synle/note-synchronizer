@@ -7,8 +7,6 @@ import Models from "./modelsSchema";
  * this routine will initialize the database, please only run this once per all...
  */
 export default async () => {
-  const dbConnectionString = process.env.DB_URL || "";
-
   // notes such as emails and attachments
   const sequelizeNotes = new Sequelize(
     process.env.DB_NAME || "note_synchronize",
@@ -17,14 +15,17 @@ export default async () => {
     {
       dialect: process.env.DB_DIALECT || "mysql" || "sqlite",
       host: process.env.DB_HOST,
-      storage: `${dbConnectionString}/database_main.sqlite`,
+      storage: `./database.sqlite`,
       logging: process.env.DB_LOGGING === "true",
       pool: {
-        max: 5,
+        max: 3,
         min: 0,
       },
       retry: {
-        max: 10,
+        max: 25,
+      },
+      dialectOptions: {
+        connectTimeout: 120000,
       },
     }
   );

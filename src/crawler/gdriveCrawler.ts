@@ -1,10 +1,7 @@
 // @ts-nocheck
 require("dotenv").config();
 import fs from "fs";
-const { chunk } = require("lodash");
-
 import { Email, Attachment } from "../types";
-import Models from "../models/modelsSchema";
 import { getNoteDestinationFolderId, uploadFile } from "./googleApiUtils";
 import { logger } from "../loggers";
 import { myEmails, ignoredWordTokens, THREAD_JOB_STATUS } from "./commonUtils";
@@ -87,15 +84,18 @@ async function _processThreadEmail(email: Email) {
 
     const hasSomeAttachments = attachments.length > 0;
 
+    const friendlyDateString = new Date(parseInt(date)).toLocaleDateString();
     if (labelIdsList.some((labelId) => labelId.includes("CHAT"))) {
       if (subject.indexOf("Chat") === -1) {
-        subject = `Chat ${new Date(parseInt(date)).toLocaleDateString()} ${subject}`;
+        subject = `Chat ${friendlyDateString} ${subject}`;
+      } else {
+        subject = `${subject} ${friendlyDateString}`;
       }
     } else {
       if (subject.indexOf("Email") === -1) {
-        subject = `Email ${new Date(
-          parseInt(date)
-        ).toLocaleDateString()} ${subject}`;
+        subject = `Email ${friendlyDateString} ${subject}`;
+      } else {
+        subject = `${subject} ${friendlyDateString} `;
       }
     }
 
@@ -122,6 +122,8 @@ async function _processThreadEmail(email: Email) {
       return; // skip this
     }
 
+    let folderToUse = noteDestinationFolderId;
+
     if (isEmailSentByMe || isEmailSentToMySelf || hasSomeAttachments) {
       // upload the doc itself
       // only log email if there're some content
@@ -138,6 +140,12 @@ async function _processThreadEmail(email: Email) {
           <div><b><u>To:</u></b> ${toEmailAddresses}</div>
           <div><b><u>ThreadId:</u></b> ${threadId}</div>
           <div><b><u>MessageId:</u></b> ${id}</div>
+          <style>
+            *{
+              padding: 0 !important;
+              margin: 0 0 10px 0 !important;
+            }
+          </style>
           <hr />
           ${rawBody}`.trim();
           fs.writeFileSync(localPath, fileContent.trim());
@@ -158,7 +166,7 @@ async function _processThreadEmail(email: Email) {
             `.trim(),
             date,
             starred,
-            noteDestinationFolderId
+            folderToUse
           );
         } catch (err) {
           logger.error(
@@ -200,7 +208,7 @@ async function _processThreadEmail(email: Email) {
             `.trim(),
             date,
             starred,
-            noteDestinationFolderId
+            folderToUse
           );
         } catch (err) {
           logger.error(
