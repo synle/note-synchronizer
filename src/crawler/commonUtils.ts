@@ -2,6 +2,7 @@
 import axios from "axios";
 import { logger } from "../loggers";
 import { parseHtmlTitle } from "./gmailCrawler";
+import { WebContent } from "../types";
 
 // default timeout for axios
 axios.defaults.timeout = 500;
@@ -88,7 +89,7 @@ export interface WorkActionResponse extends WorkActionRequest {
   error: any;
 }
 
-export const REGEX_URL = /[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/gi;
+export const REGEX_URL = /[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/i;
 
 export function isStringUrl(string) {
   string = string || "";
@@ -101,10 +102,29 @@ export function isStringUrl(string) {
 }
 
 export function extractUrlFromString(string) {
-  return string.match(REGEX_URL)[0];
+  const urlMatches = string.match(REGEX_URL);
+  if (urlMatches && urlMatches.length > 0) {
+    const matchedUrl = urlMatches[0];
+
+    if (matchedUrl.length > 15)
+      return matchedUrl;
+    else {
+      return null;
+    }
+  }
 }
 
-export async function crawlUrl(url) {
+export async function crawlUrl(url): Promise<WebContent> {
+  if(!url){
+    throw `${url} url is is not valid`;
+  }
+
+  if (url.indexOf("http") === -1) {
+    url = "http://" + url;
+  }
+
+  logger.debug(`crawlUrl fetching url=${url}`);
+
   try {
     const response = await axios(url);
     if (!response || response.status !== 200) {
@@ -118,6 +138,6 @@ export async function crawlUrl(url) {
       body: rawHtmlBody,
     };
   } catch (err) {
-    logger.debug(`Error crawlUrl: ${url} ${err} ${err.stack}`);
+    return Promise.reject(err.stack || err);
   }
 }

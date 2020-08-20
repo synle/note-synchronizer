@@ -19,6 +19,7 @@ import { uploadEmailThreadToGoogleDrive } from "./src/crawler/gdriveCrawler";
 
 import Models from "./src/models/modelsSchema";
 import * as DataUtils from "./src/crawler/dataUtils";
+import { crawlUrl } from "./src/crawler/commonUtils";
 
 async function _init() {
   console.log("test inits");
@@ -128,4 +129,12 @@ async function _doWork4() {
   }
 }
 
-_doWork3();
+async function _doWork5() {
+  const res = await crawlUrl(
+    "http://www.percona.com/blog/2014/01/28/10-mysql-performance-tuning-settings-after-installation/ "
+  );
+  console.log(res.subject);
+}
+
+//
+_doWork5();

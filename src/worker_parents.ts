@@ -112,7 +112,7 @@ async function _init() {
       break;
 
     case WORK_ACTION_ENUM.FETCH_RAW_CONTENT:
-      threadToSpawn = maxThreadCount;
+      threadToSpawn = Math.max(maxThreadCount, 50);
       while (threadToSpawn > 0) {
         threadToSpawn--;
         const myThreadId = workers.length;
@@ -127,7 +127,7 @@ async function _init() {
 
     // job 2
     case WORK_ACTION_ENUM.FETCH_EMAIL:
-      threadToSpawn = maxThreadCount;
+      threadToSpawn = Math.max(maxThreadCount, 12);
       while (threadToSpawn > 0) {
         threadToSpawn--;
         const myThreadId = workers.length;
@@ -145,7 +145,7 @@ async function _init() {
 
     // job 3
     case WORK_ACTION_ENUM.UPLOAD_EMAIL:
-      threadToSpawn = 3;
+      threadToSpawn = Math.max(maxThreadCount, 5);
       while (threadToSpawn > 0) {
         threadToSpawn--;
         const myThreadId = workers.length;
@@ -165,7 +165,10 @@ async function _init() {
     case WORK_ACTION_ENUM.UPLOAD_LOGS:
       workers.push(new _newWorker(0, action, workers));
       _enqueueWorkWithoutInput();
-      intervalWorkSchedule = setInterval(_enqueueWorkWithoutInput, 20 * 60 * 1000); // every 20 mins
+      intervalWorkSchedule = setInterval(
+        _enqueueWorkWithoutInput,
+        20 * 60 * 1000
+      ); // every 20 mins
       break;
   }
 }

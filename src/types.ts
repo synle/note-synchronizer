@@ -61,6 +61,11 @@ export interface Attachment {
   headers: string;
 }
 
+export interface WebContent {
+  subject: string;
+  body: string;
+}
+
 export interface DatabaseResponse<T> {
   dataValues: T;
   [propName: string]: any;
