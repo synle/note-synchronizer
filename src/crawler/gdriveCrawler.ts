@@ -35,18 +35,31 @@ function _sanitizeFileName(string) {
     .trim();
 }
 
-function _sanitizeFolderName(string) {
-  return string
-    .replace(/.com/i, " ")
-    .replace(/.net/i, " ")
-    .replace(/.biz/i, " ")
-    .replace(/.org/i, " ")
-    .replace(/.edu/i, " ")
-    .split(" ")
-    .filter((r) => r && r.length > 0)
-    .join(" ")
-    .trim()
-    .toUpperCase();
+// this get the domain out of the email
+function _generateFolderName(string) {
+  string = string.toLowerCase();
+
+  if (myEmails.some((myEmail) => string.includes(myEmail))) {
+    // if sent by me, then group things under the same label
+    return "_ME";
+  }
+
+  if (string.includes('gmail') || string.includes('yahoo.com') || string.includes('ymail')){
+    // common email domain, then should use their full name
+    return string.trim();
+  }
+
+  // break up things after @ and before the last dot
+  let domainParts = string.split(/[@.]/g);
+
+  const resParts = [
+    domainParts[domainParts.length - 2],
+    domainParts[domainParts.length - 1],
+  ];
+
+  return resParts
+    .join(".")
+    .trim();
 }
 
 async function _init() {
@@ -151,44 +164,18 @@ async function _processThreadEmail(email: Email) {
     }
 
     if (isEmailSentByMe || isEmailSentToMySelf || hasSomeAttachments) {
-      let folderToUse = noteDestinationFolderId;
-
-      if (labelIdsList.some((labelId) => labelId.includes("CHAT"))) {
-        // create the sub folder
-        const folderName = _sanitizeFolderName(from) + " Chats";
-        folderToUse = await googleApiUtils.createDriveFolder(
-          folderName,
-          ` Chats
-
-            From:
-            ${from}
-          `.trim(),
-          isEmailSentByMe, // star emails sent from myself
-          noteDestinationFolderId,
-          "#0000FF", // blue for chat
-          {// app property
-            from,
-          }
-        );
-      } else {
-        // create the sub folder
-        const folderName = _sanitizeFolderName(from) + " Emails";
-        folderToUse = await googleApiUtils.createDriveFolder(
-          folderName,
-          ` Emails
-
-            From:
-            ${from}
-          `.trim(),
-          isEmailSentByMe, // star emails sent from myself
-          noteDestinationFolderId,
-          "#FF0000", // red for email
-          {
-            // app property
-            from,
-          }
-        );
-      }
+      // create the bucket folder
+      const fromEmailDomain = _generateFolderName(from);
+      const folderToUse = await googleApiUtils.createDriveFolder(
+        fromEmailDomain,
+        `Chats & Emails from this domain ${fromEmailDomain}`,
+        isEmailSentByMe, // star emails sent from myself
+        noteDestinationFolderId,
+        isEmailSentByMe ? "#FF0000" : "#0000FF",
+        {
+          fromDomain: fromEmailDomain,
+        }
+      );
 
       // upload the doc itself
       // only log email if there're some content

@@ -201,6 +201,7 @@ SELECT COUNT(*) as RawContents FROM `raw_contents`;
 ```
 
 #### Rename MySQL table
+
 ```
 ALTER TABLE threads
   RENAME TO threads2;
@@ -234,11 +235,11 @@ Get-Content -Wait .\logs\log_combined.data
 
 ```
 SET GLOBAL innodb_buffer_pool_size=402653184;
-SET GLOBAL connect_timeout=1200;
-SET GLOBAL mysqlx_read_timeout=1200;
-SET GLOBAL mysqlx_wait_timeout=1200;
-SET GLOBAL interactive_timeout=1200;
-SET GLOBAL wait_timeout=1200;
+SET GLOBAL connect_timeout=28800;
+SET GLOBAL mysqlx_read_timeout=28800;
+SET GLOBAL mysqlx_wait_timeout=28800;
+SET GLOBAL interactive_timeout=28800;
+SET GLOBAL wait_timeout=28800;
 ```
 
 ##### To view other settings

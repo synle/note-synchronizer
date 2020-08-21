@@ -137,5 +137,9 @@ async function _doWork5() {
   console.log(res.subject);
 }
 
+async function _doWork6() {
+  await _init();
+}
+
 //
-_doWork5();
+_doWork6();
