@@ -701,20 +701,18 @@ export async function fetchRawContentsByThreadId(threadIds) {
 
   logger.debug(`fetchRawContentsByThreadId firstThreadId=${threadIds[0]}`);
 
-  for (let targetThreadId of threadIds) {
+  for (let threadId of threadIds) {
     try {
-      let threadMessages = await DataUtils.getRawContentsByThreadId(
-        targetThreadId
-      );
+      let threadMessages = await DataUtils.getRawContentsByThreadId(threadId);
 
       // if not found from db, then fetch its raw content
       if (!threadMessages || threadMessages.length === 0) {
         logger.debug(
-          `fetch Gmail API to get raw content for threadId=${targetThreadId}`
+          `fetch Gmail API to get raw content for threadId=${threadId}`
         );
 
         const { messages } = await googleApiUtils.getEmailContentByThreadId(
-          targetThreadId
+          threadId
         );
 
         // parse the content
@@ -750,20 +748,18 @@ export async function fetchRawContentsByThreadId(threadIds) {
           }
         );
       } else {
-        logger.debug(
-          `Found raw content from cache for threadId=${targetThreadId}`
-        );
+        logger.debug(`Found raw content from cache for threadId=${threadId}`);
       }
 
       // move on to next stage
       await DataUtils.bulkUpsertThreadJobStatuses({
-        threadId: targetThreadId,
+        threadId: threadId,
         status: THREAD_JOB_STATUS_ENUM.PENDING,
       });
     } catch (err) {
       logger.error(`Fetch raw content failed threadId=${threadId} ${err}`);
       await DataUtils.bulkUpsertThreadJobStatuses({
-        threadId: targetThreadId,
+        threadId: threadId,
         status: THREAD_JOB_STATUS_ENUM.ERROR_CRAWL,
       });
     }

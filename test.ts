@@ -21,6 +21,18 @@ import Models from "./src/models/modelsSchema";
 import * as DataUtils from "./src/crawler/dataUtils";
 import { crawlUrl } from "./src/crawler/commonUtils";
 
+import {
+  Document,
+  HorizontalPositionAlign,
+  HorizontalPositionRelativeFrom,
+  Media,
+  Packer,
+  Paragraph,
+  VerticalPositionAlign,
+  VerticalPositionRelativeFrom,
+} from "docx";
+import fs from "fs";
+
 async function _init() {
   console.log("test inits");
 
@@ -141,10 +153,50 @@ async function _doWork6() {
   await _init();
 }
 
-
 async function _doWork7() {
-  await _init();
+  const attachments = [
+    "./attachments/154bbdf21e67ec71.Screen Shot 2016-05-16 at 4.15.52 PM.jpg",
+    "./attachments/154bbdf21e67ec71.Screen Shot 2016-05-16 at 4.15.52 PM.jpg",
+    "./attachments/154bbdf21e67ec71.Screen Shot 2016-05-16 at 4.15.52 PM.jpg",
+    "./attachments/154bbdf21e67ec71.Screen Shot 2016-05-16 at 4.15.52 PM.jpg",
+  ].map((path) => {
+    return {
+      id: "id",
+      messageId: "messageId",
+      mimeType: "mimeType",
+      fileName: "fileName",
+      path,
+      headers: "headers",
+    };
+  });
+
+  _generateDocFile("my body", attachments);
+}
+
+function _generateDocFile(body, attachments) {
+  console.log("start new doc");
+  const doc = new Document();
+  const children = [new Paragraph(body)];
+
+  for (const attachment of attachments) {
+    const attachmentImage = Media.addImage(
+      doc,
+      fs.readFileSync(attachment.path),
+      1000,
+      800
+    );
+    children.push(new Paragraph(attachmentImage));
+  }
+
+  doc.addSection({
+    children,
+  });
+
+  Packer.toBuffer(doc).then((buffer) => {
+    fs.writeFileSync("./MyDocument.docx", buffer);
+    console.log("done new doc");
+  });
 }
 
 //
-_doWork6();
+_doWork7();

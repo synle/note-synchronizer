@@ -44,7 +44,11 @@ function _generateFolderName(string) {
     return "_ME";
   }
 
-  if (string.includes('gmail') || string.includes('yahoo.com') || string.includes('ymail')){
+  if (
+    string.includes("gmail") ||
+    string.includes("yahoo.com") ||
+    string.includes("ymail")
+  ) {
     // common email domain, then should use their full name
     return string.trim();
   }
@@ -57,9 +61,7 @@ function _generateFolderName(string) {
     domainParts[domainParts.length - 1],
   ];
 
-  return resParts
-    .join(".")
-    .trim();
+  return resParts.join(".").trim();
 }
 
 async function _init() {
