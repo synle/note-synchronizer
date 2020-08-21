@@ -681,57 +681,16 @@ function _getHeaders(headers) {
   }, {});
 }
 
-export async function fetchEmailsByThreadIds(
-  threadIds,
-  inMemoryLookupContent = {}
-) {
+export async function fetchEmailsByThreadIds(threadIds) {
   threadIds = [].concat(threadIds || []);
 
-  const countTotalThreads = threadIds.length;
-  logger.debug(`Total Threads to Process: ${countTotalThreads}`);
-
   let totalMsgCount = 0;
-  let countProcessedThread = 0;
-
-  let actionPromisesPool = [];
-  let threadIdsPool = [];
 
   for (let threadId of threadIds) {
-    const percentDone = (
-      (countProcessedThread / countTotalThreads) *
-      100
-    ).toFixed(2);
-
-    if (
-      countProcessedThread % 250 === 0 ||
-      (percentDone % 20 === 0 && percentDone > 0)
-    ) {
-      logger.debug(
-        `Progress of Fetching Emails threadIds=${threadIds.join(
-          ", "
-        )}: ${percentDone}% (${countProcessedThread} / ${countTotalThreads})`
-      );
-    }
-    countProcessedThread++;
-
     // search for the thread
-    actionPromisesPool.push(
-      processMessagesByThreadId(threadId, inMemoryLookupContent[threadId]).then(
-        (processedMessageCount) => (totalMsgCount += processedMessageCount)
-      )
-    );
-
-    threadIdsPool.push(threadId);
-
-    if (actionPromisesPool.length === maxThreadCount) {
-      logger.debug(
-        `Waiting for threads to be processed: \n${threadIdsPool.join("\n")}`
-      );
-
-      await Promise.allSettled(actionPromisesPool);
-      actionPromisesPool = [];
-      threadIdsPool = [];
-    }
+    await processMessagesByThreadId(threadId).then(
+      (processedMessageCount) => (totalMsgCount += processedMessageCount)
+    )
   }
 
   logger.debug(`Total Messages: ${totalMsgCount}`);
