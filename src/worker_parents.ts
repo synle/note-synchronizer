@@ -86,7 +86,7 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
   return workerDetails;
 }
 
-function _setupWorkers(threadToSpawn){
+function _setupWorkers(threadToSpawn) {
   threadToSpawn = Math.min(maxThreadCount, 8);
   while (threadToSpawn > 0) {
     threadToSpawn--;
