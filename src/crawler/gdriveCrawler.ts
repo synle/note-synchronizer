@@ -204,7 +204,7 @@ async function _processThreadEmail(email: Email) {
               background: none !important;
               border: none !important;
               color: black !important;
-              line-height: 1.7 !important;
+              line-height: 2 !important;
             }
             a{
               color: blue !important;
