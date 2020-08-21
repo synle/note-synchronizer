@@ -1,7 +1,7 @@
 // @ts-nocheck
 import axios from "axios";
 import { logger } from "../loggers";
-import { parseHtmlTitle } from "./gmailCrawler";
+import { parsePageTitle } from "./gmailCrawler";
 import { WebContent } from "../types";
 
 // default timeout for axios
@@ -140,7 +140,7 @@ export async function crawlUrl(url): Promise<WebContent> {
     const rawHtmlBody = response.data;
 
     return {
-      subject: parseHtmlTitle(rawHtmlBody) || "",
+      subject: parsePageTitle(rawHtmlBody) || "",
       body: rawHtmlBody,
     };
   } catch (err) {

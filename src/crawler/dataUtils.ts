@@ -13,10 +13,10 @@ function _makeArray(arr) {
 }
 
 // attachments
-export async function getAttachmentByThreadIds(threadId) {
+export async function getAttachmentByMessageId(messageId) {
   return Models.Attachment.findAll({
     where: {
-      threadId,
+      messageId,
     },
     raw: true,
   });

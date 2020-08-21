@@ -122,7 +122,7 @@ async function _init() {
     // job 1
     case WORK_ACTION_ENUM.FETCH_THREADS:
       await pollForNewThreadList(true);
-      setInterval(() => pollForNewThreadList(true), 30 * 60 * 1000);
+      setInterval(() => pollForNewThreadList(true), 1.5 * 60 * 60 * 1000);
       break;
 
     case WORK_ACTION_ENUM.FETCH_RAW_CONTENT:
@@ -193,12 +193,16 @@ async function _enqueueWorkWithRemainingInputs() {
   remainingWorkInputs = remainingWorkInputs || [];
 
   if (remainingWorkInputs.length === 0) {
-    logger.debug(
-      `Finding work to do command=${action} workers=${workers.length}`
-    );
+    // logger.debug(
+    //   `Finding work to do command=${action} workers=${workers.length}`
+    // );
+    clearInterval(intervalWorkSchedule);
     remainingWorkInputs = await getNewWorkFunc();
-  } else if (lastWorkIdx < remainingWorkInputs.length) {
-    // print progres
+    intervalWorkSchedule = setInterval(_enqueueWorkWithRemainingInputs, 500); // every 3 sec
+  } else if (
+    lastWorkIdx < remainingWorkInputs.length &&
+    remainingWorkInputs.length > 0
+  ) {
     let shouldPostUpdates = false;
 
     for (let worker of workers) {
