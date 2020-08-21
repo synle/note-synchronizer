@@ -464,8 +464,10 @@ export function searchDrive(name, mimeType, parentFolderId) {
 export async function createDriveFolder(
   name,
   description,
+  starred = false,
   parentFolderId,
-  folderColorRgb = "FFFF00"
+  folderColorRgb = "FFFF00",
+  appProperties = {}
 ) {
   try {
     const mimeType = MIME_TYPE_ENUM.APP_GOOGLE_FOLDER;
@@ -477,6 +479,8 @@ export async function createDriveFolder(
         mimeType,
         description,
         folderColorRgb,
+        starred,
+        appProperties,
       };
 
       if (parentFolderId) {

@@ -28,11 +28,25 @@ function _sanitizeFileName(string) {
     .replace("-", " ")
     .replace(".", " ")
     .replace(/re:/gi, "")
-    .replace(/fw:?/gi, "")
+    .replace(/fw:/gi, "")
     .split(" ")
     .filter((r) => r && r.length > 0)
     .join(" ")
     .trim();
+}
+
+function _sanitizeFolderName(string) {
+  return string
+    .replace(/.com/i, " ")
+    .replace(/.net/i, " ")
+    .replace(/.biz/i, " ")
+    .replace(/.org/i, " ")
+    .replace(/.edu/i, " ")
+    .split(" ")
+    .filter((r) => r && r.length > 0)
+    .join(" ")
+    .trim()
+    .toUpperCase();
 }
 
 async function _init() {
@@ -102,11 +116,9 @@ async function _processThreadEmail(email: Email) {
 
     const isEmailSentByMe = myEmails.some((myEmail) => from.includes(myEmail));
 
-    const isEmailSentToMySelf =
-      isEmailSentByMe &&
-      myEmails.some((myEmail) =>
-        toEmailList.some((toEmail) => toEmail.includes(myEmail))
-      );
+    const isEmailSentToMySelf = myEmails.some((myEmail) =>
+      toEmailList.some((toEmail) => toEmail.includes(myEmail))
+    );
 
     const hasSomeAttachments = attachments.length > 0;
 
@@ -143,21 +155,38 @@ async function _processThreadEmail(email: Email) {
 
       if (labelIdsList.some((labelId) => labelId.includes("CHAT"))) {
         // create the sub folder
-        const folderName = `${from} Chats`.trim();
+        const folderName = _sanitizeFolderName(from) + " Chats";
         folderToUse = await googleApiUtils.createDriveFolder(
           folderName,
-          folderName,
+          ` Chats
+
+            From:
+            ${from}
+          `.trim(),
+          isEmailSentByMe, // star emails sent from myself
           noteDestinationFolderId,
-          "0000FF" // blue for chat
+          "#0000FF", // blue for chat
+          {// app property
+            from,
+          }
         );
       } else {
         // create the sub folder
-        const folderName = `${from} Emails`.trim();
+        const folderName = _sanitizeFolderName(from) + " Emails";
         folderToUse = await googleApiUtils.createDriveFolder(
           folderName,
-          folderName,
+          ` Emails
+
+            From:
+            ${from}
+          `.trim(),
+          isEmailSentByMe, // star emails sent from myself
           noteDestinationFolderId,
-          "FF0000" // red for email
+          "#FF0000", // red for email
+          {
+            // app property
+            from,
+          }
         );
       }
 
@@ -171,21 +200,27 @@ async function _processThreadEmail(email: Email) {
           const fileContent = `
           <h1>${subject}</h1>
           <hr />
-          <div><b><u>Date:</u></b> ${friendlyDateTimeString}</div>
-          <div><b><u>From:</u></b> ${from}</div>
-          <div><b><u>To:</u></b> ${toEmailAddresses}</div>
-          <div><b><u>ThreadId:</u></b> ${threadId}</div>
-          <div><b><u>MessageId:</u></b> ${id}</div>
+          <div id="email-detailed-description">
+            <div><b><u>Date:</u></b> ${friendlyDateTimeString}</div>
+            <div><b><u>From:</u></b> ${from}</div>
+            <div><b><u>To:</u></b> ${toEmailAddresses}</div>
+            <div><b><u>ThreadId:</u></b> ${threadId}</div>
+            <div><b><u>MessageId:</u></b> ${id}</div>
+          </div>
           <style>
+            #email-detailed-description{
+              margin-bottom: 7px;
+            }
             *{
               padding: 0 !important;
               margin: 0 0 10px 0 !important;
               background: none !important;
               border: none !important;
               color: black !important;
+              line-height: 1.7 !important;
             }
             a{
-              color: blue !important
+              color: blue !important;
             }
           </style>
           <hr />
@@ -218,7 +253,13 @@ async function _processThreadEmail(email: Email) {
             `.trim(),
             date,
             starred,
-            folderToUse
+            folderToUse,
+            {
+              // app property
+              from,
+              id,
+              threadId,
+            }
           );
         } catch (err) {
           logger.error(
@@ -275,7 +316,14 @@ async function _processThreadEmail(email: Email) {
             `.trim(),
             date,
             starred,
-            folderToUse
+            folderToUse,
+            {
+              // app property
+              from,
+              id,
+              threadId,
+              attachmentId: attachment.id,
+            }
           );
         } catch (err) {
           logger.error(
