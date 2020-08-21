@@ -141,5 +141,10 @@ async function _doWork6() {
   await _init();
 }
 
+
+async function _doWork7() {
+  await _init();
+}
+
 //
 _doWork6();

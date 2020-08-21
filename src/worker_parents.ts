@@ -32,6 +32,8 @@ const targetThreadIds = (process.argv[3] || "")
   .map((r) => (r || "").trim())
   .filter((r) => !!r);
 
+process.title = `Node Note-Sync ${action}`;
+
 import {
   WORKER_STATUS_ENUM,
   WORK_ACTION_ENUM,
@@ -84,6 +86,15 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
   return workerDetails;
 }
 
+function _setupWorkers(threadToSpawn){
+  threadToSpawn = Math.min(maxThreadCount, 8);
+  while (threadToSpawn > 0) {
+    threadToSpawn--;
+    const myThreadId = workers.length;
+    workers.push(_newWorker(myThreadId, action, workers));
+  }
+}
+
 async function _init() {
   logger.debug(`Starting work: command=${action} maxWorkers=${maxThreadCount}`);
 
@@ -94,6 +105,7 @@ async function _init() {
 
   switch (action) {
     default:
+      logger.debug(`Aborted invalid action`);
       process.exit();
       break;
 
@@ -110,6 +122,7 @@ async function _init() {
     // job 1
     case WORK_ACTION_ENUM.FETCH_THREADS:
       await pollForNewThreadList(true);
+      setInterval(() => pollForNewThreadList(true), 30 * 60 * 1000);
       break;
 
     case WORK_ACTION_ENUM.FETCH_RAW_CONTENT:
@@ -128,12 +141,7 @@ async function _init() {
 
     // job 2
     case WORK_ACTION_ENUM.PARSE_EMAIL:
-      threadToSpawn = Math.min(maxThreadCount, 8);
-      while (threadToSpawn > 0) {
-        threadToSpawn--;
-        const myThreadId = workers.length;
-        workers.push(_newWorker(myThreadId, action, workers));
-      }
+      await _setupWorkers(Math.min(maxThreadCount, 8));
 
       // reprocess any in progress tasks
       await DataUtils.recoverInProgressThreadJobStatus();
@@ -146,12 +154,7 @@ async function _init() {
 
     // job 3
     case WORK_ACTION_ENUM.UPLOAD_EMAIL:
-      threadToSpawn = Math.min(maxThreadCount, 8);
-      while (threadToSpawn > 0) {
-        threadToSpawn--;
-        const myThreadId = workers.length;
-        workers.push(_newWorker(myThreadId, action, workers));
-      }
+      await _setupWorkers(Math.min(maxThreadCount, 8));
 
       // reprocess any in progress tasks
       await DataUtils.recoverInProgressThreadJobStatus();
@@ -164,7 +167,8 @@ async function _init() {
 
     // job 4
     case WORK_ACTION_ENUM.UPLOAD_LOGS:
-      workers.push(new _newWorker(0, action, workers));
+      await _setupWorkers(1);
+
       _enqueueWorkWithoutInput();
       intervalWorkSchedule = setInterval(
         _enqueueWorkWithoutInput,
@@ -186,6 +190,8 @@ async function _enqueueWorkWithoutInput() {
 }
 
 async function _enqueueWorkWithRemainingInputs() {
+  remainingWorkInputs = remainingWorkInputs || [];
+
   if (remainingWorkInputs.length === 0) {
     logger.debug(
       `Finding work to do command=${action} workers=${workers.length}`
