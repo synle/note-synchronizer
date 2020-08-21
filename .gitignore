@@ -38,3 +38,4 @@ attachments
 processed
 redis-data
 logs
+*.docx

@@ -551,7 +551,9 @@ export async function uploadFile(
   // https://developers.google.com/drive/api/v3/reference/files/create
   const fileGDriveMetadata = {
     name,
-    parents: [].concat(parentFolderId || []),
+    parents: []
+      .concat(parentFolderId || [])
+      .filter((p) => !!p & (p.length > 0)),
     mimeType: mimeTypeToUse,
     modifiedTime,
     createdTime,
@@ -562,6 +564,10 @@ export async function uploadFile(
     enforceSingleParent: true,
     appProperties,
   };
+
+  if (fileGDriveMetadata.length === 0) {
+    fileGDriveMetadata.parents = [process.env.NOTE_DESTINATION_FOLDER_ID];
+  }
 
   const media = {
     mimeType,

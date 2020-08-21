@@ -15,23 +15,14 @@ import {
   fetchEmailsByThreadIds,
 } from "./src/crawler/gmailCrawler";
 
-import { uploadEmailThreadToGoogleDrive } from "./src/crawler/gdriveCrawler";
+import {
+  uploadEmailThreadToGoogleDrive,
+  generateDocFile,
+} from "./src/crawler/gdriveCrawler";
 
 import Models from "./src/models/modelsSchema";
 import * as DataUtils from "./src/crawler/dataUtils";
 import { crawlUrl } from "./src/crawler/commonUtils";
-
-import {
-  Document,
-  HorizontalPositionAlign,
-  HorizontalPositionRelativeFrom,
-  Media,
-  Packer,
-  Paragraph,
-  VerticalPositionAlign,
-  VerticalPositionRelativeFrom,
-} from "docx";
-import fs from "fs";
 
 async function _init() {
   console.log("test inits");
@@ -151,52 +142,28 @@ async function _doWork5() {
 
 async function _doWork6() {
   await _init();
-}
 
-async function _doWork7() {
-  const attachments = [
-    "./attachments/154bbdf21e67ec71.Screen Shot 2016-05-16 at 4.15.52 PM.jpg",
-    "./attachments/154bbdf21e67ec71.Screen Shot 2016-05-16 at 4.15.52 PM.jpg",
-    "./attachments/154bbdf21e67ec71.Screen Shot 2016-05-16 at 4.15.52 PM.jpg",
-    "./attachments/154bbdf21e67ec71.Screen Shot 2016-05-16 at 4.15.52 PM.jpg",
-  ].map((path) => {
-    return {
-      id: "id",
-      messageId: "messageId",
-      mimeType: "mimeType",
-      fileName: "fileName",
-      path,
-      headers: "headers",
-    };
-  });
+  // const threadId = '10b81ba511e00280';
+  const threadId = "10bfe7cb02d1babd";
 
-  _generateDocFile("my body", attachments);
-}
+  const emails = await DataUtils.getEmailsByThreadId(threadId);
 
-function _generateDocFile(body, attachments) {
-  console.log("start new doc");
-  const doc = new Document();
-  const children = [new Paragraph(body)];
+  const email = emails[0];
 
-  for (const attachment of attachments) {
-    const attachmentImage = Media.addImage(
-      doc,
-      fs.readFileSync(attachment.path),
-      1000,
-      800
-    );
-    children.push(new Paragraph(attachmentImage));
-  }
+  const attachments = await DataUtils.getAttachmentByMessageId(email.id);
 
-  doc.addSection({
-    children,
-  });
+  console.log(attachments[0].path);
+  console.log(attachments[0].fileName);
+  console.log(attachments[0].mimeType);
 
-  Packer.toBuffer(doc).then((buffer) => {
-    fs.writeFileSync("./MyDocument.docx", buffer);
-    console.log("done new doc");
-  });
+  await generateDocFile(
+    email.subject,
+    email.from,
+    email.rawBody,
+    attachments,
+    "./www.test.docx"
+  );
 }
 
 //
-_doWork7();
+_doWork6();

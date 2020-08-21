@@ -23,7 +23,7 @@ Crawled Gmail Notes and push them to Google Drive
 - `FETCH_THREADS`: First pull in all the threadIds from Gmail (for me it was dated back all the way to 2005).
 - `FETCH_RAW_CONTENT`: Fetch the raw content of the emails associated with the above threadIds
 - `PARSE_EMAIL`: Parse the email accordingly, strip out unwanted tags. If the emails have simply links to a post, then curl that URL for the content of the link
-- `UPLOAD_EMAIL` For each of the emails, run a rule condition. If passed will send the emails and associated attachments to Google Drive for storage. At the moment, the buckets are grouped by the sender email address.
+- `UPLOAD_EMAIL` For each of the emails, run a rule condition. If passed will send the emails and associated attachments to Google Drive for storage. At the moment, the buckets are grouped by the sender email address. Note that the original email will be converted to docx before uploading to Google Drive.
 
 ## Lessons Learned
 
@@ -198,6 +198,9 @@ FROM `emails` GROUP by upload_status;
 SELECT COUNT(*) as TotalMessages FROM `emails`;
 
 SELECT COUNT(*) as RawContents FROM `raw_contents`;
+
+-- if table size is too big, we can use this to get the total count instead
+Explain SELECT COUNT(1) FROM `emails`
 ```
 
 #### Rename MySQL table

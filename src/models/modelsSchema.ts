@@ -27,14 +27,6 @@ import { THREAD_JOB_STATUS_ENUM } from "../crawler/commonUtils";
     unique: false,
     fields: ["date"],
   },
-  {
-    unique: false,
-    fields: ["createdAt"],
-  },
-  {
-    unique: false,
-    fields: ["updatedAt"],
-  },
 ])
 export class RawContent extends Model {
   @attribute(RawContent, {

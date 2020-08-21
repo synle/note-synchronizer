@@ -297,10 +297,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
         let subject = rawSubject;
 
         // stripped down body (remove signatures and clean up the dom)
-        let strippedDownBody =
-          parseHtmlBody(rawBody) ||
-          parseHtmlBodyWithoutParser(rawBody) ||
-          rawBody; // attempt at using one of the parser;
+        let strippedDownBody = tryParseBody(rawBody); // attempt at using one of the parser;
 
         // trim the signatures
         for (let signature of mySignatureTokens) {
@@ -334,7 +331,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           }
         } else if (body.length < 255 && isStringUrl(body)) {
           // if body is a url
-          const urlToCrawl = extractUrlFromString(parseHtmlBody(body));
+          const urlToCrawl = extractUrlFromString(_parseBodyWithHtml(body));
 
           try {
             // crawl the URL for title
@@ -581,13 +578,13 @@ function _prettifyHtml(bodyHtml) {
  * parse gmail email body
  * @param bodyData
  */
-export function _parseGmailMessage(bodyData) {
+function _parseGmailMessage(bodyData) {
   return Base64.decode((bodyData || "").replace(/-/g, "+").replace(/_/g, "/"))
     .trim()
     .replace("\r\n", "");
 }
 
-export function parseHtmlBodyWithoutParser(html) {
+function _parseBodyWithText(html) {
   let body = html || "";
   try {
     const dom = new JSDOM(_cleanHtml(html));
@@ -611,7 +608,7 @@ export function parseHtmlBodyWithoutParser(html) {
   }
 }
 
-export function parseHtmlBody(html) {
+export function _parseBodyWithHtml(html) {
   try {
     const dom = new JSDOM(_cleanHtml(html));
     return new JSDOM(
@@ -620,7 +617,13 @@ export function parseHtmlBody(html) {
   } catch (e) {}
 }
 
-export function parseHtmlTitle(html) {
+export function tryParseBody(rawBody) {
+  return (
+    _parseBodyWithHtml(rawBody) || _parseBodyWithText(rawBody) || rawBody || ""
+  );
+}
+
+export function parsePageTitle(html) {
   try {
     const dom = new JSDOM(_cleanHtml(html));
     return dom.window.document.title.trim();

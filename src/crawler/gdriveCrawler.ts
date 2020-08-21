@@ -1,6 +1,24 @@
 // @ts-nocheck
 require("dotenv").config();
+
 import fs from "fs";
+import { Readability } from "@mozilla/readability";
+import moment from "moment";
+
+import {
+  Document,
+  HorizontalPositionAlign,
+  HorizontalPositionRelativeFrom,
+  Media,
+  Packer,
+  Paragraph,
+  VerticalPositionAlign,
+  VerticalPositionRelativeFrom,
+  TextRun,
+  HeadingLevel,
+  PageBreak,
+} from "docx";
+
 import { Email, Attachment } from "../types";
 import * as googleApiUtils from "./googleApiUtils";
 import { logger } from "../loggers";
@@ -10,8 +28,8 @@ import {
   THREAD_JOB_STATUS_ENUM,
   MIME_TYPE_ENUM,
 } from "./commonUtils";
+import { tryParseBody } from "./gmailCrawler";
 import * as DataUtils from "./dataUtils";
-import moment from "moment";
 
 let noteDestinationFolderId;
 
@@ -28,7 +46,8 @@ function _sanitizeFileName(string) {
     .replace("-", " ")
     .replace(".", " ")
     .replace(/re:/gi, "")
-    .replace(/fw:/gi, "")
+    .replace(/fw:?/gi, "")
+    .replace(/fwd:?/gi, "")
     .split(" ")
     .filter((r) => r && r.length > 0)
     .join(" ")
@@ -47,7 +66,9 @@ function _generateFolderName(string) {
   if (
     string.includes("gmail") ||
     string.includes("yahoo.com") ||
-    string.includes("ymail")
+    string.includes("ymail") ||
+    string.includes("hotmail.com") ||
+    string.includes("aol.com")
   ) {
     // common email domain, then should use their full name
     return string.trim();
@@ -64,6 +85,174 @@ function _generateFolderName(string) {
   return resParts.join(".").trim();
 }
 
+export async function generateDocFile(
+  subject,
+  body,
+  rawContent,
+  attachments,
+  newFileName
+) {
+  logger.debug(`generateDocFile subject=${subject} file=${newFileName}`);
+  const doc = new Document();
+  const children = [];
+
+  children.push(
+    new Paragraph({
+      text: subject,
+      heading: HeadingLevel.TITLE,
+      color: "#ff0000",
+    })
+  );
+
+  body = [].concat(body || []);
+  for (let content of body) {
+    content = (content || "").trim();
+
+    if (content.length === 0) {
+      continue;
+    }
+
+    children.push(
+      new Paragraph({
+        text: content,
+        border: {
+          top: {
+            color: "auto",
+            space: 1,
+            value: "single",
+            size: 10,
+          },
+          bottom: {
+            color: "auto",
+            space: 1,
+            value: "single",
+            size: 10,
+          },
+        },
+        spacing: {
+          before: 250,
+          after: 250,
+        },
+        heading: HeadingLevel.HEADING_3,
+        color: "#0000FF",
+      })
+    );
+  }
+
+  rawContent = tryParseBody(rawContent)
+    .split(/[ ]/g)
+    .map((s) => (s || "").trim())
+    .filter((s) => !!s)
+    .join(" ")
+    .trim()
+    .replace(/[\r\n]/g, "\n")
+    .split('\n')
+  for (let content of rawContent) {
+    content = (content || "").trim();
+
+    if (content.length === 0) {
+      continue;
+    }
+
+    children.push(
+      new Paragraph({
+        text: content,
+        spacing: {
+          before: 250,
+          after: 250,
+        },
+        heading: HeadingLevel.HEADING_3,
+      })
+    );
+
+
+    children.push(
+      new Paragraph({// empty space
+        text: "",
+        spacing: {
+          before: 250,
+          after: 250,
+        },
+        heading: HeadingLevel.HEADING_3,
+      })
+    );
+  }
+
+  children.push(
+    new Paragraph({
+      text: 'Attachments',
+      spacing: {
+        before: 250,
+        after: 250,
+      },
+      border: {
+        top: {
+          color: "auto",
+          space: 1,
+          value: "single",
+          size: 10,
+        },
+      },
+      heading: HeadingLevel.HEADING_2,
+    })
+  );
+
+  for (const attachment of attachments) {
+    const attachmentImage = Media.addImage(
+      doc,
+      fs.readFileSync(attachment.path),
+      700,
+      800
+    );
+    children.push(
+      new Paragraph({
+        text: `${attachment.fileName}`,
+        bold: true,
+        heading: HeadingLevel.HEADING_4,
+        spacing: {
+          before: 250,
+        },
+        border: {
+          bottom: {
+            color: "auto",
+            space: 1,
+            value: "single",
+            size: 6,
+          },
+        },
+      })
+    );
+    children.push(new Paragraph(attachmentImage));
+  }
+
+  doc.addSection({
+    children,
+  });
+
+  const buffer = await Packer.toBuffer(doc);
+  fs.writeFileSync(newFileName, buffer);
+
+  logger.debug(
+    `generateDocFile - Success subject=${subject} file=${newFileName}`
+  );
+
+  return newFileName;
+}
+
+export function _getImageAttachments(attachments: Attachment[]): Attachment[] {
+  return attachments.filter((attachment) => {
+    return attachment.mimeType.includes("image");
+  });
+}
+
+export function _getNonImagesAttachments(
+  attachments: Attachment[]
+): Attachment[] {
+  return attachments.filter((attachment) => {
+    return !attachment.mimeType.includes("image");
+  });
+}
+
 async function _init() {
   noteDestinationFolderId = await googleApiUtils.getNoteDestinationFolderId();
 
@@ -73,7 +262,7 @@ async function _init() {
 }
 
 async function _processThreadEmail(email: Email) {
-  let { threadId, id, from, bcc, to, subject, date, labelIds } = email;
+  let { threadId, id, from, bcc, to, subject, rawSubject, date, labelIds } = email;
 
   try {
     await DataUtils.updateEmailUploadStatus({
@@ -81,7 +270,7 @@ async function _processThreadEmail(email: Email) {
       upload_status: THREAD_JOB_STATUS_ENUM.IN_PROGRESS,
     });
 
-    const Attachments = await DataUtils.getAttachmentByThreadIds(threadId);
+    const Attachments = await DataUtils.getAttachmentByMessageId(id);
 
     const toEmailList = (bcc || "")
       .split(",")
@@ -89,43 +278,16 @@ async function _processThreadEmail(email: Email) {
       .map((r) => r.trim())
       .filter((r) => !!r);
 
-    const attachments: Attachment[] = Attachments.filter((attachment) => {
-      // only use attachments that is not small images
-      const attachmentStats = fs.statSync(attachment.path);
-      const fileSize = attachmentStats.size;
-
-      if (attachment.mimeType.includes("image")) {
-        return attachmentStats.size >= MINIMUM_IMAGE_SIZE_IN_BITS;
-      }
-      switch (attachment.mimeType) {
-        case MIME_TYPE_ENUM.TEXT_CSV:
-        case MIME_TYPE_ENUM.APP_MS_XLS:
-        case MIME_TYPE_ENUM.APP_MS_XLSX:
-        case MIME_TYPE_ENUM.APP_XML:
-        case MIME_TYPE_ENUM.APP_JSON:
-        case MIME_TYPE_ENUM.APP_RTF:
-        case MIME_TYPE_ENUM.APP_MS_DOC:
-        case MIME_TYPE_ENUM.APP_MS_DOCX:
-        case MIME_TYPE_ENUM.TEXT_X_AMP_HTML:
-        case MIME_TYPE_ENUM.TEXT_HTML:
-        case MIME_TYPE_ENUM.TEXT_PLAIN:
-        case MIME_TYPE_ENUM.TEXT_XML:
-        case MIME_TYPE_ENUM.TEXT_JAVA:
-        case MIME_TYPE_ENUM.TEXT_JAVA_SOURCE:
-        case MIME_TYPE_ENUM.TEXT_CSHARP:
-        case MIME_TYPE_ENUM.APP_MS_PPT:
-        case MIME_TYPE_ENUM.APP_MS_PPTX:
-          return true;
-        default:
-          return fileSize >= 2000; // needs to be at least 2KB to upload
-      }
-    });
+    const nonImageAttachments: Attachment[] = _getNonImagesAttachments(
+      Attachments
+    );
+    const imagesAttachments: Attachment[] = _getImageAttachments(Attachments);
 
     const labelIdsList = (labelIds || "").split(",");
 
-    const starred = labelIdsList.some((labelId) => labelId.includes("STARRED"));
-
     const rawBody = (email.rawBody || "").trim();
+
+    const body = email.body || rawBody;
 
     const toEmailAddresses = toEmailList.join(", ");
 
@@ -135,12 +297,24 @@ async function _processThreadEmail(email: Email) {
       toEmailList.some((toEmail) => toEmail.includes(myEmail))
     );
 
-    const hasSomeAttachments = attachments.length > 0;
+    const starred = labelIdsList.some((labelId) => labelId.includes("STARRED")) || (isEmailSentByMe && isEmailSentToMySelf);
 
-    const friendlyDateTimeString = moment(parseInt(date)).format(
+    const hasSomeAttachments =
+      nonImageAttachments.length > 0 || imagesAttachments.length > 0;
+
+    const friendlyDateTimeString1 = moment(parseInt(date)).format(
       "MM/DD/YY hh:mmA"
     );
-    subject = `${subject} ${friendlyDateTimeString}`;
+
+    const friendlyDateTimeString2 = moment(parseInt(date)).format(
+      "YY/MM/DD HH:mm"
+    );
+
+    if (labelIdsList.some((labelId) => labelId.includes("CHAT"))) {
+      subject = `Chat ${friendlyDateTimeString2} ${subject}`;
+    } else {
+      subject = `Email ${friendlyDateTimeString2} ${subject}`;
+    }
 
     let docFileName = `${subject}`;
 
@@ -168,7 +342,7 @@ async function _processThreadEmail(email: Email) {
     if (isEmailSentByMe || isEmailSentToMySelf || hasSomeAttachments) {
       // create the bucket folder
       const fromEmailDomain = _generateFolderName(from);
-      const folderToUse = await googleApiUtils.createDriveFolder(
+      const folderIdToUse = await googleApiUtils.createDriveFolder(
         fromEmailDomain,
         `Chats & Emails from this domain ${fromEmailDomain}`,
         isEmailSentByMe, // star emails sent from myself
@@ -181,58 +355,59 @@ async function _processThreadEmail(email: Email) {
 
       // upload the doc itself
       // only log email if there're some content
-      const localPath = `${PROCESSED_EMAIL_PREFIX_PATH}/processed.${email.id}.data`;
+      const localPath = `${PROCESSED_EMAIL_PREFIX_PATH}/processed.${email.id}.docx`;
+
+      logger.debug(
+        `Start upload original note threadId=${threadId} id=${id} subject=${subject} imageFiles=${imagesAttachments.length} nonImageAttachments=${nonImageAttachments.length}`
+      );
+
       if (rawBody.length > 0) {
         docFileName = _sanitizeFileName(subject);
 
         try {
-          const fileContent = `
-          <h1>${subject}</h1>
-          <hr />
-          <div id="email-detailed-description">
-            <div><b><u>Date:</u></b> ${friendlyDateTimeString}</div>
-            <div><b><u>From:</u></b> ${from}</div>
-            <div><b><u>To:</u></b> ${toEmailAddresses}</div>
-            <div><b><u>ThreadId:</u></b> ${threadId}</div>
-            <div><b><u>MessageId:</u></b> ${id}</div>
-          </div>
-          <style>
-            #email-detailed-description{
-              margin-bottom: 7px;
-            }
-            *{
-              padding: 0 !important;
-              margin: 0 0 10px 0 !important;
-              background: none !important;
-              border: none !important;
-              color: black !important;
-              line-height: 2 !important;
-            }
-            a{
-              color: blue !important;
-            }
-          </style>
-          <hr />
-          ${rawBody}`.trim();
-          fs.writeFileSync(localPath, fileContent.trim());
+          await generateDocFile(
+            subject,
+            `
+            Date:
+            ${friendlyDateTimeString1}
+
+            From:
+            ${from}
+
+            To:
+            ${toEmailAddresses}
+
+            ThreadId:
+            ${threadId}
+
+            MessageId:
+            ${id}
+            `
+              .trim()
+              .split("\n"),
+            body,
+            imagesAttachments,
+            localPath
+          );
 
           logger.debug(`Upload original note file ${docFileName}`);
 
+          // upload original doc
           await googleApiUtils.uploadFile(
             docFileName,
-            "text/html",
+            MIME_TYPE_ENUM.APP_MS_DOCX,
             localPath,
             `
             Main Email
 
             Date:
-            ${friendlyDateTimeString}
+            ${friendlyDateTimeString1}
 
             From:
             ${from}
 
             Subject:
-            ${subject}
+            ${rawSubject}
 
             threadId:
             ${threadId}
@@ -242,7 +417,7 @@ async function _processThreadEmail(email: Email) {
             `.trim(),
             date,
             starred,
-            folderToUse,
+            folderIdToUse,
             {
               // app property
               from,
@@ -261,10 +436,10 @@ async function _processThreadEmail(email: Email) {
 
       // then upload the associated attachments
       logger.debug(
-        `Start upload attachment job threadId=${threadId} id=${id} subject=${subject} ${attachments.length}`
+        `Start upload attachment job threadId=${threadId} id=${id} subject=${subject} ${nonImageAttachments.length}`
       );
       let AttachmentIdx = 0;
-      for (let attachment of attachments) {
+      for (let attachment of nonImageAttachments) {
         AttachmentIdx++;
         const attachmentName = _sanitizeFileName(
           `${docFileName} #${AttachmentIdx} ${attachment.fileName}`
@@ -275,6 +450,7 @@ async function _processThreadEmail(email: Email) {
         );
 
         try {
+          // upload attachment
           await googleApiUtils.uploadFile(
             attachmentName,
             attachment.mimeType,
@@ -283,13 +459,13 @@ async function _processThreadEmail(email: Email) {
             Attachment #${AttachmentIdx}
 
             Date
-            ${friendlyDateTimeString}
+            ${friendlyDateTimeString1}
 
             From
             ${from}
 
             Subject
-            ${subject}
+            ${rawSubject}
 
             threadId
             ${threadId}
@@ -305,13 +481,12 @@ async function _processThreadEmail(email: Email) {
             `.trim(),
             date,
             starred,
-            folderToUse,
+            folderIdToUse,
             {
               // app property
               from,
               id,
               threadId,
-              attachmentId: attachment.id,
             }
           );
         } catch (err) {
@@ -349,25 +524,7 @@ async function _processThreadEmails(emails: Email[]) {
   logger.debug(
     `Total Messages To Sync with Google Drive: ${countTotalMessages} firstId=${emails[0].id}`
   );
-
-  let countProcessedMessages = 0;
-
   for (let email of emails) {
-    const percentDone = (
-      (countProcessedMessages / countTotalMessages) *
-      100
-    ).toFixed(2);
-    if (
-      percentDone === 0 ||
-      percentDone % 20 === 0 ||
-      countProcessedMessages % 100 === 0
-    ) {
-      logger.debug(
-        `Progress for Uploading Notes: ${percentDone}% (${countProcessedMessages}/${countTotalMessages})`
-      );
-    }
-    countProcessedMessages++;
-
     await _processThreadEmail(email);
   }
 }
