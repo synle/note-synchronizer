@@ -6,7 +6,7 @@ import { Email, RawContent, DatabaseResponse, Attachment } from "../types";
 
 import Models from "../models/modelsSchema";
 
-import { THREAD_JOB_STATUS } from "./commonUtils";
+import { THREAD_JOB_STATUS_ENUM } from "./commonUtils";
 
 function _makeArray(arr) {
   return [].concat(arr || []);
@@ -29,31 +29,22 @@ export async function bulkUpsertAttachments(attachments) {
 }
 
 // emails
-// TODO: deprecate me
-export async function getAllEmailsToSyncWithGoogleDrive(): Email[] {
-  return Models.Email.findAll({
-    where: {
-      upload_status: {
-        [Op.eq]: THREAD_JOB_STATUS.PENDING,
-      },
-    },
-    raw: true,
-  });
-}
-
-export async function getAllThreadIdsToSyncWithGoogleDrive(): Email[] {
+export async function getAllThreadIdsToSyncWithGoogleDrive(
+  limit = 250
+): Email[] {
   const res = await Models.Email.findAll({
     attributes: ["threadId"],
     group: ["threadId"],
     where: {
       upload_status: {
-        [Op.eq]: THREAD_JOB_STATUS.PENDING,
+        [Op.eq]: THREAD_JOB_STATUS_ENUM.PENDING,
       },
     },
-    order: [
-      ["date", "DESC"], // start with the most recent one first
-    ],
+    // order: [
+    //   ["date", "DESC"], // start with the most recent one first
+    // ],
     raw: true,
+    limit,
   });
   return res.map((thread) => thread.threadId);
 }
@@ -92,24 +83,20 @@ export async function updateEmailUploadStatus(email) {
 }
 
 // threads
-export async function getAllThreadIdsToParseEmails(limit) {
+export async function getAllThreadIdsToParseEmails(limit = 2250) {
   const req = {
     attributes: ["threadId"], // only fetch threadId
     where: {
       status: {
-        [Op.eq]: THREAD_JOB_STATUS.PENDING,
+        [Op.eq]: THREAD_JOB_STATUS_ENUM.PENDING,
       },
     },
-    order: [
-      ["updatedAt", "DESC"], // start with the one that changes recenty
-    ],
+    // order: [
+    //   ["updatedAt", "DESC"], // start with the one that changes recenty
+    // ],
     raw: true,
+    limit,
   };
-
-  // only set limit if it's passed in
-  if (limit) {
-    req.limit = limit;
-  }
 
   const res = await Models.Thread.findAll(req);
   return res.map((thread) => thread.threadId);
@@ -120,7 +107,7 @@ export async function getAllThreadIdsToFetchRawContents() {
     attributes: ["threadId"], // only fetch threadId
     where: {
       status: {
-        [Op.eq]: THREAD_JOB_STATUS.PENDING_CRAWL,
+        [Op.eq]: THREAD_JOB_STATUS_ENUM.PENDING_CRAWL,
       },
     },
     order: [
@@ -149,24 +136,24 @@ export async function bulkUpsertThreadJobStatuses(threads) {
 export async function recoverInProgressThreadJobStatus(oldStatus, newStatus) {
   await Models.Thread.update(
     {
-      status: THREAD_JOB_STATUS.PENDING,
+      status: THREAD_JOB_STATUS_ENUM.PENDING,
       duration: null,
       totalMessages: null,
     },
     {
       where: {
-        status: THREAD_JOB_STATUS.IN_PROGRESS,
+        status: THREAD_JOB_STATUS_ENUM.IN_PROGRESS,
       },
     }
   );
 
   await Models.Email.update(
     {
-      upload_status: THREAD_JOB_STATUS.PENDING,
+      upload_status: THREAD_JOB_STATUS_ENUM.PENDING,
     },
     {
       where: {
-        upload_status: THREAD_JOB_STATUS.IN_PROGRESS,
+        upload_status: THREAD_JOB_STATUS_ENUM.IN_PROGRESS,
       },
     }
   );

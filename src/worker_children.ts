@@ -25,6 +25,7 @@ import {
 } from "./crawler/commonUtils";
 
 import { logger } from "./loggers";
+import { threadId } from "worker_threads";
 
 if (isMainThread) {
   throw new Error("Its not a worker");
@@ -38,13 +39,19 @@ async function _init() {
     try {
       switch (data.action) {
         case WORK_ACTION_ENUM.FETCH_RAW_CONTENT:
+          if (!data.threadId) {
+            throw `${data.action} requires threadId found ${data.threadId}`;
+          }
           await fetchRawContentsByThreadId(data.threadId);
           parentPort.postMessage({
             success: true,
             ...data,
           });
           break;
-        case WORK_ACTION_ENUM.FETCH_EMAIL:
+        case WORK_ACTION_ENUM.PARSE_EMAIL:
+          if (!data.threadId) {
+            throw `${data.action} requires threadId found ${data.threadId}`;
+          }
           await processMessagesByThreadId(data.threadId);
           parentPort.postMessage({
             success: true,
@@ -52,6 +59,9 @@ async function _init() {
           });
           break;
         case WORK_ACTION_ENUM.UPLOAD_EMAIL:
+          if (!data.threadId) {
+            throw `${data.action} requires threadId found ${data.threadId}`;
+          }
           await uploadEmailThreadToGoogleDrive(data.threadId);
           parentPort.postMessage({
             success: true,

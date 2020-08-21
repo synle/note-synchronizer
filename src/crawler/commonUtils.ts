@@ -5,7 +5,7 @@ import { parseHtmlTitle } from "./gmailCrawler";
 import { WebContent } from "../types";
 
 // default timeout for axios
-axios.defaults.timeout = 500;
+axios.defaults.timeout = 2000;
 
 export const mySignatureTokens = (process.env.MY_SIGNATURE_TOKEN || "").split(
   "|||"
@@ -58,7 +58,7 @@ export enum WORKER_STATUS_ENUM {
   BUSY = "BUSY",
 }
 
-export enum THREAD_JOB_STATUS {
+export enum THREAD_JOB_STATUS_ENUM {
   ERROR_GENERIC = "ERROR_GENERIC",
   ERROR_CRAWL = "ERROR_CRAWL",
   ERROR_THREAD_NOT_FOUND = "ERROR_THREAD_NOT_FOUND",
@@ -73,10 +73,10 @@ export enum THREAD_JOB_STATUS {
 export enum WORK_ACTION_ENUM {
   FETCH_THREADS = "FETCH_THREADS",
   FETCH_RAW_CONTENT = "FETCH_RAW_CONTENT",
-  FETCH_EMAIL = "FETCH_EMAIL",
+  PARSE_EMAIL = "PARSE_EMAIL",
   UPLOAD_EMAIL = "UPLOAD_EMAIL",
   UPLOAD_LOGS = "UPLOAD_LOGS",
-  SINGLE_RUN_FETCH_EMAIL = "SINGLE_RUN_FETCH_EMAIL",
+  SINGLE_RUN_PARSE_EMAIL = "SINGLE_RUN_PARSE_EMAIL",
   SINGLE_RUN_UPLOAD_EMAIL = "SINGLE_RUN_UPLOAD_EMAIL",
 }
 

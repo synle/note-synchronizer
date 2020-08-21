@@ -17,7 +17,7 @@ import {
   crawlUrl,
   maxThreadCount,
   MIME_TYPE_ENUM,
-  THREAD_JOB_STATUS,
+  THREAD_JOB_STATUS_ENUM,
 } from "./commonUtils";
 
 import * as DataUtils from "./dataUtils";
@@ -43,7 +43,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
     // take ownership of the task
     await DataUtils.bulkUpsertThreadJobStatuses({
       threadId: targetThreadId,
-      status: THREAD_JOB_STATUS.IN_PROGRESS,
+      status: THREAD_JOB_STATUS_ENUM.IN_PROGRESS,
     });
 
     setTimeout(async () => {
@@ -61,7 +61,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
         processedDate: null,
         duration: Date.now() - startTime,
         totalMessages: threadMessages.length,
-        status: THREAD_JOB_STATUS.ERROR_TIMEOUT,
+        status: THREAD_JOB_STATUS_ENUM.ERROR_TIMEOUT,
       });
 
       reject("Timeout for task");
@@ -124,7 +124,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
         processedDate: null,
         duration: Date.now() - startTime,
         totalMessages: threadMessages.length,
-        status: THREAD_JOB_STATUS.ERROR_THREAD_NOT_FOUND,
+        status: THREAD_JOB_STATUS_ENUM.ERROR_THREAD_NOT_FOUND,
       });
 
       return resolve(threadMessages.length);
@@ -426,7 +426,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
       processedDate: Date.now(),
       duration: Date.now() - startTime,
       totalMessages: threadMessages.length,
-      status: THREAD_JOB_STATUS.SUCCESS,
+      status: THREAD_JOB_STATUS_ENUM.SUCCESS,
     });
 
     resolve(threadMessages.length);
@@ -523,7 +523,7 @@ async function _pollNewEmailThreads(doFullLoad, q = "") {
             processedDate: null,
             duration: null,
             totalMessages: null,
-            status: THREAD_JOB_STATUS.PENDING_CRAWL,
+            status: THREAD_JOB_STATUS_ENUM.PENDING_CRAWL,
           }))
         );
       }
@@ -799,13 +799,13 @@ export async function fetchRawContentsByThreadId(threadIds) {
       // move on to next stage
       await DataUtils.bulkUpsertThreadJobStatuses({
         threadId: targetThreadId,
-        status: THREAD_JOB_STATUS.PENDING,
+        status: THREAD_JOB_STATUS_ENUM.PENDING,
       });
     } catch (err) {
       logger.error(`Fetch raw content failed threadId=${threadId} ${err}`);
       await DataUtils.bulkUpsertThreadJobStatuses({
         threadId: targetThreadId,
-        status: THREAD_JOB_STATUS.ERROR_CRAWL,
+        status: THREAD_JOB_STATUS_ENUM.ERROR_CRAWL,
       });
     }
   }

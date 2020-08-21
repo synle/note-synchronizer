@@ -4,27 +4,31 @@ import fs from "fs";
 import { Email, Attachment } from "../types";
 import * as googleApiUtils from "./googleApiUtils";
 import { logger } from "../loggers";
-import { myEmails, ignoredWordTokens, THREAD_JOB_STATUS } from "./commonUtils";
+import {
+  myEmails,
+  ignoredWordTokens,
+  THREAD_JOB_STATUS_ENUM,
+  MIME_TYPE_ENUM,
+} from "./commonUtils";
 import * as DataUtils from "./dataUtils";
+import moment from "moment";
 
 let noteDestinationFolderId;
 
 const PROCESSED_EMAIL_PREFIX_PATH = "./processed";
 
-const MINIMUM_IMAGE_SIZE_IN_BITS = 12000;
+const MINIMUM_IMAGE_SIZE_IN_BITS = 16000;
 
 function _sanitizeFileName(string) {
   return string
     .replace("|", " ")
     .replace("[", " ")
     .replace("]", " ")
-    .replace(".", " ")
+    .replace("_", " ")
     .replace("-", " ")
-    .replace("_", " ")
-    .replace("_", " ")
+    .replace(".", " ")
     .replace(/re:/gi, "")
-    .replace(/fw/gi, "")
-    .replace(":", "")
+    .replace(/fw:?/gi, "")
     .split(" ")
     .filter((r) => r && r.length > 0)
     .join(" ")
@@ -45,7 +49,7 @@ async function _processThreadEmail(email: Email) {
   try {
     await DataUtils.updateEmailUploadStatus({
       id,
-      upload_status: THREAD_JOB_STATUS.IN_PROGRESS,
+      upload_status: THREAD_JOB_STATUS_ENUM.IN_PROGRESS,
     });
 
     const Attachments = await DataUtils.getAttachmentByThreadIds(threadId);
@@ -59,11 +63,33 @@ async function _processThreadEmail(email: Email) {
     const attachments: Attachment[] = Attachments.filter((attachment) => {
       // only use attachments that is not small images
       const attachmentStats = fs.statSync(attachment.path);
+      const fileSize = attachmentStats.size;
 
       if (attachment.mimeType.includes("image")) {
         return attachmentStats.size >= MINIMUM_IMAGE_SIZE_IN_BITS;
       }
-      return true;
+      switch (attachment.mimeType) {
+        case MIME_TYPE_ENUM.TEXT_CSV:
+        case MIME_TYPE_ENUM.APP_MS_XLS:
+        case MIME_TYPE_ENUM.APP_MS_XLSX:
+        case MIME_TYPE_ENUM.APP_XML:
+        case MIME_TYPE_ENUM.APP_JSON:
+        case MIME_TYPE_ENUM.APP_RTF:
+        case MIME_TYPE_ENUM.APP_MS_DOC:
+        case MIME_TYPE_ENUM.APP_MS_DOCX:
+        case MIME_TYPE_ENUM.TEXT_X_AMP_HTML:
+        case MIME_TYPE_ENUM.TEXT_HTML:
+        case MIME_TYPE_ENUM.TEXT_PLAIN:
+        case MIME_TYPE_ENUM.TEXT_XML:
+        case MIME_TYPE_ENUM.TEXT_JAVA:
+        case MIME_TYPE_ENUM.TEXT_JAVA_SOURCE:
+        case MIME_TYPE_ENUM.TEXT_CSHARP:
+        case MIME_TYPE_ENUM.APP_MS_PPT:
+        case MIME_TYPE_ENUM.APP_MS_PPTX:
+          return true;
+        default:
+          return fileSize >= 2000; // needs to be at least 2KB to upload
+      }
     });
 
     const labelIdsList = (labelIds || "").split(",");
@@ -84,10 +110,10 @@ async function _processThreadEmail(email: Email) {
 
     const hasSomeAttachments = attachments.length > 0;
 
-    const friendlyDateTimeString = new Date(parseInt(date)).toLocaleString();
-    const friendlyTimeString = new Date(parseInt(date)).toLocaleTimeString();
-
-    subject = `${friendlyDateTimeString} ${subject}`;
+    const friendlyDateTimeString = moment(parseInt(date)).format(
+      "MM/DD/YY hh:mmA"
+    );
+    subject = `${subject} ${friendlyDateTimeString}`;
 
     let docFileName = `${subject}`;
 
@@ -106,7 +132,7 @@ async function _processThreadEmail(email: Email) {
 
       await DataUtils.updateEmailUploadStatus({
         id,
-        upload_status: THREAD_JOB_STATUS.SKIPPED,
+        upload_status: THREAD_JOB_STATUS_ENUM.SKIPPED,
       });
 
       return; // skip this
@@ -117,7 +143,7 @@ async function _processThreadEmail(email: Email) {
 
       if (labelIdsList.some((labelId) => labelId.includes("CHAT"))) {
         // create the sub folder
-        const folderName = `Chats With ${from}`.trim();
+        const folderName = `${from} Chats`.trim();
         folderToUse = await googleApiUtils.createDriveFolder(
           folderName,
           folderName,
@@ -126,7 +152,7 @@ async function _processThreadEmail(email: Email) {
         );
       } else {
         // create the sub folder
-        const folderName = `Emails With ${from}`.trim();
+        const folderName = `${from} Emails`.trim();
         folderToUse = await googleApiUtils.createDriveFolder(
           folderName,
           folderName,
@@ -154,6 +180,12 @@ async function _processThreadEmail(email: Email) {
             *{
               padding: 0 !important;
               margin: 0 0 10px 0 !important;
+              background: none !important;
+              border: none !important;
+              color: black !important;
+            }
+            a{
+              color: blue !important
             }
           </style>
           <hr />
@@ -168,6 +200,7 @@ async function _processThreadEmail(email: Email) {
             localPath,
             `
             Main Email
+
             Date:
             ${friendlyDateTimeString}
 
@@ -204,7 +237,7 @@ async function _processThreadEmail(email: Email) {
       for (let attachment of attachments) {
         AttachmentIdx++;
         const attachmentName = _sanitizeFileName(
-          `${docFileName} - File#${AttachmentIdx} - ${attachment.fileName}`
+          `${docFileName} #${AttachmentIdx} ${attachment.fileName}`
         );
 
         logger.debug(
@@ -236,6 +269,9 @@ async function _processThreadEmail(email: Email) {
 
             Path
             ${attachment.path}
+
+            attachmentId
+            ${attachment.id}
             `.trim(),
             date,
             starred,
@@ -257,7 +293,7 @@ async function _processThreadEmail(email: Email) {
 
     await DataUtils.updateEmailUploadStatus({
       id: id,
-      upload_status: THREAD_JOB_STATUS.SUCCESS,
+      upload_status: THREAD_JOB_STATUS_ENUM.SUCCESS,
     });
   } catch (err) {
     logger.error(
@@ -266,7 +302,7 @@ async function _processThreadEmail(email: Email) {
 
     await DataUtils.updateEmailUploadStatus({
       id: id,
-      upload_status: THREAD_JOB_STATUS.ERROR_GENERIC,
+      upload_status: THREAD_JOB_STATUS_ENUM.ERROR_GENERIC,
     });
   }
 }

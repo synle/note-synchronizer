@@ -6,6 +6,11 @@ Crawled Gmail Notes and push them to Google Drive
 
 - A lot of times people write notes by sending themselves an email. This background job is to filter out which emails are considered note and send those notes into google drive.
 
+## Why this project?
+
+- I find it extremely hard to look for contents / attachments from Gmail. It's sorted by chronologically orders. So if you want to look at all the attachments, or notes or links within the same UI, it's really hard to find those matches.
+- Also non Google Doc attachments are counted toward my personal storage. So this project is to convert all of those non Google Docs to Google so that the message is not counted toward my personal storage. In a way helps me save spaces.
+
 ## Stack
 
 - Node JS for backend jobs with Worker Threads APIs
@@ -13,9 +18,18 @@ Crawled Gmail Notes and push them to Google Drive
 - Gmail API
 - Google Drive API
 
+## Flow of data
+
+- `FETCH_THREADS`: First pull in all the threadIds from Gmail (for me it was dated back all the way to 2005).
+- `FETCH_RAW_CONTENT`: Fetch the raw content of the emails associated with the above threadIds
+- `PARSE_EMAIL`: Parse the email accordingly, strip out unwanted tags. If the emails have simply links to a post, then curl that URL for the content of the link
+- `UPLOAD_EMAIL` For each of the emails, run a rule condition. If passed will send the emails and associated attachments to Google Drive for storage. At the moment, the buckets are grouped by the sender email address.
+
 ## Lessons Learned
 
-Almost all of Google API's use base64 encoded content for data including Gmail messages, Gmail Attachments and Google Drive API's. Below are some sample code in Node that deals with it.
+- It's painfully hard to parallelize Node JS processes. If you want to write an intensive program, go with something else. Don't choose node. It's not built for it. Pick something performant like C or Java or even Go.
+
+- Almost all of Google API's use base64 encoded content for data including Gmail messages, Gmail Attachments and Google Drive API's. Below are some sample code in Node that deals with it.
 
 ### Dependencies in Node
 
@@ -131,7 +145,7 @@ SELECT id, threadId,  subject, body, datetime(date / 1000, 'unixepoch') as time 
 
 #### Requeue the task
 
-##### Clean up everything
+##### Restart All Tasks
 
 ```
 DELETE FROM emails;
@@ -155,6 +169,21 @@ SET status='PENDING',
 WHERE status NOT IN (
   'PENDING_CRAWL'
 );
+
+```
+
+##### Restart Only In-Progress Tasks
+
+```
+UPDATE threads
+SET status='PENDING',
+  processedDate=null,
+  totalMessages=null
+WHERE status = 'IN_PROGRESS';
+
+UPDATE `emails`
+SET upload_status = 'PENDING'
+WHERE upload_status != 'SUCCESS';
 ```
 
 #### Get job status stats
@@ -179,8 +208,8 @@ SELECT COUNT(*) as RawContents FROM `raw_contents`;
 Get-Content -Wait .\logs\log_combined.data
 ```
 
-
 #### MySQL Sequelize timeout issues
+
 ```
 {
   ...
