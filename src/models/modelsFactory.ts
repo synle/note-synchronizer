@@ -2,14 +2,18 @@
 import { Sequelize } from "sequelize";
 import { initDatabase } from "sequelize-typescript-decorators";
 import Models from "./modelsSchema";
+import { logger } from "../loggers";
 
 /**
  * this routine will initialize the database, please only run this once per all...
  */
 export default async () => {
   // notes such as emails and attachments
-  const dialect = process.env.DB_DIALECT || "mysql" || "sqlite"
-  if (dialect === 'mysql'){
+  const dialect = process.env.DB_DIALECT || "mysql" || "sqlite";
+
+  logger.debug(`initDatabase start - ${dialect}`);
+
+  if (dialect === "mysql") {
     // mysql
     const sequelize = new Sequelize(
       process.env.DB_NAME || "note_synchronize",
@@ -31,12 +35,15 @@ export default async () => {
         },
       }
     );
-    await initDatabase(sequelize, Object.keys(Models).map((modelName) => Models[modelName]));
+    await initDatabase(
+      sequelize,
+      Object.keys(Models).map((modelName) => Models[modelName])
+    );
   } else {
     // sqlite
     // for scale, I leave each tables as a different database
     const modelNames = Object.keys(Models);
-    for (let modelName of modelNames){
+    for (let modelName of modelNames) {
       const sequelize = new Sequelize(
         process.env.DB_NAME || "note_synchronize",
         process.env.DB_USERNAME || "root",
@@ -53,4 +60,6 @@ export default async () => {
       await initDatabase(sequelize, [Models[modelName]]);
     }
   }
+
+  logger.debug("initDatabase Done");
 };

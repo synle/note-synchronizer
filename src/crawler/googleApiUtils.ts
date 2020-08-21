@@ -34,7 +34,12 @@ function _logAndWrapApiError(err, res, ...extra) {
     )}`
   );
 
-  console.error(`Gmail API Failed:`, extra.join(", "), err.stack || err, res);
+  console.error(
+    `Gmail API Failed:`,
+    extra.map(JSON.stringify).join(", "),
+    err.stack || err,
+    res
+  );
 
   return err;
 }
@@ -56,6 +61,8 @@ export async function getNoteDestinationFolderId() {
  * @param onAfterInitFunc
  */
 export function initGoogleApi(onAfterInitFunc = () => {}) {
+  logger.debug("initGoogleApi Begin");
+
   return new Promise((resolve, reject) => {
     // Load client secrets from a local file.
     fs.readFile(GMAIL_CREDENTIALS_PATH, (err, content) => {
@@ -66,6 +73,7 @@ export function initGoogleApi(onAfterInitFunc = () => {}) {
         driveApiInstance = google.drive({ version: "v3", auth });
 
         onAfterInitFunc(gmailApiInstance, driveApiInstance);
+        logger.debug("initGoogleApi Done");
 
         resolve();
       });

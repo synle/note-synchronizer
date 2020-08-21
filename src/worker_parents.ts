@@ -24,6 +24,7 @@ const workers = [];
 let intervalWorkSchedule;
 let lastWorkIdx = 0;
 let remainingWorkInputs = [];
+let getNewWorkFunc = () => {};
 
 const action = process.argv[2] || "";
 const targetThreadIds = (process.argv[3] || "")
@@ -35,7 +36,7 @@ import {
   WORKER_STATUS_ENUM,
   WORK_ACTION_ENUM,
   maxThreadCount,
-  THREAD_JOB_STATUS,
+  THREAD_JOB_STATUS_ENUM,
   WorkActionResponse,
 } from "./crawler/commonUtils";
 
@@ -84,10 +85,10 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
 }
 
 async function _init() {
+  logger.debug(`Starting work: command=${action} maxWorkers=${maxThreadCount}`);
+
   await initGoogleApi();
   await initDatabase();
-
-  logger.debug(`Starting work: command=${action} workers=${maxThreadCount}`);
 
   let threadToSpawn;
 
@@ -97,7 +98,7 @@ async function _init() {
       break;
 
     // single run fetch email details
-    case WORK_ACTION_ENUM.SINGLE_RUN_FETCH_EMAIL:
+    case WORK_ACTION_ENUM.SINGLE_RUN_PARSE_EMAIL:
       await fetchEmailsByThreadIds(targetThreadIds);
       break;
 
@@ -126,8 +127,8 @@ async function _init() {
       break;
 
     // job 2
-    case WORK_ACTION_ENUM.FETCH_EMAIL:
-      threadToSpawn = Math.min(maxThreadCount, 3);
+    case WORK_ACTION_ENUM.PARSE_EMAIL:
+      threadToSpawn = Math.min(maxThreadCount, 8);
       while (threadToSpawn > 0) {
         threadToSpawn--;
         const myThreadId = workers.length;
@@ -137,15 +138,15 @@ async function _init() {
       // reprocess any in progress tasks
       await DataUtils.recoverInProgressThreadJobStatus();
 
-      // get a list of threads to start workin g
-      remainingWorkInputs = await DataUtils.getAllThreadIdsToParseEmails();
+      // get a list of threads to start working
+      getNewWorkFunc = DataUtils.getAllThreadIdsToParseEmails;
+      await _enqueueWorkWithRemainingInputs();
       intervalWorkSchedule = setInterval(_enqueueWorkWithRemainingInputs, 500); // every 10 sec
-      _enqueueWorkWithRemainingInputs();
       break;
 
     // job 3
     case WORK_ACTION_ENUM.UPLOAD_EMAIL:
-      threadToSpawn = Math.min(maxThreadCount, 3);
+      threadToSpawn = Math.min(maxThreadCount, 8);
       while (threadToSpawn > 0) {
         threadToSpawn--;
         const myThreadId = workers.length;
@@ -156,9 +157,9 @@ async function _init() {
       await DataUtils.recoverInProgressThreadJobStatus();
 
       // get a list of threads to start workin g
-      remainingWorkInputs = await DataUtils.getAllThreadIdsToSyncWithGoogleDrive();
+      getNewWorkFunc = DataUtils.getAllThreadIdsToSyncWithGoogleDrive;
+      await _enqueueWorkWithRemainingInputs();
       intervalWorkSchedule = setInterval(_enqueueWorkWithRemainingInputs, 500); // every 3 sec
-      _enqueueWorkWithRemainingInputs();
       break;
 
     // job 4
@@ -185,7 +186,12 @@ async function _enqueueWorkWithoutInput() {
 }
 
 async function _enqueueWorkWithRemainingInputs() {
-  if (lastWorkIdx < remainingWorkInputs.length) {
+  if (remainingWorkInputs.length === 0) {
+    logger.debug(
+      `Finding work to do command=${action} workers=${workers.length}`
+    );
+    remainingWorkInputs = await getNewWorkFunc();
+  } else if (lastWorkIdx < remainingWorkInputs.length) {
     // print progres
     let shouldPostUpdates = false;
 
@@ -204,16 +210,13 @@ async function _enqueueWorkWithRemainingInputs() {
       }
 
       if (lastWorkIdx >= remainingWorkInputs.length) {
-        // done all work, stopped...
-        clearInterval(intervalWorkSchedule);
-
         // refresh task list and do again
-        remainingWorkInputs = [];
-        lastWorkIdx = 0;
-        remainingWorkInputs = await DataUtils.getAllThreadIdsToSyncWithGoogleDrive();
+        logger.debug(
+          `Done work: command=${action} workers=${maxThreadCount} totalWork=${remainingWorkInputs.length}. Restarting with new work`
+        );
 
-        // stop
-        // process.exit();
+        remainingWorkInputs = []; // note that this will trigger fetching new work
+        lastWorkIdx = 0;
       }
     }
 
@@ -225,8 +228,6 @@ async function _enqueueWorkWithRemainingInputs() {
       ).toFixed(2);
 
       if (
-        remainingWorkInputs.length > 1000 ||
-        lastWorkIdx === 0 ||
         lastWorkIdx % 500 === 0 ||
         (percentDone % 20 === 0 && percentDone > 0)
       ) {

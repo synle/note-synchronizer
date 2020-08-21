@@ -9,7 +9,7 @@ import {
 
 import { DataTypes, Model } from "sequelize";
 
-import { THREAD_JOB_STATUS } from "../crawler/commonUtils";
+import { THREAD_JOB_STATUS_ENUM } from "../crawler/commonUtils";
 
 // raw content database
 /**
@@ -144,7 +144,7 @@ export class Thread extends Model {
   public snippet!: string;
 
   @attribute(Thread, {
-    defaultValue: THREAD_JOB_STATUS.PENDING_CRAWL,
+    defaultValue: THREAD_JOB_STATUS_ENUM.PENDING_CRAWL,
   })
   public status!: string;
 }
@@ -219,7 +219,7 @@ export class Email extends Model {
   public labelIds!: string;
 
   @attribute(Email, {
-    defaultValue: THREAD_JOB_STATUS.PENDING,
+    defaultValue: THREAD_JOB_STATUS_ENUM.PENDING,
   })
   public upload_status!: string;
 }
