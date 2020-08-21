@@ -167,7 +167,7 @@ export function getThreadsByQuery(q, pageToken) {
         userId: "me",
         pageToken,
         q,
-        maxResults: 500, // so far the max is 500
+        maxResults: process.env.GMAIL_MAX_THREAD_RESULT || 500, // so far the max is 500
       },
       (err, res) => {
         if (err) {
