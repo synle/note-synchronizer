@@ -263,7 +263,7 @@ async function _processThreadEmail(email: Email) {
           );
         } catch (err) {
           logger.error(
-            `Error - Failed ot original note - threadId=${threadId} id=${id} subject=${subject} attachmentName=${docFileName} localPath=${localPath} ${
+            `Error - Failed to upload original note - threadId=${threadId} id=${id} subject=${subject} attachmentName=${docFileName} localPath=${localPath} ${
               err.stack || JSON.stringify(err, null, 2)
             }`
           );
