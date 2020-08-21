@@ -218,3 +218,46 @@ Get-Content -Wait .\logs\log_combined.data
   },
 }
 ```
+
+#### SQL Tuning Tip
+
+##### Set bigger pool size
+
+```
+SET GLOBAL innodb_buffer_pool_size=402653184;
+```
+
+##### To view other settings
+
+```
+show variables LIKE '%innodb_buffer%';
+```
+
+##### Sample config for timeout
+
+```
++-----------------------------------+----------+
+| Variable_name                     | Value    |
++-----------------------------------+----------+
+| connect_timeout                   | 10       |
+| delayed_insert_timeout            | 300      |
+| have_statement_timeout            | YES      |
+| innodb_flush_log_at_timeout       | 1        |
+| innodb_lock_wait_timeout          | 50       |
+| innodb_rollback_on_timeout        | OFF      |
+| interactive_timeout               | 28800    |
+| lock_wait_timeout                 | 31536000 |
+| mysqlx_connect_timeout            | 30       |
+| mysqlx_idle_worker_thread_timeout | 60       |
+| mysqlx_interactive_timeout        | 28800    |
+| mysqlx_port_open_timeout          | 0        |
+| mysqlx_read_timeout               | 30       |
+| mysqlx_wait_timeout               | 28800    |
+| mysqlx_write_timeout              | 60       |
+| net_read_timeout                  | 30       |
+| net_write_timeout                 | 60       |
+| rpl_stop_slave_timeout            | 31536000 |
+| slave_net_timeout                 | 60       |
+| wait_timeout                      | 28800    |
++-----------------------------------+----------+
+```
