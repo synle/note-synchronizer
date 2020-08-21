@@ -11,7 +11,9 @@ export default async () => {
   // notes such as emails and attachments
   const dialect = process.env.DB_DIALECT || "mysql" || "sqlite";
 
-  logger.debug(`initDatabase start - ${dialect}`);
+  logger.debug(
+    `initDatabase start - ${dialect} - ${process.env.DB_HOST} - ${process.env.DB_NAME}`
+  );
 
   if (dialect === "mysql") {
     // mysql
@@ -24,11 +26,11 @@ export default async () => {
         host: process.env.DB_HOST,
         logging: process.env.DB_LOGGING === "true",
         pool: {
-          max: 2,
+          max: 1,
           min: 0,
         },
         retry: {
-          max: 25,
+          max: 10,
         },
         dialectOptions: {
           connectTimeout: 120000,

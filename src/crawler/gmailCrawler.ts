@@ -690,7 +690,7 @@ export async function fetchEmailsByThreadIds(threadIds) {
     // search for the thread
     await processMessagesByThreadId(threadId).then(
       (processedMessageCount) => (totalMsgCount += processedMessageCount)
-    )
+    );
   }
 
   logger.debug(`Total Messages: ${totalMsgCount}`);
