@@ -25,6 +25,10 @@ import { THREAD_JOB_STATUS_ENUM } from "../crawler/commonUtils";
   },
   {
     unique: false,
+    fields: ["threadId"],
+  },
+  {
+    unique: false,
     fields: ["fileName"],
   },
   {
@@ -47,31 +51,31 @@ export class Attachment extends Model {
     unique: true,
     type: DataTypes.STRING(750),
   })
-  public id!: string;
+  id!: string;
+
+  @attribute(Attachment, { allowNull: false, type: DataTypes.STRING(20) })
+  threadId!: string;
 
   @attribute(Attachment, { allowNull: false })
-  public threadId!: string;
+  messageId!: string;
 
   @attribute(Attachment, { allowNull: false })
-  public messageId!: string;
+  mimeType!: string;
 
   @attribute(Attachment, { allowNull: false })
-  public mimeType!: string;
-
-  @attribute(Attachment, { allowNull: false })
-  public fileName!: string;
+  fileName!: string;
 
   @attribute(Attachment, { type: DataTypes.INTEGER })
-  public size!: number;
+  size!: number;
 
   @attribute(Attachment, { type: DataTypes.TINYINT(1) })
-  public inline!: number;
+  inline!: number;
 
   @attribute(Attachment, { allowNull: false })
-  public path!: string;
+  path!: string;
 
   @attribute(Attachment, { type: DataTypes.TEXT })
-  public headers!: string;
+  headers!: string;
 }
 
 @table("threads", {
@@ -96,26 +100,27 @@ export class Thread extends Model {
     allowNull: false,
     primaryKey: true,
     unique: true,
+    type: DataTypes.STRING(20)
   })
-  public threadId!: string;
+  threadId!: string;
 
   @attribute(Thread, { type: DataTypes.BIGINT })
-  public processedDate!: number;
+  processedDate!: number;
+
+  @attribute(Thread, { type: DataTypes.INTEGER })
+  duration!: number;
 
   @attribute(Thread, { type: DataTypes.BIGINT })
-  public duration!: number;
-
-  @attribute(Thread, { type: DataTypes.BIGINT })
-  public totalMessages!: number;
+  totalMessages!: number;
 
   @attribute(Thread)
-  public historyId!: string;
+  historyId!: string;
 
   @attribute(Thread)
-  public snippet!: string;
+  snippet!: string;
 
   @attribute(Thread)
-  public status!: string;
+  status!: string;
 }
 
 /**
@@ -151,47 +156,48 @@ export class Email extends Model {
     allowNull: false,
     primaryKey: true,
     unique: true,
+    type: DataTypes.STRING(20)
   })
-  public id!: string;
+  id!: string;
 
-  @attribute(Email, { allowNull: false })
-  public threadId!: string;
+  @attribute(Email, { allowNull: false, type: DataTypes.STRING(20)})
+  threadId!: string;
 
   @attribute(Email)
-  public from!: string;
+  from!: string;
 
   @attribute(Email, { type: DataTypes.TEXT })
-  public to!: string;
+  to!: string;
 
   @attribute(Email, { type: DataTypes.TEXT })
-  public bcc!: string;
+  bcc!: string;
 
   @attribute(Email, { type: DataTypes.TEXT })
-  public subject!: string;
+  subject!: string;
 
   @attribute(Email, { type: DataTypes.TEXT })
-  public rawSubject!: string;
+  rawSubject!: string;
 
   @attribute(Email, { type: "MEDIUMTEXT" })
-  public body!: string;
+  body!: string;
 
   @attribute(Email, { type: "MEDIUMTEXT" })
-  public rawBody!: string;
+  rawBody!: string;
 
   @attribute(Email, { type: DataTypes.BIGINT })
-  public date!: number;
+  date!: number;
 
   @attribute(Email, { type: DataTypes.TEXT })
-  public labelIds!: string;
+  labelIds!: string;
 
   @attribute(Email)
-  public status!: string;
+  status!: string;
 
   @attribute(Email, { type: "MEDIUMTEXT", allowNull: false })
-  public rawApiResponse!: string;
+  rawApiResponse!: string;
 
   @attribute(Email, { type: DataTypes.TEXT })
-  public headers!: string;
+  headers!: string;
 }
 
 export default {

@@ -65,7 +65,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
       await DataUtils.bulkUpsertThreadJobStatuses({
         threadId: targetThreadId,
         processedDate: null,
-        duration: Date.now() - startTime,
+        duration: Math.round((Date.now() - startTime) / 1000),
         totalMessages: threadMessages.length,
         status: THREAD_JOB_STATUS_ENUM.ERROR_TIMEOUT,
       });
@@ -112,7 +112,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
       await DataUtils.bulkUpsertThreadJobStatuses({
         threadId: targetThreadId,
         processedDate: null,
-        duration: Date.now() - startTime,
+        duration: Math.round((Date.now() - startTime) / 1000),
         totalMessages: threadMessages.length,
         status: THREAD_JOB_STATUS_ENUM.ERROR_THREAD_NOT_FOUND,
       });
@@ -283,16 +283,22 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
             );
 
             subject = (websiteRes.subject || "").trim();
-            body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr />${_prettifyHtml(
-              websiteRes.body
-            )}`.trim();
+            body = tryParseBody(`
+              ${body}
+                <br /><br />
+
+                <a href='${urlToCrawl}'>${urlToCrawl}</a>
+                <br /><br />
+
+                ${websiteRes.body}
+            `);
           } catch (err) {
             logger.debug(
               `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
             );
             body = strippedDownBody;
           }
-        } else if (body.length < 255 && isStringUrl(body)) {
+        } else if (isStringUrl(body)) {
           // if body is a url
           const urlToCrawl = extractUrlFromString(_parseBodyWithHtml(body));
 
@@ -306,17 +312,23 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
             );
 
             subject = `${subject} - ${websiteRes.subject || ""}`.trim();
-            body = `<a href='${urlToCrawl}'>${urlToCrawl}</a><hr />${_prettifyHtml(
-              websiteRes.body
-            )}`.trim();
+            body = tryParseBody(`
+              ${body}
+              <br /><br />
+
+
+              <a href='${urlToCrawl}'>${urlToCrawl}</a>
+              <br /><br />
+
+
+              ${websiteRes.body}
+            `);
           } catch (err) {
             logger.debug(
               `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
             );
             body = strippedDownBody;
           }
-        } else {
-          body = strippedDownBody;
         }
 
         const fallbackSubject = `${from} ${id}`;
@@ -394,7 +406,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
     await DataUtils.bulkUpsertThreadJobStatuses({
       threadId: targetThreadId,
       processedDate: Date.now(),
-      duration: Date.now() - startTime,
+      duration: Math.round((Date.now() - startTime) / 1000),
       totalMessages: threadMessages.length,
       status: THREAD_JOB_STATUS_ENUM.SUCCESS,
     });
@@ -532,10 +544,12 @@ async function _pollNewEmailThreads(doFullLoad, q = "") {
  * @param string
  */
 export function _cleanHtml(string) {
-  return string.replace(
-    /<style( type="[a-zA-Z/+]+")?>[a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/ŤŮ>?&~+µ]+<\/style>/gi,
-    ""
-  );
+  return string
+    .replace(
+      /<style( type="[a-zA-Z/+]+")?>[a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/ŤŮ>?&~+µ]+<\/style>/gi,
+      ""
+    )
+    .replace(/style=["'][\w\s#-:;@()!%"']+["']/gi, "");
 }
 
 function _prettifyHtml(bodyHtml) {
@@ -553,7 +567,7 @@ function _prettifyHtml(bodyHtml) {
 function _parseGmailMessage(bodyData) {
   return Base64.decode((bodyData || "").replace(/-/g, "+").replace(/_/g, "/"))
     .trim()
-    .replace("\r\n", "");
+    .replace(/[\r\n]/g, "\n");
 }
 
 function _parseBodyWithText(html) {
@@ -567,11 +581,9 @@ function _parseBodyWithText(html) {
     return body
       .replace("\r", "\n")
       .split(/[ ]/)
-      .map((r) => r.trim())
       .filter((r) => !!r)
       .join(" ")
       .split("\n")
-      .map((r) => r.trim())
       .filter((r) => !!r)
       .join("\n")
       .trim();
@@ -585,11 +597,14 @@ export function _parseBodyWithHtml(html) {
     const dom = new JSDOM(_cleanHtml(html));
     return new JSDOM(
       new Readability(dom.window.document).parse().content
-    ).window.document.body.textContent.trim();
-  } catch (e) {}
+    ).window.document.body.textContent.replace('  ', '\n').trim();
+  } catch (err) {
+    logger.debug(`_parseBodyWithHtml failed err=${err.stack}`)
+  }
 }
 
 export function tryParseBody(rawBody) {
+  rawBody = (rawBody || '').trim();
   return (
     _parseBodyWithHtml(rawBody) || _parseBodyWithText(rawBody) || rawBody || ""
   );
