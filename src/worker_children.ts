@@ -15,7 +15,6 @@ import {
 
 import {
   uploadLogsToDrive,
-  uploadEmailThreadToGoogleDrive,
   uploadEmailMsgToGoogleDrive,
 } from "./crawler/gdriveCrawler";
 
@@ -41,7 +40,7 @@ async function _init() {
       switch (data.action) {
         case WORK_ACTION_ENUM.FETCH_RAW_CONTENT:
           if (!data.id) {
-            throw `${data.action} requires threadId found ${data.id}`;
+            throw `${data.action} requires threadId found threadId=${data.id}`;
           }
           await fetchRawContentsByThreadId(data.id);
           parentPort.postMessage({
@@ -51,7 +50,7 @@ async function _init() {
           break;
         case WORK_ACTION_ENUM.PARSE_EMAIL:
           if (!data.id) {
-            throw `${data.action} requires threadId found ${data.id}`;
+            throw `${data.action} requires threadId found threadId=${data.id}`;
           }
           await processMessagesByThreadId(data.id);
           parentPort.postMessage({
@@ -69,16 +68,6 @@ async function _init() {
             ...data,
           });
           break;
-        // case WORK_ACTION_ENUM.UPLOAD_EMAILS_BY_THREAD_ID:
-        //   if (!data.threadId) {
-        //     throw `${data.action} requires threadId found ${data.threadId}`;
-        //   }
-        //   await uploadEmailThreadToGoogleDrive(data.threadId);
-        //   parentPort.postMessage({
-        //     success: true,
-        //     ...data,
-        //   });
-        //   break;
         case WORK_ACTION_ENUM.UPLOAD_LOGS:
           await uploadLogsToDrive();
           parentPort.postMessage({

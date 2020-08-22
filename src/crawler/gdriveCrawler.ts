@@ -505,31 +505,11 @@ async function _processThreadEmail(email: Email) {
   }
 }
 
-async function _processThreadEmails(emails: Email[]) {
-  const countTotalMessages = emails.length;
-  logger.debug(
-    `Total Messages To Sync with Google Drive: ${countTotalMessages} firstId=${emails[0].id}`
-  );
-  for (let email of emails) {
-    await _processThreadEmail(email);
-  }
-}
-
-/**
- * entry point to start work on a single item
- * @param targetThreadId
- */
-export async function uploadEmailThreadToGoogleDrive(targetThreadId) {
-  await _init();
-  const matchedResults = await DataUtils.getEmailsByThreadId(targetThreadId);
-  await _processThreadEmails(matchedResults);
-}
-
 export async function uploadEmailMsgToGoogleDrive(messageId) {
   await _init();
   const email = await DataUtils.getEmailByMessageId(messageId);
   if (email) {
-    await _processThreadEmails(email);
+    await _processThreadEmail(email);
   } else {
     logger.error(`Cannot find message with messageId=${messageId}`);
   }

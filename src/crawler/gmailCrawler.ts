@@ -656,21 +656,6 @@ function _getHeaders(headers) {
   }, {});
 }
 
-export async function fetchEmailsByThreadIds(threadIds) {
-  threadIds = [].concat(threadIds || []);
-
-  let totalMsgCount = 0;
-
-  for (let threadId of threadIds) {
-    // search for the thread
-    await processMessagesByThreadId(threadId).then(
-      (processedMessageCount) => (totalMsgCount += processedMessageCount)
-    );
-  }
-
-  logger.debug(`Total Messages: ${totalMsgCount}`);
-}
-
 export async function fetchRawContentsByThreadId(threadIds) {
   threadIds = [].concat(threadIds || []);
 
