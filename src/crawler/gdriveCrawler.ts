@@ -23,7 +23,7 @@ import { Email, Attachment } from "../types";
 import * as googleApiUtils from "./googleApiUtils";
 import { logger } from "../loggers";
 import {
-  myEmails,
+  interestedEmails,
   ignoredWordTokens,
   THREAD_JOB_STATUS_ENUM,
   MIME_TYPE_ENUM,
@@ -55,12 +55,12 @@ function _sanitizeFileName(string) {
 }
 
 // this get the domain out of the email
-function _generateFolderName(string) {
+export function generateFolderName(string) {
   string = string.toLowerCase();
 
-  if (myEmails.some((myEmail) => string.includes(myEmail))) {
+  if (interestedEmails.some((myEmail) => string.includes(myEmail))) {
     // if sent by me, then group things under the same label
-    return "_ME";
+    return `_ME ${string}`;
   }
 
   if (
@@ -139,14 +139,15 @@ export async function generateDocFile(
     );
   }
 
-  rawContent = tryParseBody(rawContent)
-    .split(/[ ]/g)
+  rawContent = rawContent.split(/[ ]/g)
     .map((s) => (s || "").trim())
     .filter((s) => !!s)
     .join(" ")
     .trim()
     .replace(/[\r\n]/g, "\n")
-    .split('\n')
+    .split("\n")
+    .map(s => (s || '').trim())
+    .filter(s => !!s);
   for (let content of rawContent) {
     content = (content || "").trim();
 
@@ -164,24 +165,12 @@ export async function generateDocFile(
         heading: HeadingLevel.HEADING_3,
       })
     );
-
-
-    children.push(
-      new Paragraph({// empty space
-        text: "",
-        spacing: {
-          before: 250,
-          after: 250,
-        },
-        heading: HeadingLevel.HEADING_3,
-      })
-    );
   }
 
-  if(attachments.length > 0){
+  if (attachments.length > 0) {
     children.push(
       new Paragraph({
-        text: 'Attachments',
+        text: "Attachments",
         spacing: {
           before: 250,
           after: 250,
@@ -264,7 +253,17 @@ async function _init() {
 }
 
 async function _processThreadEmail(email: Email) {
-  let { threadId, id, from, bcc, to, subject, rawSubject, date, labelIds } = email;
+  let {
+    threadId,
+    id,
+    from,
+    bcc,
+    to,
+    subject,
+    rawSubject,
+    date,
+    labelIds,
+  } = email;
 
   try {
     await DataUtils.updateEmailUploadStatus({
@@ -293,13 +292,15 @@ async function _processThreadEmail(email: Email) {
 
     const toEmailAddresses = toEmailList.join(", ");
 
-    const isEmailSentByMe = myEmails.some((myEmail) => from.includes(myEmail));
+    const isEmailSentByMe = interestedEmails.some((myEmail) => from.includes(myEmail));
 
-    const isEmailSentToMySelf = myEmails.some((myEmail) =>
+    const isEmailSentToMySelf = interestedEmails.some((myEmail) =>
       toEmailList.some((toEmail) => toEmail.includes(myEmail))
     );
 
-    const starred = labelIdsList.some((labelId) => labelId.includes("STARRED")) || (isEmailSentByMe && isEmailSentToMySelf);
+    const starred =
+      labelIdsList.some((labelId) => labelId.includes("STARRED")) ||
+      (isEmailSentByMe && isEmailSentToMySelf);
 
     const hasSomeAttachments =
       nonImageAttachments.length > 0 || imagesAttachments.length > 0;
@@ -319,6 +320,13 @@ async function _processThreadEmail(email: Email) {
     }
 
     let docFileName = `${subject}`;
+
+    const googleFileAppProperties = {
+      // app property
+      from,
+      id,
+      threadId,
+    };
 
     // ignored if content contains the ignored patterns
     if (
@@ -343,15 +351,17 @@ async function _processThreadEmail(email: Email) {
 
     if (isEmailSentByMe || isEmailSentToMySelf || hasSomeAttachments) {
       // create the bucket folder
-      const fromEmailDomain = _generateFolderName(from);
+      const fromEmailDomain = generateFolderName(from);
       const folderIdToUse = await googleApiUtils.createDriveFolder(
-        fromEmailDomain,
-        `Chats & Emails from this domain ${fromEmailDomain}`,
-        isEmailSentByMe, // star emails sent from myself
-        noteDestinationFolderId,
-        isEmailSentByMe ? "#FF0000" : "#0000FF",
         {
-          fromDomain: fromEmailDomain,
+          name: fromEmailDomain,
+          description: `Chats & Emails from ${fromEmailDomain}`,
+          parentFolderId: noteDestinationFolderId,
+          starred: isEmailSentByMe,
+          folderColorRgb: isEmailSentByMe ? "#FF0000" : "#0000FF",
+          appProperties: {
+            fromDomain: fromEmailDomain,
+          },
         }
       );
 
@@ -386,38 +396,23 @@ async function _processThreadEmail(email: Email) {
           logger.debug(`Upload original note file ${docFileName}`);
 
           // upload original doc
-          await googleApiUtils.uploadFile(
-            docFileName,
-            MIME_TYPE_ENUM.APP_MS_DOCX,
-            localPath,
-            `
+          await googleApiUtils.uploadFile({
+            name: docFileName,
+            mimeType: MIME_TYPE_ENUM.APP_MS_DOCX,
+            localPath: localPath,
+            description: `
             Main Email
-
-            Date:
-            ${friendlyDateTimeString1}
-
-            From:
-            ${from}
-
-            Subject:
-            ${rawSubject}
-
-            threadId:
-            ${threadId}
-
-            id:
-            ${id}
+            Date: ${friendlyDateTimeString1}
+            From: ${from}
+            Subject: ${rawSubject}
+            threadId: ${threadId}
+            messageId: ${id}
             `.trim(),
-            date,
-            starred,
-            folderIdToUse,
-            {
-              // app property
-              from,
-              id,
-              threadId,
-            }
-          );
+            date: date,
+            starred: starred,
+            parentFolderId: folderIdToUse,
+            appProperties: googleFileAppProperties,
+          });
         } catch (err) {
           logger.error(
             `Error - Failed to upload original note - threadId=${threadId} id=${id} subject=${subject} attachmentName=${docFileName} localPath=${localPath} ${
@@ -444,11 +439,11 @@ async function _processThreadEmail(email: Email) {
 
         try {
           // upload attachment
-          await googleApiUtils.uploadFile(
-            attachmentName,
-            attachment.mimeType,
-            attachment.path,
-            `
+          await googleApiUtils.uploadFile({
+            name: attachmentName,
+            mimeType: attachment.mimeType,
+            localPath: attachment.path,
+            description: `
             Attachment #${AttachmentIdx}
 
             Date
@@ -470,18 +465,15 @@ async function _processThreadEmail(email: Email) {
             ${attachment.path}
 
             attachmentId
-            ${attachment.id}
+            ${attachment.id.substr(0, 50)}
             `.trim(),
-            date,
-            starred,
-            folderIdToUse,
-            {
-              // app property
-              from,
-              id,
-              threadId,
-            }
-          );
+            date: date,
+            starred: starred,
+            parentFolderId: folderIdToUse,
+            appProperties: {
+              fileName: attachmentName
+            },
+          });
         } catch (err) {
           logger.error(
             `Error - Failed upload attachment - threadId=${threadId} id=${id} subject=${subject} attachmentName=${attachmentName} ${

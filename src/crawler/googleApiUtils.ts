@@ -3,8 +3,9 @@ import fs from "fs";
 import readline from "readline";
 import { google } from "googleapis";
 import moment from "moment";
-import { MIME_TYPE_ENUM } from "./commonUtils";
+import { MIME_TYPE_ENUM, myEmails } from "./commonUtils";
 import { logger } from "../loggers";
+import { generateFolderName } from "./gdriveCrawler";
 
 let gmailApiInstance;
 let driveApiInstance;
@@ -46,14 +47,51 @@ function _logAndWrapApiError(err, res, ...extra) {
 
 export async function getNoteDestinationFolderId() {
   if (!noteDestinationFolderId) {
-    // create the note folder
-    noteDestinationFolderId = await createDriveFolder(
-      process.env.NOTE_DESTINATION_FOLDER_NAME,
-      "Note Synchronizer Destination Folder"
-    );
+    // not there, then create it
+    noteDestinationFolderId = await createNoteDestinationFolder();
   }
 
   return noteDestinationFolderId;
+}
+
+export async function createNoteDestinationFolder() {
+  const noteFolderName = process.env.NOTE_DESTINATION_FOLDER_NAME;
+
+  const noteDestFolderId = await createDriveFolder({
+    name: noteFolderName,
+    description: noteFolderName,
+    starred: true,
+    folderColorRgb: "#FFFF00",
+    appProperties: {
+      EmailNoteFolder: "1",
+    },
+  });
+
+  // generate the bucket for all of my emails
+  const promiseQueue = [];
+  for (const myEmail of myEmails) {
+    const fromEmailDomain = generateFolderName(myEmail);
+
+    promiseQueue.push(
+      createDriveFolder(
+        {
+          name: fromEmailDomain,
+          description: `Chats & Emails from ${fromEmailDomain}`,
+          parentFolderId: noteDestinationFolderId,
+          starred: true,
+          folderColorRgb: "#FF0000",
+          appProperties: {
+            fromDomain: fromEmailDomain,
+          },
+        }
+      )
+    )
+  }
+
+  await Promise.allSettled(promiseQueue)
+
+
+  return noteDestFolderId;
 }
 
 /**
@@ -416,12 +454,14 @@ export function createFolderInDrive(resource) {
   });
 }
 
-export function searchDrive(name, mimeType, parentFolderId) {
+export function searchDrive({ name, mimeType, parentFolderId, appProperties }) {
   const queries = [];
 
   queries.push(`trashed=false`);
 
-  queries.push(`name='${_sanatizeGoogleQuery(name)}'`);
+  if (name) {
+    queries.push(`name='${_sanatizeGoogleQuery(name)}'`);
+  }
 
   if (parentFolderId) {
     queries.push(`parents in '${_sanatizeGoogleQuery(parentFolderId)}'`);
@@ -429,6 +469,18 @@ export function searchDrive(name, mimeType, parentFolderId) {
 
   if (mimeType) {
     queries.push(`mimeType='${_sanatizeGoogleQuery(mimeType)}'`);
+  }
+
+  if (appProperties) {
+    const propKeys = Object.keys(appProperties);
+    for (const propKey of propKeys) {
+      const propValue = appProperties[propKey];
+      queries.push(
+        `appProperties has { key='${_sanatizeGoogleQuery(
+          propKey
+        )}' and value='${_sanatizeGoogleQuery(propValue)}'}`
+      );
+    }
   }
 
   const q = queries.join(" AND ");
@@ -461,18 +513,22 @@ export function searchDrive(name, mimeType, parentFolderId) {
   });
 }
 
-export async function createDriveFolder(
+export async function createDriveFolder({
   name,
   description,
-  starred = false,
   parentFolderId,
+  starred = false,
   folderColorRgb = "FFFF00",
-  appProperties = {}
-) {
+  appProperties = {},
+}) {
   try {
     const mimeType = MIME_TYPE_ENUM.APP_GOOGLE_FOLDER;
 
-    const matchedResults = await searchDrive(name, mimeType);
+    const matchedResults = await searchDrive({
+      mimeType,
+      appProperties,
+    });
+
     if (matchedResults.length === 0) {
       const fileGDriveMetadata = {
         name,
@@ -499,7 +555,6 @@ export async function createDriveFolder(
 }
 
 export async function uploadFile({
-  id,
   name,
   mimeType,
   localPath,
@@ -507,9 +562,10 @@ export async function uploadFile({
   dateEpochTime,
   starred = false,
   parentFolderId,
-  appProperties = {}
+  appProperties = {},
 }) {
   let mimeTypeToUse = (mimeType || "").toLowerCase();
+  let keepRevisionForever = false;
   if (
     [
       MIME_TYPE_ENUM.TEXT_CSV,
@@ -518,6 +574,7 @@ export async function uploadFile({
     ].includes(mimeType)
   ) {
     mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_SPREADSHEET;
+    keepRevisionForever = true;
   } else if (
     [
       MIME_TYPE_ENUM.APP_XML,
@@ -535,14 +592,17 @@ export async function uploadFile({
     ].includes(mimeType)
   ) {
     mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_DOCUMENT;
+    keepRevisionForever = true;
   } else if ([MIME_TYPE_ENUM.APP_OCTLET_STREAM].includes(mimeType)) {
     if (localPath.includes(".java")) {
       mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_DOCUMENT;
+      keepRevisionForever = true;
     }
   } else if (
     [MIME_TYPE_ENUM.APP_MS_PPT, MIME_TYPE_ENUM.APP_MS_PPTX].includes(mimeType)
   ) {
     mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_PRESENTATION;
+    keepRevisionForever = true;
   }
 
   const createdTime = moment.utc(dateEpochTime).format("YYYY-MM-DDTHH:mm:ssZ");
@@ -551,7 +611,6 @@ export async function uploadFile({
   // refer to this link for more metadata
   // https://developers.google.com/drive/api/v3/reference/files/create
   const fileGDriveMetadata = {
-    id,
     name,
     parents: []
       .concat(parentFolderId || [])
@@ -564,6 +623,7 @@ export async function uploadFile({
     starred,
     useContentAsIndexableText: true,
     enforceSingleParent: true,
+    keepRevisionForever,
     appProperties,
   };
 
@@ -577,36 +637,32 @@ export async function uploadFile({
   };
 
   let foundFileId;
-  if(id){ // if id is passed in, use it
-    foundFileId = id;
-  } else {// else search for file with the same name
-    if (parentFolderId) {
-      const matchedResults = await searchDrive(
-        fileGDriveMetadata.name,
-        null,
-        parentFolderId
-      );
+  if (!foundFileId) {
+    const matchedResults = await searchDrive({
+      appProperties: appProperties,
+      parentFolderId: parentFolderId,
+    });
 
-      if (matchedResults && matchedResults.length > 0) {
-        foundID = matchedResults[0].id;
-      }
+    logger.debug(
+      `Search GDrive results for file name=${fileGDriveMetadata.name} total=${matchedResults.length}`
+    );
+
+    if (matchedResults && matchedResults.length > 0) {
+      foundFileId = matchedResults[0].id;
     }
   }
 
+  console.debug(
+    "Upload file with operation",
+    foundFileId ? "Update" : "Create",
+    `parent=${parentFolderId}`,
+    name,
+    foundFileId
+  );
+
   if (foundFileId) {
-    console.debug(
-      "Upload file with update operation",
-      `parent=${parentFolderId}`,
-      name,
-      matchedResults[0].id
-    );
     return updateFileInDrive(foundFileId, fileGDriveMetadata, media);
   } else {
-    console.debug(
-      "Upload file with create operation",
-      `parent=${parentFolderId}`,
-      name
-    );
     return createFileInDrive(fileGDriveMetadata, media);
   }
 }

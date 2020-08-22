@@ -66,6 +66,15 @@ export class RawContent extends Model {
     unique: false,
     fields: ["path"],
   },
+  {
+    unique: false,
+    fields: ["inline"],
+  },
+  {
+    unique: false,
+    fields: ["size"],
+  },
+
 ])
 export class Attachment extends Model {
   @attribute(Attachment, {
@@ -93,6 +102,12 @@ export class Attachment extends Model {
 
   @attribute(Attachment, { type: DataTypes.TEXT })
   public headers!: string;
+
+  @attribute(Attachment)
+  public size!: number;
+
+  @attribute(Attachment)
+  public inline!: boolean;
 }
 
 @table("threads", {
@@ -195,7 +210,7 @@ export class Email extends Model {
   @attribute(Email, { type: DataTypes.TEXT })
   public rawSubject!: string;
 
-  @attribute(Email, { type: DataTypes.TEXT })
+  @attribute(Email, { type: "MEDIUMTEXT" })
   public body!: string;
 
   @attribute(Email, { type: "MEDIUMTEXT" })

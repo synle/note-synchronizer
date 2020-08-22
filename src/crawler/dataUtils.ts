@@ -51,6 +51,19 @@ export async function getAllThreadIdsToSyncWithGoogleDrive(
 
 export async function getEmailsByThreadId(threadId): Email[] {
   return await Models.Email.findAll({
+    attributes: [
+      "id",
+      "threadId",
+      "from",
+      "bcc",
+      "to",
+      "subject",
+      "rawSubject",
+      "body",
+      "rawBody",
+      "date",
+      "labelIds",
+    ],
     where: {
       threadId,
     },
@@ -58,23 +71,29 @@ export async function getEmailsByThreadId(threadId): Email[] {
   });
 }
 
-export async function bulkUpsertEmails(emails) {
+export async function bulkUpsertEmails(
+  emails: Email[],
+  fieldsToUpdate = [
+    "from",
+    "body",
+    "rawBody",
+    "subject",
+    "rawSubject",
+    "headers",
+    "to",
+    "bcc",
+    "date",
+    "upload_status",
+    "size",
+    "inline",
+  ]
+) {
   return Models.Email.bulkCreate(_makeArray(emails), {
-    updateOnDuplicate: [
-      "from",
-      "body",
-      "rawBody",
-      "subject",
-      "rawSubject",
-      "headers",
-      "to",
-      "bcc",
-      "date",
-    ],
+    updateOnDuplicate: fieldsToUpdate,
   });
 }
 
-export async function updateEmailUploadStatus(email) {
+export async function updateEmailUploadStatus(email: Email) {
   return Models.Email.update(email, {
     where: {
       id: email.id,

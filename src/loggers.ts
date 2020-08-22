@@ -1,5 +1,7 @@
-const winston = require("winston");
-const { format } = require("winston");
+import winston from "winston";
+import { format } from "winston";
+import isPlainObject from "lodash/isPlainObject";
+
 const { combine, timestamp, label, printf } = format;
 
 export const logger = winston.createLogger({
@@ -59,5 +61,15 @@ console.debug = function () {
 };
 
 function _formatConsoleLogs(logMethod, args) {
-  logMethod.apply(logger, [[...args].map((s) => JSON.stringify(s)).join(", ")]);
+  logMethod.apply(logger, [
+    [...args]
+      .map((s) => {
+        if (Array.isArray(s)) return JSON.stringify(s);
+        else if (isPlainObject(s)) return JSON.stringify(s);
+        else if (s === undefined) return "undefined";
+        else if (s === null) return "null";
+        return s;
+      })
+      .join("\t"),
+  ]);
 }

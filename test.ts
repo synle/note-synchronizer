@@ -16,13 +16,15 @@ import {
 } from "./src/crawler/gmailCrawler";
 
 import {
+  generateFolderName,
   uploadEmailThreadToGoogleDrive,
   generateDocFile,
 } from "./src/crawler/gdriveCrawler";
 
 import Models from "./src/models/modelsSchema";
 import * as DataUtils from "./src/crawler/dataUtils";
-import { crawlUrl, MIME_TYPE_ENUM } from "./src/crawler/commonUtils";
+import { crawlUrl, myEmails, MIME_TYPE_ENUM } from "./src/crawler/commonUtils";
+
 
 async function _init() {
   console.log("test inits");
@@ -31,6 +33,12 @@ async function _init() {
   await initGoogleApi();
 
   console.log("test starts");
+}
+
+async function _doWork0() {
+  await _init();
+  const noteDestinationFolderId = await googleApiUtils.createNoteDestinationFolder();
+  console.debug(`Note Destintation Folder Id: ${noteDestinationFolderId}`);
 }
 
 async function _doWork1() {
@@ -150,20 +158,39 @@ async function _doWork5() {
       fileName
     );
 
-    await googleApiUtils.uploadFile({
-      id: '1fPuwK3Nev9mCDQwAzypBhvl1XK35bWOy',
+    // first do a create operation
+    const resp1 = await googleApiUtils.uploadFile({
       name: fileName,
       mimeType: MIME_TYPE_ENUM.APP_MS_DOCX,
       localPath: fileName,
-      description: "test html file",
+      description: "test html file 1",
       date: email.date,
       starred: false,
-      parentFolderId: null,
+      parentFolderId: "1c3KO8SOVv_era9g6uATFWGSG55Vhajf3",
       appProperties: {
         aaa: 111,
-        bbb: 222
-      }
+        bbb: 222,
+      },
     });
+
+    const fileId = resp1.id;
+    console.log(fileId);
+
+    // then do the update operation
+    await googleApiUtils.uploadFile({
+      name: fileName,
+      mimeType: MIME_TYPE_ENUM.APP_MS_DOCX,
+      localPath: fileName,
+      description: "test html file 2",
+      date: email.date,
+      starred: false,
+      parentFolderId: "1c3KO8SOVv_era9g6uATFWGSG55Vhajf3",
+      appProperties: {
+        aaa: 111,
+        bbb: 222,
+      },
+    });
+    console.log(resp1);
   } catch (e) {
     console.log(e.stack);
   }
@@ -174,11 +201,11 @@ async function _doWork6() {
 
   try {
     const someId = await googleApiUtils.generateUniqueId();
-    console.log(someId)
+    console.log(someId);
   } catch (e) {
     console.log(e.stack);
   }
 }
 
 //
-_doWork5();
+_doWork0();
