@@ -17,6 +17,15 @@ import * as DataUtils from "./crawler/dataUtils";
 
 import { logger } from "./loggers";
 
+import {
+  WORKER_STATUS_ENUM,
+  WORK_ACTION_ENUM,
+  maxThreadCount,
+  THREAD_JOB_STATUS_ENUM,
+  WorkActionRequest,
+  WorkActionResponse,
+} from "./crawler/commonUtils";
+
 // workers
 const workers = [];
 
@@ -33,14 +42,6 @@ const targetThreadIds = (process.argv[3] || "")
 
 process.title = `Node Note-Sync ${action}`;
 
-import {
-  WORKER_STATUS_ENUM,
-  WORK_ACTION_ENUM,
-  maxThreadCount,
-  THREAD_JOB_STATUS_ENUM,
-  WorkActionResponse,
-} from "./crawler/commonUtils";
-
 function _newWorker(myThreadId, myThreadName, workerGroup) {
   const worker = new Worker(path.join(__dirname, "worker_children.js"), {
     workerData: {
@@ -50,7 +51,7 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
   });
   worker.on("message", (data: WorkActionResponse) => {
     if (data.success) {
-      console.debug("Worker Thread Done", myThreadName, data.threadId);
+      console.debug("Worker Thread Done", myThreadName, data.id);
     } else {
       console.error("Worker Thread Failed", myThreadName, data.error, data);
     }
@@ -124,20 +125,16 @@ async function _init() {
       setInterval(() => pollForNewThreadList(true), 1.5 * 60 * 60 * 1000);
       break;
 
+    // job 2
     case WORK_ACTION_ENUM.FETCH_RAW_CONTENT:
-      threadToSpawn = Math.min(maxThreadCount, 6);
-      while (threadToSpawn > 0) {
-        threadToSpawn--;
-        const myThreadId = workers.length;
-        workers.push(_newWorker(myThreadId, action, workers));
-      }
+      await _setupWorkers(Math.min(maxThreadCount, 6));
 
-      // get a list of threads to start workin g
+      // get a list of threads to start working
       getNewWorkFunc = DataUtils.getAllThreadIdsToFetchRawContents;
       await _enqueueWorkWithRemainingInputs();
       break;
 
-    // job 2
+    // job 3
     case WORK_ACTION_ENUM.PARSE_EMAIL:
       await _setupWorkers(Math.min(maxThreadCount, 6));
 
@@ -149,17 +146,26 @@ async function _init() {
       await _enqueueWorkWithRemainingInputs();
       break;
 
-    // job 3
-    case WORK_ACTION_ENUM.UPLOAD_EMAIL:
+    // job 4a
+    case WORK_ACTION_ENUM.UPLOAD_EMAILS_BY_MESSAGE_ID:
       await _setupWorkers(Math.min(maxThreadCount, 6));
 
-      // reprocess any in progress tasks
-      await DataUtils.recoverInProgressThreadJobStatus();
-
-      // get a list of threads to start workin g
-      getNewWorkFunc = DataUtils.getAllThreadIdsToSyncWithGoogleDrive;
+      // get a list of threads to start working
+      getNewWorkFunc = DataUtils.getAllMessageIdsToSyncWithGoogleDrive;
       await _enqueueWorkWithRemainingInputs();
       break;
+
+    // job 4b
+    // case WORK_ACTION_ENUM.UPLOAD_EMAILS_BY_THREAD_ID:
+    //   await _setupWorkers(Math.min(maxThreadCount, 6));
+
+    //   // reprocess any in progress tasks
+    //   await DataUtils.recoverInProgressThreadJobStatus();
+
+    //   // get a list of threads to start workin g
+    //   getNewWorkFunc = DataUtils.getAllThreadIdsToSyncWithGoogleDrive;
+    //   await _enqueueWorkWithRemainingInputs();
+    //   break;
 
     // job 4
     case WORK_ACTION_ENUM.UPLOAD_LOGS:
@@ -207,12 +213,13 @@ async function _enqueueWorkWithRemainingInputs() {
         // take task
         shouldPostUpdates = true;
 
-        const threadId = remainingWorkInputs[lastWorkIdx];
-        worker.status = WORKER_STATUS_ENUM.BUSY;
-        worker.work.postMessage({
-          threadId,
+        const id = remainingWorkInputs[lastWorkIdx];
+        const workActionRequest: WorkActionRequest = {
+          id,
           action,
-        });
+        };
+        worker.status = WORKER_STATUS_ENUM.BUSY;
+        worker.work.postMessage(workActionRequest);
         lastWorkIdx++;
       }
 

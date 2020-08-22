@@ -30,6 +30,19 @@ export interface GmailAttachmentResponse {
   [propName: string]: any;
 }
 
+export interface GmailMessageResponse {
+  id: string;
+  threadId: string;
+  labelIds: string;
+  snippet: string;
+  payload: any;
+  sizeEstimate: number;
+  historyId: string;
+  internalDate: string;
+}
+
+// custom
+
 export interface Email {
   id: string;
   threadId: string;
@@ -42,14 +55,7 @@ export interface Email {
   subject: string;
   date: number;
   status: string;
-  Attachments: DatabaseResponse<Attachment>[];
-}
-
-export interface RawContent {
-  messageId: string;
-  threadId: string;
-  rawApiResponse: string;
-  date: string;
+  Attachments: Attachment[];
 }
 
 export interface Attachment {
@@ -64,9 +70,4 @@ export interface Attachment {
 export interface WebContent {
   subject: string;
   body: string;
-}
-
-export interface DatabaseResponse<T> {
-  dataValues: T;
-  [propName: string]: any;
 }
