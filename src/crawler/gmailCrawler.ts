@@ -215,7 +215,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                       path: attachmentPath,
                       headers: JSON.stringify(_getHeaders(part.headers || [])),
                       size: fs.statSync(attachmentPath).size,
-                      inline: false,
+                      inline: 0,
                     });
                   })
                   .catch((err) => {
@@ -263,8 +263,8 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                     fileName: inlineFileName,
                     path: newFilePath,
                     headers: JSON.stringify(_getHeaders(part.headers || [])),
-                    size: fs.statSync(attachmentPath).size,
-                    inline: true,
+                    size: fs.statSync(newFilePath).size,
+                    inline: 1,
                   });
                   break;
 
@@ -731,7 +731,7 @@ export async function fetchRawContentsByThreadId(threadIds) {
           threadId
         );
 
-        // parse the content
+        // parse the content and insert raw content
         const rawContentsToSave = messages.map((message) => {
           const { id, threadId } = message;
 
@@ -761,6 +761,31 @@ export async function fetchRawContentsByThreadId(threadIds) {
                 err.stack || JSON.stringify(err)
               }`
             );
+            throw err;
+          }
+        );
+
+
+        // parse the content and insert into message
+        const messagesToSave = messages.map((message) => {
+          const { id, threadId } = message;
+          return {
+            id: id,
+            threadId: threadId,
+            date: message.internalDate || Date.now(),
+            upload_status: THREAD_JOB_STATUS_ENUM.PENDING_CRAWL,
+          };
+        });
+
+        await DataUtils.bulkUpsertEmails(messagesToSave).catch(
+          (err) => {
+            logger.error(
+              `Insert email failed threadId=${threadId} ${
+              err.stack || JSON.stringify(err)
+              }`
+            );
+
+            throw err;
           }
         );
       } else {

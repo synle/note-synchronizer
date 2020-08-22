@@ -22,8 +22,7 @@ const workers = [];
 
 // work related
 let intervalWorkSchedule;
-let lastWorkIdx = 0;
-let remainingWorkInputs = [];
+let lastWorkIdx, remainingWorkInputs;
 let getNewWorkFunc = () => {};
 
 const action = process.argv[2] || "";
@@ -126,7 +125,7 @@ async function _init() {
       break;
 
     case WORK_ACTION_ENUM.FETCH_RAW_CONTENT:
-      threadToSpawn = Math.min(maxThreadCount, 4);
+      threadToSpawn = Math.min(maxThreadCount, 6);
       while (threadToSpawn > 0) {
         threadToSpawn--;
         const myThreadId = workers.length;
@@ -134,14 +133,13 @@ async function _init() {
       }
 
       // get a list of threads to start workin g
-      remainingWorkInputs = await DataUtils.getAllThreadIdsToFetchRawContents();
-      intervalWorkSchedule = setInterval(_enqueueWorkWithRemainingInputs, 500); // every 10 sec
-      _enqueueWorkWithRemainingInputs();
+      getNewWorkFunc = DataUtils.getAllThreadIdsToFetchRawContents;
+      await _enqueueWorkWithRemainingInputs();
       break;
 
     // job 2
     case WORK_ACTION_ENUM.PARSE_EMAIL:
-      await _setupWorkers(Math.min(maxThreadCount, 8));
+      await _setupWorkers(Math.min(maxThreadCount, 6));
 
       // reprocess any in progress tasks
       await DataUtils.recoverInProgressThreadJobStatus();
@@ -149,12 +147,11 @@ async function _init() {
       // get a list of threads to start working
       getNewWorkFunc = DataUtils.getAllThreadIdsToParseEmails;
       await _enqueueWorkWithRemainingInputs();
-      intervalWorkSchedule = setInterval(_enqueueWorkWithRemainingInputs, 500); // every 10 sec
       break;
 
     // job 3
     case WORK_ACTION_ENUM.UPLOAD_EMAIL:
-      await _setupWorkers(Math.min(maxThreadCount, 8));
+      await _setupWorkers(Math.min(maxThreadCount, 6));
 
       // reprocess any in progress tasks
       await DataUtils.recoverInProgressThreadJobStatus();
@@ -162,7 +159,6 @@ async function _init() {
       // get a list of threads to start workin g
       getNewWorkFunc = DataUtils.getAllThreadIdsToSyncWithGoogleDrive;
       await _enqueueWorkWithRemainingInputs();
-      intervalWorkSchedule = setInterval(_enqueueWorkWithRemainingInputs, 500); // every 3 sec
       break;
 
     // job 4
@@ -198,6 +194,7 @@ async function _enqueueWorkWithRemainingInputs() {
     // );
     clearInterval(intervalWorkSchedule);
     remainingWorkInputs = await getNewWorkFunc();
+    lastWorkIdx = 0;
     intervalWorkSchedule = setInterval(_enqueueWorkWithRemainingInputs, 500); // every 3 sec
   } else if (
     lastWorkIdx < remainingWorkInputs.length &&
