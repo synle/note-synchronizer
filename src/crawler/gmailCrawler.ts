@@ -167,10 +167,10 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
     // start processing
     for (let message of threadMessages) {
-      try {
-        const { id, threadId, labelIds } = message;
-        const messageDate = message.internalDate;
+      const { id, threadId, labelIds } = message;
+      const messageDate = message.internalDate;
 
+      try {
         let rawBody = "";
         const parts = googleApiUtils.flattenGmailPayloadParts(message.payload);
         if (parts && parts.length > 0) {
@@ -214,6 +214,8 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                       fileName: attachment.fileName,
                       path: attachmentPath,
                       headers: JSON.stringify(_getHeaders(part.headers || [])),
+                      size: fs.statSync(attachmentPath).size,
+                      inline: false,
                     });
                   })
                   .catch((err) => {
@@ -247,7 +249,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                   );
 
                   const inlineFileName =
-                    fileName || `parts.${threadId}.${id}.${partId}`;
+                    fileName || `parts.${threadId}.${id}.${partId || ''}`;
 
                   const newFilePath = `${GMAIL_ATTACHMENT_PATH}/${inlineFileName}`;
 
@@ -261,6 +263,8 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                     fileName: inlineFileName,
                     path: newFilePath,
                     headers: JSON.stringify(_getHeaders(part.headers || [])),
+                    size: fs.statSync(attachmentPath).size,
+                    inline: true,
                   });
                   break;
 
@@ -361,6 +365,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
         const messageToSave = {
           id,
           threadId,
+          upload_status: THREAD_JOB_STATUS_ENUM.PENDING,
           from: from || null,
           body: body || null,
           rawBody: rawBody || null,
@@ -382,19 +387,27 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           `Saving message: threadId=${targetThreadId} id=${messageToSave.id}`
         );
         // await
-        DataUtils.bulkUpsertEmails(messageToSave).catch((err) => {
-          logger.debug(
-            `Inserting emails failed threadId=${targetThreadId} ${
-              err.stack || JSON.stringify(err)
-            }`
-          );
-        });
+        await DataUtils.bulkUpsertEmails(messageToSave);
       } catch (err) {
         logger.error(
           `Failed to process threadId=${targetThreadId} error=${
             err.stack || JSON.stringify(err)
           }`
         );
+        await DataUtils.bulkUpsertThreadJobStatuses({
+          threadId: threadId,
+          status: THREAD_JOB_STATUS_ENUM.ERROR_CRAWL,
+        });
+
+        await DataUtils.bulkUpsertEmails(
+          {
+            id,
+            threadId,
+            upload_status: THREAD_JOB_STATUS_ENUM.ERROR_CRAWL,
+          },
+          ["upload_status"]
+        );
+        break;
       }
     }
 

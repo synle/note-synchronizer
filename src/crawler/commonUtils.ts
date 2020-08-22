@@ -12,6 +12,7 @@ export const mySignatureTokens = (process.env.MY_SIGNATURE_TOKEN || "").split(
 );
 
 export const myEmails = (process.env.MY_EMAIL_TOKENS || "").split("|||");
+export const interestedEmails = (process.env.INTERESTED_EMAIL_TOKENS || "").split("|||").concat(myEmails);
 export const ignoredWordTokens = (process.env.IGNORED_WORD_TOKENS || "").split(
   "|||"
 );
@@ -115,7 +116,9 @@ export function extractUrlFromString(string) {
       if (matchedUrl.length > 15) return matchedUrl;
     }
   } catch (err) {
-    logger.error(`extractUrlFromString failed "${string}" err=${err}`);
+    logger.debug(
+      `extractUrlFromString failed "${string}" err=${err}. Fall back to empty string for URL`
+    );
   }
   return "";
 }
