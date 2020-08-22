@@ -27,6 +27,7 @@ import {
   ignoredWordTokens,
   THREAD_JOB_STATUS_ENUM,
   MIME_TYPE_ENUM,
+  get256Hash,
 } from "./commonUtils";
 import { tryParseBody } from "./gmailCrawler";
 import * as DataUtils from "./dataUtils";
@@ -88,7 +89,7 @@ export function generateFolderName(string) {
 export async function generateDocFile(
   subject,
   body,
-  rawContent,
+  mainContent,
   attachments,
   newFileName
 ) {
@@ -139,17 +140,12 @@ export async function generateDocFile(
     );
   }
 
-  rawContent = rawContent
-    .split(/[ ]/g)
-    .map((s) => (s || "").trim())
-    .filter((s) => !!s)
-    .join(" ")
-    .trim()
+  mainContent = mainContent.trim()
     .replace(/[\r\n]/g, "\n")
     .split("\n")
-    .map((s) => (s || "").trim())
-    .filter((s) => !!s);
-  for (let content of rawContent) {
+    .filter(s => !!s);
+  console.log("mainContent", mainContent.length);
+  for (let content of mainContent) {
     content = (content || "").trim();
 
     if (content.length === 0) {
@@ -325,8 +321,6 @@ async function _processThreadEmail(email: Email) {
     let docFileName = `${subject}`;
 
     const googleFileAppProperties = {
-      // app property
-      from,
       id,
       threadId,
     };
@@ -412,7 +406,10 @@ async function _processThreadEmail(email: Email) {
             date: date,
             starred: starred,
             parentFolderId: folderIdToUse,
-            appProperties: googleFileAppProperties,
+            appProperties: {
+              sha: get256Hash(docFileName),
+              ...googleFileAppProperties,
+            },
           });
         } catch (err) {
           logger.error(
@@ -472,7 +469,8 @@ async function _processThreadEmail(email: Email) {
             starred: starred,
             parentFolderId: folderIdToUse,
             appProperties: {
-              fileName: attachmentName,
+              sha: get256Hash(attachment.id),
+              ...googleFileAppProperties,
             },
           });
         } catch (err) {

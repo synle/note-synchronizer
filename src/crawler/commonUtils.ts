@@ -1,4 +1,5 @@
 // @ts-nocheck
+import crypto from "crypto";
 import axios from "axios";
 import { logger } from "../loggers";
 import { parsePageTitle } from "./gmailCrawler";
@@ -153,4 +154,8 @@ export async function crawlUrl(url): Promise<WebContent> {
   } catch (err) {
     return Promise.reject(err.stack || err);
   }
+}
+
+export function get256Hash(string) {
+  return crypto.createHash("sha256").update(string).digest("base64");
 }

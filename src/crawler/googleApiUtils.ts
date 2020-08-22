@@ -76,7 +76,7 @@ export async function createNoteDestinationFolder() {
       createDriveFolder({
         name: fromEmailDomain,
         description: `Chats & Emails from ${fromEmailDomain}`,
-        parentFolderId: noteDestinationFolderId,
+        parentFolderId: noteDestFolderId,
         starred: true,
         folderColorRgb: "#FF0000",
         appProperties: {
@@ -441,11 +441,10 @@ export function createFolderInDrive(resource) {
       },
       function (err, res) {
         if (err) {
-          return reject(
-            _logAndWrapApiError(err, res, "createFolderInDrive", resource)
-          );
+          _logAndWrapApiError(err, res, "createFolderInDrive", resource)
+          return null;
         }
-        resolve(res.data);
+        resolve(res.data.id);
       }
     );
   });
@@ -541,7 +540,7 @@ export async function createDriveFolder({
       }
 
       // create the folder itself
-      return (await createFolderInDrive(fileGDriveMetadata)).id;
+      return createFolderInDrive(fileGDriveMetadata);
     } else {
       return matchedResults[0].id;
     }

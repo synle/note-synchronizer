@@ -177,7 +177,14 @@ async function _enqueueWorkWithRemainingInputs() {
     clearInterval(intervalWorkSchedule);
     remainingWorkInputs = await getNewWorkFunc();
     lastWorkIdx = 0;
-    intervalWorkSchedule = setInterval(_enqueueWorkWithRemainingInputs, 500); // every 3 sec
+
+    if (remainingWorkInputs.length > 0) {
+      // start new work right away
+      intervalWorkSchedule = setInterval(_enqueueWorkWithRemainingInputs, 1000);
+    } else {
+      // put a delay before retrying
+      setTimeout(_enqueueWorkWithRemainingInputs, 15 * 60000);
+    }
   } else if (
     lastWorkIdx < remainingWorkInputs.length &&
     remainingWorkInputs.length > 0
