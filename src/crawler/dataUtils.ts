@@ -2,7 +2,7 @@
 // adapter for sql
 import { Op } from "sequelize";
 
-import { Email, RawContent, DatabaseResponse, Attachment } from "../types";
+import { Email, GmailMessageResponse } from "../types";
 
 import Models from "../models/modelsSchema";
 
@@ -17,6 +17,9 @@ export async function getAttachmentByMessageId(messageId) {
   return Models.Attachment.findAll({
     where: {
       messageId,
+      inline: {
+        [Op.eq]: 0, // only use attachments from non-inline attachments
+      },
     },
     raw: true,
   });
@@ -29,26 +32,6 @@ export async function bulkUpsertAttachments(attachments) {
 }
 
 // emails
-export async function getAllThreadIdsToSyncWithGoogleDrive(
-  limit = 250
-): Email[] {
-  const res = await Models.Email.findAll({
-    attributes: ["threadId"],
-    group: ["threadId"],
-    where: {
-      upload_status: {
-        [Op.eq]: THREAD_JOB_STATUS_ENUM.PENDING,
-      },
-    },
-    // order: [
-    //   ["date", "DESC"], // start with the most recent one first
-    // ],
-    raw: true,
-    limit,
-  });
-  return res.map((thread) => thread.threadId);
-}
-
 export async function getEmailsByThreadId(threadId): Email[] {
   return await Models.Email.findAll({
     attributes: [
@@ -71,6 +54,34 @@ export async function getEmailsByThreadId(threadId): Email[] {
   });
 }
 
+export async function getEmailByMessageId(messageId): Email {
+  const res = await Models.Email.findAll({
+    attributes: [
+      "id",
+      "threadId",
+      "from",
+      "bcc",
+      "to",
+      "subject",
+      "rawSubject",
+      "body",
+      "rawBody",
+      "date",
+      "labelIds",
+    ],
+    where: {
+      id: messageId,
+    },
+    raw: true,
+  });
+
+  if (res.length === 1) {
+    return res[0];
+  }
+
+  return null;
+}
+
 export async function bulkUpsertEmails(
   emails: Email[],
   fieldsToUpdate = [
@@ -83,7 +94,7 @@ export async function bulkUpsertEmails(
     "to",
     "bcc",
     "date",
-    "upload_status",
+    "status",
     "size",
     "inline",
   ]
@@ -101,26 +112,7 @@ export async function updateEmailUploadStatus(email: Email) {
   });
 }
 
-// threads
-export async function getAllThreadIdsToParseEmails(limit = 2250) {
-  const req = {
-    attributes: ["threadId"], // only fetch threadId
-    where: {
-      status: {
-        [Op.eq]: THREAD_JOB_STATUS_ENUM.PENDING,
-      },
-    },
-    // order: [
-    //   ["updatedAt", "DESC"], // start with the one that changes recenty
-    // ],
-    raw: true,
-    limit,
-  };
-
-  const res = await Models.Thread.findAll(req);
-  return res.map((thread) => thread.threadId);
-}
-
+// step 1 fetch raw content
 export async function getAllThreadIdsToFetchRawContents() {
   const req = {
     attributes: ["threadId"], // only fetch threadId
@@ -139,6 +131,66 @@ export async function getAllThreadIdsToFetchRawContents() {
   return res.map((thread) => thread.threadId);
 }
 
+// step 2 parse email
+export async function getAllThreadIdsToParseEmails(limit = 2250) {
+  const req = {
+    attributes: ["threadId"], // only fetch threadId
+    where: {
+      status: {
+        [Op.eq]: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
+      },
+    },
+    // order: [
+    //   ["updatedAt", "DESC"], // start with the one that changes recenty
+    // ],
+    raw: true,
+    limit,
+  };
+
+  const res = await Models.Thread.findAll(req);
+  return res.map((thread) => thread.threadId);
+}
+
+// step 3 sync / upload to gdrive
+export async function getAllThreadIdsToSyncWithGoogleDrive(
+  limit = 250
+): String[] {
+  const res = await Models.Email.findAll({
+    attributes: ["threadId"],
+    group: ["threadId"],
+    where: {
+      status: {
+        [Op.eq]: THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE,
+      },
+    },
+    // order: [
+    //   ["date", "DESC"], // start with the most recent one first
+    // ],
+    raw: true,
+    limit,
+  });
+  return res.map((thread) => thread.threadId);
+}
+
+export async function getAllMessageIdsToSyncWithGoogleDrive(
+  limit = 250
+): String[] {
+  const res = await Models.Email.findAll({
+    attributes: ["id"],
+    where: {
+      status: {
+        [Op.eq]: THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE,
+      },
+    },
+    // order: [
+    //   ["date", "DESC"], // start with the most recent one first
+    // ],
+    raw: true,
+    limit,
+  });
+  return res.map((thread) => thread.id);
+}
+
 export async function bulkUpsertThreadJobStatuses(threads) {
   return Models.Thread.bulkCreate(_makeArray(threads), {
     updateOnDuplicate: [
@@ -155,7 +207,7 @@ export async function bulkUpsertThreadJobStatuses(threads) {
 export async function recoverInProgressThreadJobStatus(oldStatus, newStatus) {
   await Models.Thread.update(
     {
-      status: THREAD_JOB_STATUS_ENUM.PENDING,
+      status: THREAD_JOB_STATUS_ENUM.PENDING_CRAWL,
       duration: null,
       totalMessages: null,
     },
@@ -168,11 +220,11 @@ export async function recoverInProgressThreadJobStatus(oldStatus, newStatus) {
 
   await Models.Email.update(
     {
-      upload_status: THREAD_JOB_STATUS_ENUM.PENDING,
+      status: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
     },
     {
       where: {
-        upload_status: THREAD_JOB_STATUS_ENUM.IN_PROGRESS,
+        status: THREAD_JOB_STATUS_ENUM.IN_PROGRESS,
       },
     }
   );
@@ -181,19 +233,13 @@ export async function recoverInProgressThreadJobStatus(oldStatus, newStatus) {
 // raw content
 export async function getRawContentsByThreadId(
   threadId
-): Promise<RawContent[]> {
-  const res = await Models.RawContent.findAll({
+): Promise<GmailMessageResponse[]> {
+  const res = await Models.Email.findAll({
+    attributes: ["rawApiResponse"],
     where: {
       threadId,
     },
     raw: true,
   });
-
   return res.map((message) => JSON.parse(message.rawApiResponse));
-}
-
-export async function bulkUpsertRawContents(rawContents: RawContent[]) {
-  return Models.RawContent.bulkCreate(_makeArray(rawContents), {
-    updateOnDuplicate: ["rawApiResponse", "date"],
-  });
 }

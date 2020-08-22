@@ -25,7 +25,6 @@ import Models from "./src/models/modelsSchema";
 import * as DataUtils from "./src/crawler/dataUtils";
 import { crawlUrl, myEmails, MIME_TYPE_ENUM } from "./src/crawler/commonUtils";
 
-
 async function _init() {
   console.log("test inits");
 

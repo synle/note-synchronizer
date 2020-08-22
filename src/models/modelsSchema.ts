@@ -11,41 +11,6 @@ import { DataTypes, Model } from "sequelize";
 
 import { THREAD_JOB_STATUS_ENUM } from "../crawler/commonUtils";
 
-// raw content database
-/**
- * this is a raw content response returned from the GMAIL API
- */
-@table("raw_contents", {
-  timestamps: false,
-})
-@index([
-  {
-    unique: false,
-    fields: ["threadId"],
-  },
-  {
-    unique: false,
-    fields: ["date"],
-  },
-])
-export class RawContent extends Model {
-  @attribute(RawContent, {
-    allowNull: false,
-    primaryKey: true,
-    unique: true,
-  })
-  public messageId!: string;
-
-  @attribute(RawContent, { allowNull: false })
-  public threadId!: string;
-
-  @attribute(RawContent, { type: "MEDIUMTEXT", allowNull: false })
-  public rawApiResponse!: string;
-
-  @attribute(RawContent, { type: DataTypes.BIGINT })
-  public date!: number;
-}
-
 // parsed emails and threads
 /**
  * this is where we store all the email attachments
@@ -74,7 +39,6 @@ export class RawContent extends Model {
     unique: false,
     fields: ["size"],
   },
-
 ])
 export class Attachment extends Model {
   @attribute(Attachment, {
@@ -100,7 +64,7 @@ export class Attachment extends Model {
   @attribute(Attachment, { type: DataTypes.INTEGER })
   public size!: number;
 
-  @attribute(Attachment, { type: DataTypes.TINYINT(1)})
+  @attribute(Attachment, { type: DataTypes.TINYINT(1) })
   public inline!: number;
 
   @attribute(Attachment, { allowNull: false })
@@ -150,9 +114,7 @@ export class Thread extends Model {
   @attribute(Thread)
   public snippet!: string;
 
-  @attribute(Thread, {
-    defaultValue: THREAD_JOB_STATUS_ENUM.PENDING_CRAWL,
-  })
+  @attribute(Thread)
   public status!: string;
 }
 
@@ -173,7 +135,7 @@ export class Thread extends Model {
   },
   {
     unique: false,
-    fields: ["upload_status"],
+    fields: ["status"],
   },
   {
     unique: false,
@@ -220,20 +182,20 @@ export class Email extends Model {
   public date!: number;
 
   @attribute(Email, { type: DataTypes.TEXT })
-  public headers!: string;
-
-  @attribute(Email, { type: DataTypes.TEXT })
   public labelIds!: string;
 
-  @attribute(Email, {
-    defaultValue: THREAD_JOB_STATUS_ENUM.PENDING,
-  })
-  public upload_status!: string;
+  @attribute(Email)
+  public status!: string;
+
+  @attribute(Email, { type: "MEDIUMTEXT", allowNull: false })
+  public rawApiResponse!: string;
+
+  @attribute(Email, { type: DataTypes.TEXT })
+  public headers!: string;
 }
 
 export default {
   Attachment,
   Email,
-  RawContent,
   Thread,
 };

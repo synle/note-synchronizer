@@ -5,7 +5,12 @@ import { Base64 } from "js-base64";
 import { JSDOM } from "jsdom";
 import prettier from "prettier";
 
-import { Email, Headers, GmailAttachmentResponse } from "../types";
+import {
+  Email,
+  Headers,
+  GmailAttachmentResponse,
+  GmailMessageResponse,
+} from "../types";
 
 import { logger } from "../loggers";
 import * as googleApiUtils from "./googleApiUtils";
@@ -21,6 +26,7 @@ import {
 } from "./commonUtils";
 
 import * as DataUtils from "./dataUtils";
+import { allColors } from "winston/lib/winston/config";
 
 // google crawler
 const GMAIL_ATTACHMENT_PATH = "./attachments";
@@ -67,15 +73,15 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
       reject("Timeout for task");
     }, MAX_TIME_PER_THREAD);
 
-    let threadMessages = [];
+    let threadMessages: GmailMessageResponse[] = [];
     let foundRawEmailsFromDbOrCache = false;
 
     logger.debug(`Start working on thread: threadId=${targetThreadId}`);
 
     try {
-      // attempting at getting the emails from the database
+      // attempting at getting the emails from rawcontent in the database
       if (threadMessages.length === 0) {
-        let messagesFromDatabase = await DataUtils.getRawContentsByThreadId(
+        const messagesFromDatabase: GmailMessageResponse[] = await DataUtils.getRawContentsByThreadId(
           targetThreadId
         );
 
@@ -88,22 +94,6 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           foundRawEmailsFromDbOrCache = true;
         }
       }
-
-      // get emails from the google messages api
-      if (threadMessages.length === 0) {
-        const { messages } = await googleApiUtils.getEmailContentByThreadId(
-          targetThreadId
-        );
-
-        logger.debug(
-          `Raw Content Result from API threadId=${targetThreadId}: ${messages.length}`
-        );
-
-        threadMessages = messages;
-      }
-
-      // TODO:
-      // get emails from the google drafts api
     } catch (err) {
       logger.error(
         `Cannot fetch Raw Content threadId=${targetThreadId} : ${
@@ -133,37 +123,6 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
     logger.debug(
       `Found and start processing threadId=${targetThreadId} totalMessages=${threadMessages.length}`
     );
-
-    // persist things into the raw content db...
-    for (let message of threadMessages) {
-      const { id, threadId } = message;
-
-      // store raw content
-      if (foundRawEmailsFromDbOrCache !== true) {
-        // look for parts and parse it. Do decode base 64 of parts
-        const parts = googleApiUtils.flattenGmailPayloadParts(message.payload);
-        if (parts && parts.length > 0) {
-          for (let part of parts) {
-            if (part.body.data) {
-              part.body.data = _parseGmailMessage(part.body.data);
-            }
-          }
-        }
-
-        await DataUtils.bulkUpsertRawContents({
-          messageId: id,
-          threadId: threadId,
-          rawApiResponse: JSON.stringify(message),
-          date: message.internalDate || Date.now(),
-        }).catch((err) => {
-          logger.error(
-            `Insert raw content failed threadId=${threadId} id=${id} ${
-              err.stack || JSON.stringify(err)
-            }`
-          );
-        });
-      }
-    }
 
     // start processing
     for (let message of threadMessages) {
@@ -249,7 +208,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                   );
 
                   const inlineFileName =
-                    fileName || `parts.${threadId}.${id}.${partId || ''}`;
+                    fileName || `parts.${threadId}.${id}.${partId || ""}`;
 
                   const newFilePath = `${GMAIL_ATTACHMENT_PATH}/${inlineFileName}`;
 
@@ -365,7 +324,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
         const messageToSave = {
           id,
           threadId,
-          upload_status: THREAD_JOB_STATUS_ENUM.PENDING,
+          status: THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE,
           from: from || null,
           body: body || null,
           rawBody: rawBody || null,
@@ -376,6 +335,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           bcc: bcc.join(",") || null,
           date,
           labelIds: (labelIds || []).join(",") || null,
+          rawApiResponse: JSON.stringify(message),
         };
 
         logger.debug(
@@ -403,9 +363,9 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           {
             id,
             threadId,
-            upload_status: THREAD_JOB_STATUS_ENUM.ERROR_CRAWL,
+            status: THREAD_JOB_STATUS_ENUM.ERROR_CRAWL,
           },
-          ["upload_status"]
+          ["status"]
         );
         break;
       }
@@ -529,7 +489,6 @@ async function _pollNewEmailThreads(doFullLoad, q = "") {
             threadId: id,
             historyId,
             snippet,
-            // this is to re-trigger the thread fetch, basically we want to reprocess this...
             processedDate: null,
             duration: null,
             totalMessages: null,
@@ -731,8 +690,11 @@ export async function fetchRawContentsByThreadId(threadIds) {
           threadId
         );
 
+        // TODO:
+        // get emails from the google drafts api
+
         // parse the content and insert raw content
-        const rawContentsToSave = messages.map((message) => {
+        const promiseQueue = messages.map((message) => {
           const { id, threadId } = message;
 
           const parts = googleApiUtils.flattenGmailPayloadParts(
@@ -746,48 +708,25 @@ export async function fetchRawContentsByThreadId(threadIds) {
             }
           }
 
-          return {
-            messageId: id,
+          const emailMessageToSave = {
+            id: id,
             threadId: threadId,
             rawApiResponse: JSON.stringify(message),
             date: message.internalDate || Date.now(),
+            status: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
           };
-        });
 
-        await DataUtils.bulkUpsertRawContents(rawContentsToSave).catch(
-          (err) => {
+          return DataUtils.bulkUpsertEmails(emailMessageToSave).catch((err) => {
             logger.error(
               `Insert raw content failed threadId=${threadId} ${
                 err.stack || JSON.stringify(err)
-              }`
+              } id=${id}`
             );
             throw err;
-          }
-        );
-
-
-        // parse the content and insert into message
-        const messagesToSave = messages.map((message) => {
-          const { id, threadId } = message;
-          return {
-            id: id,
-            threadId: threadId,
-            date: message.internalDate || Date.now(),
-            upload_status: THREAD_JOB_STATUS_ENUM.PENDING_CRAWL,
-          };
+          });
         });
 
-        await DataUtils.bulkUpsertEmails(messagesToSave).catch(
-          (err) => {
-            logger.error(
-              `Insert email failed threadId=${threadId} ${
-              err.stack || JSON.stringify(err)
-              }`
-            );
-
-            throw err;
-          }
-        );
+        await Promise.all(promiseQueue);
       } else {
         logger.debug(`Found raw content from cache for threadId=${threadId}`);
       }
@@ -795,7 +734,7 @@ export async function fetchRawContentsByThreadId(threadIds) {
       // move on to next stage
       await DataUtils.bulkUpsertThreadJobStatuses({
         threadId: threadId,
-        status: THREAD_JOB_STATUS_ENUM.PENDING,
+        status: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
       });
     } catch (err) {
       logger.error(`Fetch raw content failed threadId=${threadId} ${err}`);

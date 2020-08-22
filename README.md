@@ -25,11 +25,33 @@ Crawled Gmail Notes and push them to Google Drive
 - `PARSE_EMAIL`: Parse the email accordingly, strip out unwanted tags. If the emails have simply links to a post, then curl that URL for the content of the link
 - `UPLOAD_EMAIL` For each of the emails, run a rule condition. If passed will send the emails and associated attachments to Google Drive for storage. At the moment, the buckets are grouped by the sender email address. Note that the original email will be converted to docx before uploading to Google Drive.
 
+## How to run
+
+- Move .env_backup to .env. Modify the content accordingly for SQL Connection
+- Then run `npm test`. Follow the instruction and paste the link and complete the auth process to retrieve the Google API token.
+- Then run the jobs
+  - `npm run job1`
+  - `npm run job2`
+  - `npm run job3`
+  - `npm run job4`
+
+## Benchmark for parsing
+
+Before I parallize and use worker thread, I have a single thread that runs all the jobs with non blocking promises. But due to the nature of single thread in JS, the whole task is super slow. For my use case, I have about 60,000 threads of emails and about 15,000 attachments over the course of 15+ years using Gmail dated back to 2005.
+
+With single process / single thread node js, it takes about 15 mins to do all the work: fetch the thread list, fetch the thread raw contents, parsing and sending the file to GMail.
+
+With multi processes of about 8 concurrent workers, the process takes about 6 hours. So it's about 2+ times faster than single thread. The bottleneck for my local setup is database engine. So if I would to scale the database out with more memory, and allow more concurrent connections to MySQL database, this benchmark should improve dramatically.
+
 ## Lessons Learned
 
-- It's painfully hard to parallelize Node JS processes. If you want to write an intensive program, go with something else. Don't choose node. It's not built for it. Pick something performant like C or Java or even Go.
+- It's painfully hard to parallelize Node JS processes. If you want to write an intensive program, go with something else. Don't choose node. It's not built for it. Pick something performant like C or Java or even Go. Not to say it's not doable, but the code is very hard to manage.
 
-- Almost all of Google API's use base64 encoded content for data including Gmail messages, Gmail Attachments and Google Drive API's. Below are some sample code in Node that deals with it.
+- Initially I started using SQLITE for its dependencies free setup. It works well for single processes use case. But problems of file locking with SQLITE quickly arises when I introduce concurrent workers. So then I switched to MySQL as the database engine. This choice seems to help with the concurrent loads.
+
+- Almost all of Google API's use base64 encoded content for data including Gmail messages, Gmail Attachments and Google Drive API's. Details of how to deal with Google API nuances should be described in this doc, refer to the description of Gmail APIs
+
+## Gmail APIs
 
 ### Dependencies in Node
 
@@ -148,7 +170,6 @@ SELECT id, threadId,  subject, body, datetime(date / 1000, 'unixepoch') as time 
 ##### Restart All Tasks
 
 ```
-DELETE FROM raw_contents;
 DELETE FROM emails;
 DELETE FROM attachments;
 
@@ -159,50 +180,26 @@ SET status='PENDING_CRAWL',
 ```
 
 ```
--- or this to only reprocess pending items...
-
-UPDATE threads
-INNER JOIN raw_contents ON (threads.threadId = raw_contents.threadId)
-SET threads.status='PENDING';
-
+UPDATE `emails`
+SET status='PENDING_PARSE_EMAIL'
+WHERE status != 'PENDING_PARSE_EMAIL' AND status != 'SUCCESS';
 
 UPDATE `threads`
-SET status='PENDING',
-  processedDate=null,
-  totalMessages=null
-WHERE status NOT IN (
-  'PENDING_CRAWL'
-);
-
-```
-
-##### Restart Only In-Progress Tasks
-
-```
-UPDATE threads
-SET status='PENDING',
-  processedDate=null,
-  totalMessages=null
-WHERE status = 'IN_PROGRESS';
-
-UPDATE `emails`
-SET upload_status = 'PENDING'
-WHERE upload_status != 'SUCCESS';
+SET status='PENDING_CRAWL'
+WHERE status != 'PENDING_CRAWL' AND status != 'SUCCESS';
 ```
 
 #### Get job status stats
 
 ```
-SELECT status, count(*)
+SELECT status, count(1)
 FROM `threads` GROUP by status;
 
-SELECT upload_status, count(*)
-FROM `emails` GROUP by upload_status;
+SELECT status, count(1)
+FROM `emails` GROUP by status;
+```
 
-SELECT COUNT(*) as TotalMessages FROM `emails`;
-
-SELECT COUNT(*) as RawContents FROM `raw_contents`;
-
+```
 -- if table size is too big, we can use this to get the total count instead
 Explain SELECT COUNT(1) FROM `emails`
 ```

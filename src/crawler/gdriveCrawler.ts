@@ -139,15 +139,16 @@ export async function generateDocFile(
     );
   }
 
-  rawContent = rawContent.split(/[ ]/g)
+  rawContent = rawContent
+    .split(/[ ]/g)
     .map((s) => (s || "").trim())
     .filter((s) => !!s)
     .join(" ")
     .trim()
     .replace(/[\r\n]/g, "\n")
     .split("\n")
-    .map(s => (s || '').trim())
-    .filter(s => !!s);
+    .map((s) => (s || "").trim())
+    .filter((s) => !!s);
   for (let content of rawContent) {
     content = (content || "").trim();
 
@@ -268,7 +269,7 @@ async function _processThreadEmail(email: Email) {
   try {
     await DataUtils.updateEmailUploadStatus({
       id,
-      upload_status: THREAD_JOB_STATUS_ENUM.IN_PROGRESS,
+      status: THREAD_JOB_STATUS_ENUM.IN_PROGRESS,
     });
 
     const Attachments = await DataUtils.getAttachmentByMessageId(id);
@@ -292,7 +293,9 @@ async function _processThreadEmail(email: Email) {
 
     const toEmailAddresses = toEmailList.join(", ");
 
-    const isEmailSentByMe = interestedEmails.some((myEmail) => from.includes(myEmail));
+    const isEmailSentByMe = interestedEmails.some((myEmail) =>
+      from.includes(myEmail)
+    );
 
     const isEmailSentToMySelf = interestedEmails.some((myEmail) =>
       toEmailList.some((toEmail) => toEmail.includes(myEmail))
@@ -343,7 +346,7 @@ async function _processThreadEmail(email: Email) {
 
       await DataUtils.updateEmailUploadStatus({
         id,
-        upload_status: THREAD_JOB_STATUS_ENUM.SKIPPED,
+        status: THREAD_JOB_STATUS_ENUM.SKIPPED,
       });
 
       return; // skip this
@@ -352,18 +355,16 @@ async function _processThreadEmail(email: Email) {
     if (isEmailSentByMe || isEmailSentToMySelf || hasSomeAttachments) {
       // create the bucket folder
       const fromEmailDomain = generateFolderName(from);
-      const folderIdToUse = await googleApiUtils.createDriveFolder(
-        {
-          name: fromEmailDomain,
-          description: `Chats & Emails from ${fromEmailDomain}`,
-          parentFolderId: noteDestinationFolderId,
-          starred: isEmailSentByMe,
-          folderColorRgb: isEmailSentByMe ? "#FF0000" : "#0000FF",
-          appProperties: {
-            fromDomain: fromEmailDomain,
-          },
-        }
-      );
+      const folderIdToUse = await googleApiUtils.createDriveFolder({
+        name: fromEmailDomain,
+        description: `Chats & Emails from ${fromEmailDomain}`,
+        parentFolderId: noteDestinationFolderId,
+        starred: isEmailSentByMe,
+        folderColorRgb: isEmailSentByMe ? "#FF0000" : "#0000FF",
+        appProperties: {
+          fromDomain: fromEmailDomain,
+        },
+      });
 
       // upload the doc itself
       // only log email if there're some content
@@ -471,7 +472,7 @@ async function _processThreadEmail(email: Email) {
             starred: starred,
             parentFolderId: folderIdToUse,
             appProperties: {
-              fileName: attachmentName
+              fileName: attachmentName,
             },
           });
         } catch (err) {
@@ -490,7 +491,7 @@ async function _processThreadEmail(email: Email) {
 
     await DataUtils.updateEmailUploadStatus({
       id: id,
-      upload_status: THREAD_JOB_STATUS_ENUM.SUCCESS,
+      status: THREAD_JOB_STATUS_ENUM.SUCCESS,
     });
   } catch (err) {
     logger.error(
@@ -499,7 +500,7 @@ async function _processThreadEmail(email: Email) {
 
     await DataUtils.updateEmailUploadStatus({
       id: id,
-      upload_status: THREAD_JOB_STATUS_ENUM.ERROR_GENERIC,
+      status: THREAD_JOB_STATUS_ENUM.ERROR_GENERIC,
     });
   }
 }
@@ -522,6 +523,16 @@ export async function uploadEmailThreadToGoogleDrive(targetThreadId) {
   await _init();
   const matchedResults = await DataUtils.getEmailsByThreadId(targetThreadId);
   await _processThreadEmails(matchedResults);
+}
+
+export async function uploadEmailMsgToGoogleDrive(messageId) {
+  await _init();
+  const email = await DataUtils.getEmailByMessageId(messageId);
+  if (email) {
+    await _processThreadEmails(email);
+  } else {
+    logger.error(`Cannot find message with messageId=${messageId}`);
+  }
 }
 
 export async function uploadLogsToDrive() {

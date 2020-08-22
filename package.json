@@ -11,7 +11,7 @@
     "job2": "node --max_old_space_size=4000 build/src/worker_parents.js FETCH_RAW_CONTENT",
     "job3": "node --max_old_space_size=4000 build/src/worker_parents.js PARSE_EMAIL",
     "job3_one": "echo node build/src/worker_parents.js SINGLE_RUN_PARSE_EMAIL <threadId>",
-    "job4": "node --max_old_space_size=4000 build/src/worker_parents.js UPLOAD_EMAIL",
+    "job4": "node --max_old_space_size=4000 build/src/worker_parents.js UPLOAD_EMAILS_BY_MESSAGE_ID",
     "job4_one": "echo node build/src/worker_parents.js SINGLE_RUN_UPLOAD_EMAIL <threadId>",
     "job5": "node build/src/worker_parents.js UPLOAD_LOGS",
     "start": "npm run job1; npm run job2; npm run job3",

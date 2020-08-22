@@ -73,23 +73,20 @@ export async function createNoteDestinationFolder() {
     const fromEmailDomain = generateFolderName(myEmail);
 
     promiseQueue.push(
-      createDriveFolder(
-        {
-          name: fromEmailDomain,
-          description: `Chats & Emails from ${fromEmailDomain}`,
-          parentFolderId: noteDestinationFolderId,
-          starred: true,
-          folderColorRgb: "#FF0000",
-          appProperties: {
-            fromDomain: fromEmailDomain,
-          },
-        }
-      )
-    )
+      createDriveFolder({
+        name: fromEmailDomain,
+        description: `Chats & Emails from ${fromEmailDomain}`,
+        parentFolderId: noteDestinationFolderId,
+        starred: true,
+        folderColorRgb: "#FF0000",
+        appProperties: {
+          fromDomain: fromEmailDomain,
+        },
+      })
+    );
   }
 
-  await Promise.allSettled(promiseQueue)
-
+  await Promise.allSettled(promiseQueue);
 
   return noteDestFolderId;
 }

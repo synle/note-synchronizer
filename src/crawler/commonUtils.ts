@@ -12,7 +12,9 @@ export const mySignatureTokens = (process.env.MY_SIGNATURE_TOKEN || "").split(
 );
 
 export const myEmails = (process.env.MY_EMAIL_TOKENS || "").split("|||");
-export const interestedEmails = (process.env.INTERESTED_EMAIL_TOKENS || "").split("|||").concat(myEmails);
+export const interestedEmails = (process.env.INTERESTED_EMAIL_TOKENS || "")
+  .split("|||")
+  .concat(myEmails);
 export const ignoredWordTokens = (process.env.IGNORED_WORD_TOKENS || "").split(
   "|||"
 );
@@ -69,20 +71,23 @@ export enum THREAD_JOB_STATUS_ENUM {
   SKIPPED = "SKIPPED",
   PENDING = "PENDING",
   PENDING_CRAWL = "PENDING_CRAWL",
+  PENDING_PARSE_EMAIL = "PENDING_PARSE_EMAIL",
+  PENDING_SYNC_TO_GDRIVE = "PENDING_SYNC_TO_GDRIVE",
 }
 
 export enum WORK_ACTION_ENUM {
   FETCH_THREADS = "FETCH_THREADS",
   FETCH_RAW_CONTENT = "FETCH_RAW_CONTENT",
   PARSE_EMAIL = "PARSE_EMAIL",
-  UPLOAD_EMAIL = "UPLOAD_EMAIL",
+  UPLOAD_EMAILS_BY_MESSAGE_ID = "UPLOAD_EMAILS_BY_MESSAGE_ID",
+  UPLOAD_EMAILS_BY_THREAD_ID = "UPLOAD_EMAILS_BY_THREAD_ID",
   UPLOAD_LOGS = "UPLOAD_LOGS",
   SINGLE_RUN_PARSE_EMAIL = "SINGLE_RUN_PARSE_EMAIL",
   SINGLE_RUN_UPLOAD_EMAIL = "SINGLE_RUN_UPLOAD_EMAIL",
 }
 
 export interface WorkActionRequest {
-  threadId: string;
+  id: string;
   action: WORK_ACTION_ENUM;
 }
 
