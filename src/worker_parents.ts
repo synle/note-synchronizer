@@ -7,10 +7,8 @@ import initDatabase from "./models/modelsFactory";
 
 import { initGoogleApi } from "./crawler/googleApiUtils";
 
-import { uploadEmailThreadToGoogleDrive } from "./crawler/gdriveCrawler";
 import {
   pollForNewThreadList,
-  fetchEmailsByThreadIds,
 } from "./crawler/gmailCrawler";
 
 import * as DataUtils from "./crawler/dataUtils";
@@ -109,23 +107,13 @@ async function _init() {
       process.exit();
       break;
 
-    // single run fetch email details
-    case WORK_ACTION_ENUM.SINGLE_RUN_PARSE_EMAIL:
-      await fetchEmailsByThreadIds(targetThreadIds);
-      break;
-
-    // single run upload email
-    case WORK_ACTION_ENUM.SINGLE_RUN_UPLOAD_EMAIL:
-      await uploadEmailThreadToGoogleDrive(targetThreadIds);
-      break;
-
-    // job 1
+    // job1
     case WORK_ACTION_ENUM.FETCH_THREADS:
       await pollForNewThreadList(true);
       setInterval(() => pollForNewThreadList(true), 1.5 * 60 * 60 * 1000);
       break;
 
-    // job 2
+    // job2
     case WORK_ACTION_ENUM.FETCH_RAW_CONTENT:
       await _setupWorkers(Math.min(maxThreadCount, 6));
 
@@ -134,7 +122,7 @@ async function _init() {
       await _enqueueWorkWithRemainingInputs();
       break;
 
-    // job 3
+    // job3
     case WORK_ACTION_ENUM.PARSE_EMAIL:
       await _setupWorkers(Math.min(maxThreadCount, 6));
 
@@ -146,7 +134,7 @@ async function _init() {
       await _enqueueWorkWithRemainingInputs();
       break;
 
-    // job 4a
+    // job4
     case WORK_ACTION_ENUM.UPLOAD_EMAILS_BY_MESSAGE_ID:
       await _setupWorkers(Math.min(maxThreadCount, 6));
 
@@ -155,19 +143,7 @@ async function _init() {
       await _enqueueWorkWithRemainingInputs();
       break;
 
-    // job 4b
-    // case WORK_ACTION_ENUM.UPLOAD_EMAILS_BY_THREAD_ID:
-    //   await _setupWorkers(Math.min(maxThreadCount, 6));
-
-    //   // reprocess any in progress tasks
-    //   await DataUtils.recoverInProgressThreadJobStatus();
-
-    //   // get a list of threads to start workin g
-    //   getNewWorkFunc = DataUtils.getAllThreadIdsToSyncWithGoogleDrive;
-    //   await _enqueueWorkWithRemainingInputs();
-    //   break;
-
-    // job 4
+    // job5
     case WORK_ACTION_ENUM.UPLOAD_LOGS:
       await _setupWorkers(1);
 
