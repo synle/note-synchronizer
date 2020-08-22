@@ -97,17 +97,17 @@ export class Attachment extends Model {
   @attribute(Attachment, { allowNull: false })
   public fileName!: string;
 
+  @attribute(Attachment, { type: DataTypes.INTEGER })
+  public size!: number;
+
+  @attribute(Attachment, { type: DataTypes.TINYINT(1)})
+  public inline!: number;
+
   @attribute(Attachment, { allowNull: false })
   public path!: string;
 
   @attribute(Attachment, { type: DataTypes.TEXT })
   public headers!: string;
-
-  @attribute(Attachment)
-  public size!: number;
-
-  @attribute(Attachment)
-  public inline!: boolean;
 }
 
 @table("threads", {
@@ -195,7 +195,7 @@ export class Email extends Model {
   @attribute(Email, { allowNull: false })
   public threadId!: string;
 
-  @attribute(Email, { allowNull: false })
+  @attribute(Email)
   public from!: string;
 
   @attribute(Email, { type: DataTypes.TEXT })

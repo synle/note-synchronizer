@@ -148,6 +148,7 @@ SELECT id, threadId,  subject, body, datetime(date / 1000, 'unixepoch') as time 
 ##### Restart All Tasks
 
 ```
+DELETE FROM raw_contents;
 DELETE FROM emails;
 DELETE FROM attachments;
 
@@ -155,12 +156,15 @@ UPDATE `threads`
 SET status='PENDING_CRAWL',
   processedDate=null,
   totalMessages=null;
+```
+
+```
+-- or this to only reprocess pending items...
 
 UPDATE threads
 INNER JOIN raw_contents ON (threads.threadId = raw_contents.threadId)
 SET threads.status='PENDING';
 
--- or this to only reprocess pending items...
 
 UPDATE `threads`
 SET status='PENDING',
