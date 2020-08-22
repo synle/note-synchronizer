@@ -498,7 +498,8 @@ export async function createDriveFolder(
   }
 }
 
-export async function uploadFile(
+export async function uploadFile({
+  id,
   name,
   mimeType,
   localPath,
@@ -507,7 +508,7 @@ export async function uploadFile(
   starred = false,
   parentFolderId,
   appProperties = {}
-) {
+}) {
   let mimeTypeToUse = (mimeType || "").toLowerCase();
   if (
     [
@@ -550,6 +551,7 @@ export async function uploadFile(
   // refer to this link for more metadata
   // https://developers.google.com/drive/api/v3/reference/files/create
   const fileGDriveMetadata = {
+    id,
     name,
     parents: []
       .concat(parentFolderId || [])
@@ -574,30 +576,37 @@ export async function uploadFile(
     body: fs.createReadStream(localPath),
   };
 
-  let matchedResults;
+  let foundFileId;
+  if(id){ // if id is passed in, use it
+    foundFileId = id;
+  } else {// else search for file with the same name
+    if (parentFolderId) {
+      const matchedResults = await searchDrive(
+        fileGDriveMetadata.name,
+        null,
+        parentFolderId
+      );
 
-  if (parentFolderId) {
-    matchedResults = await searchDrive(
-      fileGDriveMetadata.name,
-      null,
-      parentFolderId
-    );
+      if (matchedResults && matchedResults.length > 0) {
+        foundID = matchedResults[0].id;
+      }
+    }
   }
 
-  if (!matchedResults || matchedResults.length === 0) {
-    console.debug(
-      "Upload file with create operation",
-      `parent=${parentFolderId}`,
-      name
-    );
-    return createFileInDrive(fileGDriveMetadata, media);
-  } else {
+  if (foundFileId) {
     console.debug(
       "Upload file with update operation",
       `parent=${parentFolderId}`,
       name,
       matchedResults[0].id
     );
-    return updateFileInDrive(matchedResults[0].id, fileGDriveMetadata, media);
+    return updateFileInDrive(foundFileId, fileGDriveMetadata, media);
+  } else {
+    console.debug(
+      "Upload file with create operation",
+      `parent=${parentFolderId}`,
+      name
+    );
+    return createFileInDrive(fileGDriveMetadata, media);
   }
 }
