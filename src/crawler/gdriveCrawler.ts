@@ -178,51 +178,53 @@ export async function generateDocFile(
     );
   }
 
-  children.push(
-    new Paragraph({
-      text: 'Attachments',
-      spacing: {
-        before: 250,
-        after: 250,
-      },
-      border: {
-        top: {
-          color: "auto",
-          space: 1,
-          value: "single",
-          size: 10,
-        },
-      },
-      heading: HeadingLevel.HEADING_2,
-    })
-  );
-
-  for (const attachment of attachments) {
-    const attachmentImage = Media.addImage(
-      doc,
-      fs.readFileSync(attachment.path),
-      700,
-      800
-    );
+  if(attachments.length > 0){
     children.push(
       new Paragraph({
-        text: `${attachment.fileName}`,
-        bold: true,
-        heading: HeadingLevel.HEADING_4,
+        text: 'Attachments',
         spacing: {
           before: 250,
+          after: 250,
         },
         border: {
-          bottom: {
+          top: {
             color: "auto",
             space: 1,
             value: "single",
-            size: 6,
+            size: 10,
           },
         },
+        heading: HeadingLevel.HEADING_2,
       })
     );
-    children.push(new Paragraph(attachmentImage));
+
+    for (const attachment of attachments) {
+      const attachmentImage = Media.addImage(
+        doc,
+        fs.readFileSync(attachment.path),
+        700,
+        800
+      );
+      children.push(
+        new Paragraph({
+          text: `${attachment.fileName}`,
+          bold: true,
+          heading: HeadingLevel.HEADING_4,
+          spacing: {
+            before: 250,
+          },
+          border: {
+            bottom: {
+              color: "auto",
+              space: 1,
+              value: "single",
+              size: 6,
+            },
+          },
+        })
+      );
+      children.push(new Paragraph(attachmentImage));
+    }
   }
 
   doc.addSection({
@@ -368,20 +370,11 @@ async function _processThreadEmail(email: Email) {
           await generateDocFile(
             subject,
             `
-            Date:
-            ${friendlyDateTimeString1}
-
-            From:
-            ${from}
-
-            To:
-            ${toEmailAddresses}
-
-            ThreadId:
-            ${threadId}
-
-            MessageId:
-            ${id}
+            Date: ${friendlyDateTimeString1}
+            From: ${from}
+            To: ${toEmailAddresses}
+            ThreadId: ${threadId}
+            MessageId: ${id}
             `
               .trim()
               .split("\n"),

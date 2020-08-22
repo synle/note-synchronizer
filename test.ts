@@ -22,7 +22,7 @@ import {
 
 import Models from "./src/models/modelsSchema";
 import * as DataUtils from "./src/crawler/dataUtils";
-import { crawlUrl } from "./src/crawler/commonUtils";
+import { crawlUrl, MIME_TYPE_ENUM } from "./src/crawler/commonUtils";
 
 async function _init() {
   console.log("test inits");
@@ -117,34 +117,17 @@ async function _doWork3() {
 
 async function _doWork4() {
   await _init();
-
-  try {
-    await googleApiUtils.uploadFile(
-      "test.html",
-      "text/html",
-      "./test.html",
-      "test html file",
-      new Date().getTime(),
-      true
-    );
-  } catch (e) {
-    console.log(e.stack);
-  }
-}
-
-async function _doWork5() {
-  await _init();
   const res = await crawlUrl(
     "www.cnet.com/news/iphone-se-these-are-the-best-prepaid-plans-for-apples-399-iphone/"
   );
   console.log(res.subject);
 }
 
-async function _doWork6() {
+async function _doWork5() {
   await _init();
 
   // const threadId = '10b81ba511e00280';
-  const threadId = "10bfe7cb02d1babd";
+  const threadId = "17214ac6b31840a3";
 
   const emails = await DataUtils.getEmailsByThreadId(threadId);
 
@@ -156,14 +139,46 @@ async function _doWork6() {
   console.log(attachments[0].fileName);
   console.log(attachments[0].mimeType);
 
-  await generateDocFile(
-    email.subject,
-    email.from,
-    email.rawBody,
-    attachments,
-    "./www.test.docx"
-  );
+  try {
+    const fileName = "./www.test.docx";
+
+    await generateDocFile(
+      email.subject,
+      email.from,
+      email.rawBody,
+      attachments,
+      fileName
+    );
+
+    await googleApiUtils.uploadFile({
+      id: '1fPuwK3Nev9mCDQwAzypBhvl1XK35bWOy',
+      name: fileName,
+      mimeType: MIME_TYPE_ENUM.APP_MS_DOCX,
+      localPath: fileName,
+      description: "test html file",
+      date: email.date,
+      starred: false,
+      parentFolderId: null,
+      appProperties: {
+        aaa: 111,
+        bbb: 222
+      }
+    });
+  } catch (e) {
+    console.log(e.stack);
+  }
+}
+
+async function _doWork6() {
+  await _init();
+
+  try {
+    const someId = await googleApiUtils.generateUniqueId();
+    console.log(someId)
+  } catch (e) {
+    console.log(e.stack);
+  }
 }
 
 //
-_doWork6();
+_doWork5();
