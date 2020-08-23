@@ -263,6 +263,8 @@ async function _processThreadEmail(email: Email) {
     labelIds,
   } = email;
 
+  let docDriveFileId;
+
   try {
     await DataUtils.bulkUpsertEmails({
       id,
@@ -393,7 +395,7 @@ async function _processThreadEmail(email: Email) {
 
           // upload original doc
           const docSha = get256Hash(docFileName);
-          await googleApiUtils.uploadFile({
+          docDriveFileId = await googleApiUtils.uploadFile({
             name: docFileName,
             mimeType: MIME_TYPE_ENUM.APP_MS_DOCX,
             localPath: localPath,
@@ -442,7 +444,7 @@ async function _processThreadEmail(email: Email) {
           // upload attachment
           const attachmentSha = get256Hash(attachment.id);
 
-          await googleApiUtils.uploadFile({
+          const attachmentDriveFileId = await googleApiUtils.uploadFile({
             name: attachmentName,
             mimeType: attachment.mimeType,
             localPath: attachment.path,
@@ -476,6 +478,11 @@ async function _processThreadEmail(email: Email) {
               ...googleFileAppProperties,
             },
           });
+
+          await DataUtils.bulkUpsertAttachments({
+            id: attachment.id,
+            driveFileId: attachmentDriveFileId,
+          });
         } catch (err) {
           logger.error(
             `Error - Failed upload attachment - threadId=${threadId} id=${id} subject=${subject} attachmentName=${attachmentName} ${
@@ -493,6 +500,7 @@ async function _processThreadEmail(email: Email) {
     await DataUtils.bulkUpsertEmails({
       id: id,
       status: THREAD_JOB_STATUS_ENUM.SUCCESS,
+      driveFileId: docDriveFileId,
     });
   } catch (err) {
     logger.error(

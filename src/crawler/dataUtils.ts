@@ -97,7 +97,6 @@ export async function getRawContentsByThreadId(
   return res.map((message) => JSON.parse(message.rawApiResponse));
 }
 
-
 export async function bulkUpsertEmails(emails: Email[]) {
   emails = _makeArray(emails);
   return Models.Email.bulkCreate(emails, {
