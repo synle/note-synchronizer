@@ -597,14 +597,16 @@ export function _parseBodyWithHtml(html) {
     const dom = new JSDOM(_cleanHtml(html));
     return new JSDOM(
       new Readability(dom.window.document).parse().content
-    ).window.document.body.textContent.replace('  ', '\n').trim();
+    ).window.document.body.textContent
+      .replace("  ", "\n")
+      .trim();
   } catch (err) {
-    logger.debug(`_parseBodyWithHtml failed err=${err.stack}`)
+    logger.debug(`_parseBodyWithHtml failed err=${err.stack}`);
   }
 }
 
 export function tryParseBody(rawBody) {
-  rawBody = (rawBody || '').trim();
+  rawBody = (rawBody || "").trim();
   return (
     _parseBodyWithHtml(rawBody) || _parseBodyWithText(rawBody) || rawBody || ""
   );

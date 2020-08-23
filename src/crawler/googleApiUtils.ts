@@ -441,7 +441,7 @@ export function createFolderInDrive(resource) {
       },
       function (err, res) {
         if (err) {
-          _logAndWrapApiError(err, res, "createFolderInDrive", resource)
+          _logAndWrapApiError(err, res, "createFolderInDrive", resource);
           return null;
         }
         resolve(res.data.id);

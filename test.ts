@@ -113,19 +113,16 @@ async function _doWork3() {
   console.log(email.id, email.threadId);
 }
 
-async function _doWork4(){
+async function _doWork4() {
   await _init();
   const data = `<a href="http://www.nytimes.com/2011/02/27/your-money/27fund.html?_r=1&amp;ref=business" >http://www.nytimes.com/2011/02/27/your-money/27fund.html?_r=1&amp;ref=business</a > <div><br /></div> <div>Nam</div>`;
 
-
   var data2 = gmailCrawler.tryParseBody(data);
   console.log(data2);
-
 }
 
 //
 // _doWork0();
 //_doWork3();
-
 
 _doWork4();

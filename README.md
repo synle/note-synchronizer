@@ -189,7 +189,6 @@ SET status='PENDING_CRAWL'
 WHERE status != 'PENDING_CRAWL' AND status != 'SUCCESS';
 ```
 
-
 ```
 UPDATE `emails`
 SET status='PENDING_SYNC_TO_GDRIVE'

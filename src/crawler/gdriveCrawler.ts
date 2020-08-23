@@ -140,10 +140,11 @@ export async function generateDocFile(
     );
   }
 
-  mainContent = mainContent.trim()
+  mainContent = mainContent
+    .trim()
     .replace(/[\r\n]/g, "\n")
     .split("\n")
-    .filter(s => !!s);
+    .filter((s) => !!s);
   console.log("mainContent", mainContent.length);
   for (let content of mainContent) {
     content = (content || "").trim();
@@ -391,6 +392,7 @@ async function _processThreadEmail(email: Email) {
           logger.debug(`Upload original note file ${docFileName}`);
 
           // upload original doc
+          const docSha = get256Hash(docFileName);
           await googleApiUtils.uploadFile({
             name: docFileName,
             mimeType: MIME_TYPE_ENUM.APP_MS_DOCX,
@@ -402,12 +404,13 @@ async function _processThreadEmail(email: Email) {
             Subject: ${rawSubject}
             threadId: ${threadId}
             messageId: ${id}
+            sha: ${docSha}
             `.trim(),
             date: date,
             starred: starred,
             parentFolderId: folderIdToUse,
             appProperties: {
-              sha: get256Hash(docFileName),
+              sha: docSha,
               ...googleFileAppProperties,
             },
           });
@@ -437,6 +440,8 @@ async function _processThreadEmail(email: Email) {
 
         try {
           // upload attachment
+          const attachmentSha = get256Hash(attachment.id);
+
           await googleApiUtils.uploadFile({
             name: attachmentName,
             mimeType: attachment.mimeType,
@@ -444,32 +449,30 @@ async function _processThreadEmail(email: Email) {
             description: `
             Attachment #${AttachmentIdx}
 
-            Date
-            ${friendlyDateTimeString1}
+            Date: ${friendlyDateTimeString1}
 
-            From
-            ${from}
+            From: ${from}
 
-            Subject
-            ${rawSubject}
+            Subject: ${rawSubject}
 
-            threadId
-            ${threadId}
+            threadId: ${threadId}
 
-            id
-            ${id}
+            id: ${id}
 
-            Path
+            Path:
             ${attachment.path}
 
-            attachmentId
+            Sha:
+            ${attachmentSha}
+
+            attachmentId:
             ${attachment.id.substr(0, 50)}
             `.trim(),
             date: date,
             starred: starred,
             parentFolderId: folderIdToUse,
             appProperties: {
-              sha: get256Hash(attachment.id),
+              sha: attachmentSha,
               ...googleFileAppProperties,
             },
           });
