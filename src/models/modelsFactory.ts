@@ -93,7 +93,7 @@ export default async () => {
             errors.push(err.stack);
           }
 
-          reject(`Upsert failed ${errors.join("\n")}`);
+          reject(`${modelName} Upsert failed ${errors.join("\n")}`);
         });
         promises.push(promise);
       }

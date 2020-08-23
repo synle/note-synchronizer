@@ -1,86 +1,11 @@
 // @ts-nocheck
-import {
-  Relationship,
-  table,
-  attribute,
-  relationship,
-  index,
-} from "sequelize-typescript-decorators";
+import { table, attribute, index } from "sequelize-typescript-decorators";
 
 import { DataTypes, Model } from "sequelize";
 
-import { THREAD_JOB_STATUS_ENUM } from "../crawler/commonUtils";
-
-// parsed emails and threads
 /**
- * this is where we store all the email attachments
+ * threads
  */
-@table("attachments", {
-  timestamps: true,
-})
-@index([
-  {
-    unique: false,
-    fields: ["messageId"],
-  },
-  {
-    unique: false,
-    fields: ["threadId"],
-  },
-  {
-    unique: false,
-    fields: ["fileName"],
-  },
-  {
-    unique: false,
-    fields: ["path"],
-  },
-  {
-    unique: false,
-    fields: ["inline"],
-  },
-  {
-    unique: false,
-    fields: ["size"],
-  },
-])
-export class Attachment extends Model {
-  @attribute(Attachment, {
-    allowNull: false,
-    primaryKey: true,
-    unique: true,
-    type: DataTypes.STRING(750),
-  })
-  id!: string;
-
-  @attribute(Attachment, { allowNull: false, type: DataTypes.STRING(20) })
-  threadId!: string;
-
-  @attribute(Attachment)
-  driveFileId!: string;
-
-  @attribute(Attachment, { allowNull: false })
-  messageId!: string;
-
-  @attribute(Attachment, { allowNull: false })
-  mimeType!: string;
-
-  @attribute(Attachment, { allowNull: false })
-  fileName!: string;
-
-  @attribute(Attachment, { type: DataTypes.INTEGER, allowNull: false })
-  size!: number;
-
-  @attribute(Attachment, { type: DataTypes.TINYINT(1), allowNull: false })
-  inline!: number;
-
-  @attribute(Attachment, { allowNull: false, allowNull: false })
-  path!: string;
-
-  @attribute(Attachment, { type: DataTypes.TEXT, allowNull: false })
-  headers!: string;
-}
-
 @table("threads", {
   timestamps: true,
 })
@@ -137,6 +62,18 @@ export class Thread extends Model {
     unique: false,
     fields: ["status"],
   },
+  {
+    unique: false,
+    fields: ["subject"],
+  },
+  {
+    unique: false,
+    fields: ["labelIds"],
+  },
+  {
+    unique: false,
+    fields: ["driveFileId"],
+  },
 ])
 export class Email extends Model {
   @attribute(Email, {
@@ -162,10 +99,10 @@ export class Email extends Model {
   @attribute(Email, { type: DataTypes.TEXT })
   bcc!: string;
 
-  @attribute(Email, { type: DataTypes.TEXT })
+  @attribute(Email)
   subject!: string;
 
-  @attribute(Email, { type: DataTypes.TEXT })
+  @attribute(Email)
   rawSubject!: string;
 
   @attribute(Email, { type: "MEDIUMTEXT" })
@@ -177,7 +114,7 @@ export class Email extends Model {
   @attribute(Email, { type: DataTypes.BIGINT })
   date!: number;
 
-  @attribute(Email, { type: DataTypes.TEXT })
+  @attribute(Email, { type: DataTypes.STRING(700) })
   labelIds!: string;
 
   @attribute(Email, { allowNull: false })
@@ -187,6 +124,79 @@ export class Email extends Model {
   rawApiResponse!: string;
 
   @attribute(Email, { type: DataTypes.TEXT })
+  headers!: string;
+}
+
+/**
+ * this is where we store all the email attachments
+ */
+@table("attachments", {
+  timestamps: true,
+})
+@index([
+  {
+    unique: false,
+    fields: ["messageId"],
+  },
+  {
+    unique: false,
+    fields: ["threadId"],
+  },
+  {
+    unique: false,
+    fields: ["fileName"],
+  },
+  {
+    unique: false,
+    fields: ["path"],
+  },
+  {
+    unique: false,
+    fields: ["inline"],
+  },
+  {
+    unique: false,
+    fields: ["size"],
+  },
+  {
+    unique: false,
+    fields: ["driveFileId"],
+  },
+])
+export class Attachment extends Model {
+  @attribute(Attachment, {
+    allowNull: false,
+    primaryKey: true,
+    unique: true,
+    type: DataTypes.STRING(750),
+  })
+  id!: string;
+
+  @attribute(Attachment, { allowNull: false, type: DataTypes.STRING(20) })
+  threadId!: string;
+
+  @attribute(Attachment)
+  driveFileId!: string;
+
+  @attribute(Attachment, { allowNull: false })
+  messageId!: string;
+
+  @attribute(Attachment, { allowNull: false })
+  mimeType!: string;
+
+  @attribute(Attachment, { allowNull: false })
+  fileName!: string;
+
+  @attribute(Attachment, { type: DataTypes.INTEGER, allowNull: false })
+  size!: number;
+
+  @attribute(Attachment, { type: DataTypes.TINYINT(1), allowNull: false })
+  inline!: number;
+
+  @attribute(Attachment, { allowNull: false, allowNull: false })
+  path!: string;
+
+  @attribute(Attachment, { type: DataTypes.TEXT, allowNull: false })
   headers!: string;
 }
 

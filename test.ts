@@ -29,7 +29,8 @@ async function _init() {
 async function _doWork0() {
   await _init();
   const noteDestinationFolderId = await googleApiUtils.createNoteDestinationFolder();
-  console.debug(`Note Destintation Folder Id: ${noteDestinationFolderId}`);
+  console.debug(`
+  NOTE_DESTINATION_FOLDER_ID=${noteDestinationFolderId}`);
 }
 
 async function _doWork1() {
@@ -122,7 +123,6 @@ async function _doWork4() {
 }
 
 //
-// _doWork0();
+_doWork0();
 //_doWork3();
-
-_doWork4();
+//_doWork4();

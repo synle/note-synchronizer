@@ -39,3 +39,6 @@ processed
 redis-data
 logs
 *.docx
+*.txt
+*.jpg
+
