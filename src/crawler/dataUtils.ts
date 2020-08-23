@@ -191,18 +191,21 @@ export async function getAllMessageIdsToSyncWithGoogleDrive(
   return res.map((thread) => thread.id);
 }
 
-export async function bulkUpsertThreadJobStatuses(threads) {
-  return Models.Thread.bulkCreate(_makeArray(threads), {
-    updateOnDuplicate: [
-      "processedDate",
-      "duration",
-      "totalMessages",
-      "historyId",
-      "snippet",
-      "status",
-    ],
-  });
-}
+export async function bulkUpsertThreadJobStatuses(
+         threads,
+         fieldsToUpdate = [
+           "processedDate",
+           "duration",
+           "totalMessages",
+           "historyId",
+           "snippet",
+           "status",
+         ]
+       ) {
+         return Models.Thread.bulkCreate(_makeArray(threads), {
+           updateOnDuplicate: fieldsToUpdate,
+         });
+       }
 
 export async function recoverInProgressThreadJobStatus(oldStatus, newStatus) {
   await Models.Thread.update(

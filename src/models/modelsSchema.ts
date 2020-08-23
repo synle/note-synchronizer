@@ -86,21 +86,13 @@ export class Attachment extends Model {
     unique: false,
     fields: ["status"],
   },
-  {
-    unique: false,
-    fields: ["createdAt"],
-  },
-  {
-    unique: false,
-    fields: ["updatedAt"],
-  },
 ])
 export class Thread extends Model {
   @attribute(Thread, {
     allowNull: false,
     primaryKey: true,
     unique: true,
-    type: DataTypes.STRING(20)
+    type: DataTypes.STRING(20),
   })
   threadId!: string;
 
@@ -142,25 +134,17 @@ export class Thread extends Model {
     unique: false,
     fields: ["status"],
   },
-  {
-    unique: false,
-    fields: ["createdAt"],
-  },
-  {
-    unique: false,
-    fields: ["updatedAt"],
-  },
 ])
 export class Email extends Model {
   @attribute(Email, {
     allowNull: false,
     primaryKey: true,
     unique: true,
-    type: DataTypes.STRING(20)
+    type: DataTypes.STRING(20),
   })
   id!: string;
 
-  @attribute(Email, { allowNull: false, type: DataTypes.STRING(20)})
+  @attribute(Email, { allowNull: false, type: DataTypes.STRING(20) })
   threadId!: string;
 
   @attribute(Email)
@@ -193,7 +177,7 @@ export class Email extends Model {
   @attribute(Email)
   status!: string;
 
-  @attribute(Email, { type: "MEDIUMTEXT", allowNull: false })
+  @attribute(Email, { type: "MEDIUMTEXT" })
   rawApiResponse!: string;
 
   @attribute(Email, { type: DataTypes.TEXT })

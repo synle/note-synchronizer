@@ -7,9 +7,7 @@ import initDatabase from "./models/modelsFactory";
 
 import { initGoogleApi } from "./crawler/googleApiUtils";
 
-import {
-  pollForNewThreadList,
-} from "./crawler/gmailCrawler";
+import { pollForNewThreadList } from "./crawler/gmailCrawler";
 
 import * as DataUtils from "./crawler/dataUtils";
 
