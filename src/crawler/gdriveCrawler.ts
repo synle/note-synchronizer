@@ -264,7 +264,7 @@ async function _processThreadEmail(email: Email) {
   } = email;
 
   try {
-    await DataUtils.updateEmailUploadStatus({
+    await DataUtils.bulkUpsertEmails({
       id,
       status: THREAD_JOB_STATUS_ENUM.IN_PROGRESS,
     });
@@ -339,7 +339,7 @@ async function _processThreadEmail(email: Email) {
         `Skipped due to Ignored Pattern: threadId=${threadId} id=${id} subject=${subject}`
       );
 
-      await DataUtils.updateEmailUploadStatus({
+      await DataUtils.bulkUpsertEmails({
         id,
         status: THREAD_JOB_STATUS_ENUM.SKIPPED,
       });
@@ -490,7 +490,7 @@ async function _processThreadEmail(email: Email) {
       logger.debug(`Skipped threadId=${threadId} id=${id} subject=${subject}`);
     }
 
-    await DataUtils.updateEmailUploadStatus({
+    await DataUtils.bulkUpsertEmails({
       id: id,
       status: THREAD_JOB_STATUS_ENUM.SUCCESS,
     });
@@ -499,7 +499,7 @@ async function _processThreadEmail(email: Email) {
       `Failed to process emails with threadId=${email.threadId} messageId=${email.id} err=${err.stack}`
     );
 
-    await DataUtils.updateEmailUploadStatus({
+    await DataUtils.bulkUpsertEmails({
       id: id,
       status: THREAD_JOB_STATUS_ENUM.ERROR_GENERIC,
     });

@@ -56,6 +56,9 @@ export class Attachment extends Model {
   @attribute(Attachment, { allowNull: false, type: DataTypes.STRING(20) })
   threadId!: string;
 
+  @attribute(Email)
+  driveFileId!: string;
+
   @attribute(Attachment, { allowNull: false })
   messageId!: string;
 
@@ -65,16 +68,16 @@ export class Attachment extends Model {
   @attribute(Attachment, { allowNull: false })
   fileName!: string;
 
-  @attribute(Attachment, { type: DataTypes.INTEGER })
+  @attribute(Attachment, { type: DataTypes.INTEGER, allowNull: false })
   size!: number;
 
-  @attribute(Attachment, { type: DataTypes.TINYINT(1) })
+  @attribute(Attachment, { type: DataTypes.TINYINT(1), allowNull: false })
   inline!: number;
 
-  @attribute(Attachment, { allowNull: false })
+  @attribute(Attachment, { allowNull: false, allowNull: false })
   path!: string;
 
-  @attribute(Attachment, { type: DataTypes.TEXT })
+  @attribute(Attachment, { type: DataTypes.TEXT, allowNull: false })
   headers!: string;
 }
 
@@ -105,13 +108,13 @@ export class Thread extends Model {
   @attribute(Thread, { type: DataTypes.BIGINT })
   totalMessages!: number;
 
-  @attribute(Thread)
+  @attribute(Thread, { allowNull: false })
   historyId!: string;
 
-  @attribute(Thread)
+  @attribute(Thread, { allowNull: false })
   snippet!: string;
 
-  @attribute(Thread)
+  @attribute(Thread, { allowNull: false })
   status!: string;
 }
 
@@ -148,6 +151,9 @@ export class Email extends Model {
   threadId!: string;
 
   @attribute(Email)
+  driveFileId!: string;
+
+  @attribute(Email)
   from!: string;
 
   @attribute(Email, { type: DataTypes.TEXT })
@@ -174,10 +180,10 @@ export class Email extends Model {
   @attribute(Email, { type: DataTypes.TEXT })
   labelIds!: string;
 
-  @attribute(Email)
+  @attribute(Email, { allowNull: false })
   status!: string;
 
-  @attribute(Email, { type: "MEDIUMTEXT" })
+  @attribute(Email, { type: "MEDIUMTEXT", allowNull: false })
   rawApiResponse!: string;
 
   @attribute(Email, { type: DataTypes.TEXT })

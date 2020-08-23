@@ -65,6 +65,7 @@ export interface Attachment {
   fileName: string;
   path: string;
   headers: string;
+  size: number;
 }
 
 export interface WebContent {
