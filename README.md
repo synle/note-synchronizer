@@ -192,17 +192,23 @@ WHERE status != 'PENDING_CRAWL' AND status != 'SUCCESS';
 ```
 UPDATE `emails`
 SET status='PENDING_SYNC_TO_GDRIVE'
-WHERE status != 'PENDING_SYNC_TO_GDRIVE' AND status != 'SUCCESS' AND status != 'PENDING_PARSE_EMAIL';
+WHERE status != 'PENDING_SYNC_TO_GDRIVE' AND status != 'PENDING_PARSE_EMAIL';
+
+UPDATE `threads`
+SET status='PENDING_CRAWL'
+WHERE status != 'PENDING_CRAWL' AND status != 'SUCCESS';
 ```
 
 #### Get job status stats
 
 ```
-SELECT status, count(1)
+SELECT status as Thread_Status, count(1)
 FROM `threads` GROUP by status;
 
-SELECT status, count(1)
+SELECT status as Email_Status, count(1)
 FROM `emails` GROUP by status;
+
+SELECT count(1) as Attachment_Count FROM attachments;
 ```
 
 ```

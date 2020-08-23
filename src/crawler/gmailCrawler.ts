@@ -4,6 +4,7 @@ import { Readability } from "@mozilla/readability";
 import { Base64 } from "js-base64";
 import { JSDOM } from "jsdom";
 import prettier from "prettier";
+import truncate from "lodash/truncate";
 
 import {
   Email,
@@ -128,6 +129,8 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
       const { id, threadId, labelIds } = message;
 
       try {
+        let rawBodyPlain = "";
+        let rawBodyHtml = "";
         let rawBody = "";
         const parts = googleApiUtils.flattenGmailPayloadParts(message.payload);
         if (parts && parts.length > 0) {
@@ -226,12 +229,12 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                   break;
 
                 case MIME_TYPE_ENUM.TEXT_PLAIN:
+                  rawBodyPlain = data;
+                  break;
+
                 case MIME_TYPE_ENUM.TEXT_X_AMP_HTML:
                 case MIME_TYPE_ENUM.TEXT_HTML:
-                  if (!rawBody) {
-                    // only store the rawbody if it's not already defined
-                    rawBody = data;
-                  }
+                  rawBodyHtml = data;
                   break;
               }
             }
@@ -246,13 +249,14 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
         const bcc = _parseEmailAddressList(headers.bcc);
 
-        const rawSubject = (headers.subject || "").trim();
+        const rawSubject = (headers.subject || `${from} ${id}`).trim();
 
         // see if we need to handle further fetching from here
         // here we might face body of a url or subject of a url
         let subject = rawSubject;
 
         // stripped down body (remove signatures and clean up the dom)
+        rawBody = rawBodyPlain || rawBodyHtml;
         let strippedDownBody = tryParseBody(rawBody); // attempt at using one of the parser;
 
         // trim the signatures
@@ -275,13 +279,15 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               `Done CrawlUrl threadId=${threadId} id=${id} url=${urlToCrawl} res=${websiteRes.subject}`
             );
 
-            subject = (websiteRes.subject || "").trim();
+            subject = (websiteRes.subject || rawSubject).trim();
             body = tryParseBody(`
               ${body}
-                <br /><br />
 
-                <a href='${urlToCrawl}'>${urlToCrawl}</a>
-                <br /><br />
+              ------------------------------------------------
+
+              ${urlToCrawl}
+
+              ------------------------------------------------
 
                 ${websiteRes.body}
             `);
@@ -304,14 +310,15 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               `Done CrawlUrl threadId=${threadId} id=${id} url=${urlToCrawl} res=${websiteRes.subject}`
             );
 
-            subject = `${subject} - ${websiteRes.subject || ""}`.trim();
+            subject = (websiteRes.subject || rawSubject).trim();
             body = tryParseBody(`
               ${body}
-              <br /><br />
 
+              ------------------------------------------------
 
-              <a href='${urlToCrawl}'>${urlToCrawl}</a>
-              <br /><br />
+              ${urlToCrawl}
+
+              ------------------------------------------------
 
 
               ${websiteRes.body}
@@ -324,8 +331,6 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           }
         }
 
-        const fallbackSubject = `${from} ${id}`;
-
         const messageToSave = {
           id,
           threadId,
@@ -333,8 +338,12 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           from: from || null,
           body: body || null,
           rawBody: rawBody || null,
-          subject: subject || fallbackSubject,
-          rawSubject: rawSubject || null,
+          subject: truncate(subject, {
+            length: 250,
+          }),
+          rawSubject: truncate(rawSubject, {
+            length: 250,
+          }),
           headers: JSON.stringify(headers),
           to: to.join(",") || null,
           bcc: bcc.join(",") || null,

@@ -6,7 +6,7 @@ import { parsePageTitle } from "./gmailCrawler";
 import { WebContent } from "../types";
 
 // default timeout for axios
-axios.defaults.timeout = 2000;
+axios.defaults.timeout = 4000;
 
 export const mySignatureTokens = (process.env.MY_SIGNATURE_TOKEN || "").split(
   "|||"

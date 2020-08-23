@@ -29,6 +29,7 @@ const workers = [];
 let intervalWorkSchedule;
 let lastWorkIdx, remainingWorkInputs;
 let getNewWorkFunc = () => {};
+const WORKER_REFRESH_INTERVAL = 1000;
 
 const action = process.argv[2] || "";
 const targetThreadIds = (process.argv[3] || "")
@@ -113,7 +114,7 @@ async function _init() {
 
     // job2
     case WORK_ACTION_ENUM.FETCH_RAW_CONTENT:
-      await _setupWorkers(Math.min(maxThreadCount, 6));
+      await _setupWorkers(Math.min(maxThreadCount, process.env.MAX_THREADS_FETCH_RAW_CONTENT || 6));
 
       // get a list of threads to start working
       getNewWorkFunc = DataUtils.getAllThreadIdsToFetchRawContents;
@@ -122,7 +123,7 @@ async function _init() {
 
     // job3
     case WORK_ACTION_ENUM.PARSE_EMAIL:
-      await _setupWorkers(Math.min(maxThreadCount, 6));
+      await _setupWorkers(Math.min(maxThreadCount, process.env.MAX_THREADS_PARSE_EMAIL || 6));
 
       // reprocess any in progress tasks
       await DataUtils.recoverInProgressThreadJobStatus();
@@ -134,7 +135,7 @@ async function _init() {
 
     // job4
     case WORK_ACTION_ENUM.UPLOAD_EMAILS_BY_MESSAGE_ID:
-      await _setupWorkers(Math.min(maxThreadCount, 6));
+      await _setupWorkers(Math.min(maxThreadCount, process.env.MAX_THREADS_UPLOAD_EMAILS_BY_MESSAGE_ID || 6));
 
       // get a list of threads to start working
       getNewWorkFunc = DataUtils.getAllMessageIdsToSyncWithGoogleDrive;
@@ -169,20 +170,16 @@ async function _enqueueWorkWithRemainingInputs() {
   remainingWorkInputs = remainingWorkInputs || [];
 
   if (remainingWorkInputs.length === 0) {
-    // logger.debug(
-    //   `Finding work to do command=${action} workers=${workers.length}`
-    // );
+    logger.debug(
+      `Finding work to do command=${action} workers=${workers.length}`
+    );
     clearInterval(intervalWorkSchedule);
     remainingWorkInputs = await getNewWorkFunc();
     lastWorkIdx = 0;
-
-    if (remainingWorkInputs.length > 0) {
-      // start new work right away
-      intervalWorkSchedule = setInterval(_enqueueWorkWithRemainingInputs, 1000);
-    } else {
-      // put a delay before retrying
-      setTimeout(_enqueueWorkWithRemainingInputs, 15 * 60000);
-    }
+    intervalWorkSchedule = setInterval(
+      _enqueueWorkWithRemainingInputs,
+      WORKER_REFRESH_INTERVAL
+    );
   } else if (
     lastWorkIdx < remainingWorkInputs.length &&
     remainingWorkInputs.length > 0
@@ -212,6 +209,7 @@ async function _enqueueWorkWithRemainingInputs() {
 
         remainingWorkInputs = []; // note that this will trigger fetching new work
         lastWorkIdx = 0;
+        break;
       }
     }
 

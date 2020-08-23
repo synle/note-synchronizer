@@ -96,8 +96,6 @@ export async function createNoteDestinationFolder() {
  * @param onAfterInitFunc
  */
 export function initGoogleApi(onAfterInitFunc = () => {}) {
-  logger.debug("initGoogleApi Begin");
-
   return new Promise((resolve, reject) => {
     // Load client secrets from a local file.
     fs.readFile(GMAIL_CREDENTIALS_PATH, (err, content) => {
@@ -106,10 +104,7 @@ export function initGoogleApi(onAfterInitFunc = () => {}) {
       authorizeGoogle(JSON.parse(content), async function (auth) {
         gmailApiInstance = google.gmail({ version: "v1", auth });
         driveApiInstance = google.drive({ version: "v3", auth });
-
         onAfterInitFunc(gmailApiInstance, driveApiInstance);
-        logger.debug("initGoogleApi Done");
-
         resolve();
       });
     });
@@ -399,7 +394,7 @@ export function createFileInDrive(resource, media) {
             _logAndWrapApiError(err, res, "createFileInDrive", resource, media)
           );
         }
-        resolve(res.data);
+        resolve(res.data.id);
       }
     );
   });
@@ -426,7 +421,7 @@ export function updateFileInDrive(fileId, resource, media) {
             )
           );
         }
-        resolve(res.data);
+        resolve(res.data.id);
       }
     );
   });

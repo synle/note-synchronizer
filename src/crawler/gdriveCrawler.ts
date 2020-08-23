@@ -36,7 +36,7 @@ let noteDestinationFolderId;
 
 const PROCESSED_EMAIL_PREFIX_PATH = "./processed";
 
-const MINIMUM_IMAGE_SIZE_IN_BITS = 16000;
+const FORMAT_DATE_TIME1 = "MM/DD/YY hh:mmA";
 
 function _sanitizeFileName(string) {
   return string
@@ -308,7 +308,7 @@ async function _processThreadEmail(email: Email) {
       nonImageAttachments.length > 0 || imagesAttachments.length > 0;
 
     const friendlyDateTimeString1 = moment(parseInt(date) * 1000).format(
-      "MM/DD/YY hh:mmA"
+      FORMAT_DATE_TIME1
     );
 
     const friendlyDateTimeString2 = moment(parseInt(date) * 1000).format(
@@ -316,9 +316,9 @@ async function _processThreadEmail(email: Email) {
     );
 
     if (labelIdsList.some((labelId) => labelId.includes("CHAT"))) {
-      subject = `Chat ${friendlyDateTimeString2} ${subject}`;
+      subject = `${friendlyDateTimeString2} Chat : ${subject}`;
     } else {
-      subject = `Email ${friendlyDateTimeString2} ${subject}`;
+      subject = `${friendlyDateTimeString2} ${subject}`;
     }
 
     let docFileName = `${subject}`;
@@ -373,16 +373,19 @@ async function _processThreadEmail(email: Email) {
 
       if (rawBody.length > 0) {
         docFileName = _sanitizeFileName(subject);
+        const docSha = get256Hash(docFileName);
 
         try {
           await generateDocFile(
             subject,
             `
             Date: ${friendlyDateTimeString1}
+            Uploaded: ${moment().format(FORMAT_DATE_TIME1)}
             From: ${from}
             To: ${toEmailAddresses}
             ThreadId: ${threadId}
             MessageId: ${id}
+            SHA: ${docSha}
             `
               .trim()
               .split("\n"),
@@ -394,7 +397,6 @@ async function _processThreadEmail(email: Email) {
           logger.debug(`Upload original note file ${docFileName}`);
 
           // upload original doc
-          const docSha = get256Hash(docFileName);
           docDriveFileId = await googleApiUtils.uploadFile({
             name: docFileName,
             mimeType: MIME_TYPE_ENUM.APP_MS_DOCX,
@@ -402,11 +404,16 @@ async function _processThreadEmail(email: Email) {
             description: `
             Main Email
             Date: ${friendlyDateTimeString1}
+
             From: ${from}
+
             Subject: ${rawSubject}
-            threadId: ${threadId}
-            messageId: ${id}
-            sha: ${docSha}
+
+            ThreadId: ${threadId}
+
+            MessageId: ${id}
+
+            SHA: ${docSha}
             `.trim(),
             date: date,
             starred: starred,
@@ -457,18 +464,16 @@ async function _processThreadEmail(email: Email) {
 
             Subject: ${rawSubject}
 
-            threadId: ${threadId}
+            ThreadId: ${threadId}
 
-            id: ${id}
+            MessageId: ${id}
 
-            Path:
-            ${attachment.path}
+            Path: ${attachment.path}
 
-            Sha:
+            AttachmentId: ${attachment.id.substr(0, 50)}
+
+            SHA:
             ${attachmentSha}
-
-            attachmentId:
-            ${attachment.id.substr(0, 50)}
             `.trim(),
             date: date,
             starred: starred,
@@ -504,7 +509,9 @@ async function _processThreadEmail(email: Email) {
     });
   } catch (err) {
     logger.error(
-      `Failed to process emails with threadId=${email.threadId} messageId=${email.id} err=${err.stack}`
+      `Failed to upload emails with threadId=${email.threadId} messageId=${
+        email.id
+      } err=${err.stack || JSON.stringify(err)}`
     );
 
     await DataUtils.bulkUpsertEmails({
