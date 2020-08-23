@@ -11,10 +11,6 @@ export default async () => {
   // notes such as emails and attachments
   const dialect = process.env.DB_DIALECT || "mysql" || "sqlite";
 
-  logger.debug(
-    `initDatabase start - ${dialect} - ${process.env.DB_HOST} - ${process.env.DB_NAME}`
-  );
-
   if (dialect === "mysql") {
     // mysql
     const sequelize = new Sequelize(
@@ -63,5 +59,45 @@ export default async () => {
     }
   }
 
-  logger.debug("initDatabase Done");
+  // introduce bulkUpsert
+  Object.keys(Models).forEach((modelName) => {
+    Models[modelName].bulkUpsert = function (items, updateOnDuplicate) {
+      items = [].concat(items || []);
+
+      if (items.length > 30) {
+        return this.bulkCreate(items, { updateOnDuplicate });
+      }
+
+      const priKey = this.primaryKeyAttributes[0];
+      const promises = [];
+
+      for (const item of items) {
+        const promise = new Promise(async (resolve, reject) => {
+          const errors = [];
+          try {
+            await this.create(item);
+            return resolve("Created");
+          } catch (err) {
+            errors.push(err.stack);
+          }
+
+          try {
+            // try update, if failed, then try create
+            await this.update(item, {
+              where: {
+                [priKey]: item[priKey],
+              },
+            });
+            return resolve("Updated");
+          } catch (err) {
+            errors.push(err.stack);
+          }
+
+          reject(`Upsert failed ${errors.join("\n")}`);
+        });
+        promises.push(promise);
+      }
+      return Promise.all(promises);
+    };
+  });
 };

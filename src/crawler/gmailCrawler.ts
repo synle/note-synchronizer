@@ -30,7 +30,6 @@ import { allColors } from "winston/lib/winston/config";
 
 // google crawler
 const GMAIL_ATTACHMENT_PATH = "./attachments";
-const GMAIL_PATH_THREAD_LIST_TOKEN = `./caches/gmail.threads_last_tokens.data`;
 
 const MAX_TIME_PER_THREAD = 20 * 60 * 1000; // spend up to this many mins per thread
 // crawler start
@@ -127,7 +126,6 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
     // start processing
     for (let message of threadMessages) {
       const { id, threadId, labelIds } = message;
-      const messageDate = message.internalDate;
 
       try {
         let rawBody = "";
@@ -228,15 +226,12 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                   break;
 
                 case MIME_TYPE_ENUM.TEXT_PLAIN:
+                case MIME_TYPE_ENUM.TEXT_X_AMP_HTML:
+                case MIME_TYPE_ENUM.TEXT_HTML:
                   if (!rawBody) {
                     // only store the rawbody if it's not already defined
                     rawBody = data;
                   }
-                  break;
-
-                case MIME_TYPE_ENUM.TEXT_X_AMP_HTML:
-                case MIME_TYPE_ENUM.TEXT_HTML:
-                  rawBody = _prettifyHtml(data);
                   break;
               }
             }
@@ -252,8 +247,6 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
         const bcc = _parseEmailAddressList(headers.bcc);
 
         const rawSubject = (headers.subject || "").trim();
-
-        const date = new Date(headers.date).getTime() || messageDate;
 
         // see if we need to handle further fetching from here
         // here we might face body of a url or subject of a url
@@ -345,7 +338,6 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           headers: JSON.stringify(headers),
           to: to.join(",") || null,
           bcc: bcc.join(",") || null,
-          date,
           labelIds: (labelIds || []).join(",") || null,
           rawApiResponse: JSON.stringify(message),
         };
@@ -402,7 +394,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
     await DataUtils.bulkUpsertThreadJobStatuses({
       threadId: targetThreadId,
-      processedDate: Date.now(),
+      processedDate: Math.round(Date.now() / 1000),
       duration: Math.round((Date.now() - startTime) / 1000),
       totalMessages: threadMessages.length,
       status: THREAD_JOB_STATUS_ENUM.SUCCESS,
@@ -455,23 +447,12 @@ function _parseEmailAddress(emailAddress) {
   }
 }
 
-async function _pollNewEmailThreads(doFullLoad, q = "") {
+async function _pollNewEmailThreads(q = "") {
   const startTime = Date.now();
 
   let countPageProcessed = 0;
   let pageToken = "";
   let threadIds = [];
-
-  if (doFullLoad !== true) {
-    try {
-      pageToken = fs
-        .readFileSync(GMAIL_PATH_THREAD_LIST_TOKEN, "UTF-8")
-        .split("\n")
-        .map((r) => r.trim())
-        .filter((r) => !!r);
-      pageToken = pageToken[pageToken.length - 1] || "";
-    } catch (e) {}
-  }
 
   let countTotalPagesToCrawl = process.env.GMAIL_PAGES_TO_CRAWL || 1;
 
@@ -480,6 +461,7 @@ async function _pollNewEmailThreads(doFullLoad, q = "") {
   );
 
   let countThreadsSoFar = 0;
+  const promises = [];
 
   while (countPageProcessed < countTotalPagesToCrawl) {
     countPageProcessed++;
@@ -493,16 +475,18 @@ async function _pollNewEmailThreads(doFullLoad, q = "") {
       pageToken = nextPageToken;
 
       if (threadIds.length > 0) {
-        await DataUtils.bulkUpsertThreadJobStatuses(
-          threadIds.map(({ id, historyId, snippet }) => ({
-            threadId: id,
-            historyId,
-            snippet,
-            processedDate: null,
-            duration: null,
-            totalMessages: null,
-            status: THREAD_JOB_STATUS_ENUM.PENDING_CRAWL,
-          }))
+        promises.push(
+          DataUtils.bulkUpsertThreadJobStatuses(
+            threadIds.map(({ id, historyId, snippet }) => ({
+              threadId: id,
+              historyId,
+              snippet,
+              processedDate: null,
+              duration: null,
+              totalMessages: null,
+              status: THREAD_JOB_STATUS_ENUM.PENDING_CRAWL,
+            }))
+          )
         );
       }
 
@@ -512,11 +496,9 @@ async function _pollNewEmailThreads(doFullLoad, q = "") {
         break;
       }
 
-      fs.appendFileSync(GMAIL_PATH_THREAD_LIST_TOKEN, nextPageToken + "\n");
-
       if (countPageProcessed % 25 === 0 && countPageProcessed > 0) {
         logger.debug(
-          `So far, ${countPageProcessed} pages crawled  q=${q}: ${countThreadsSoFar} threads found`
+          `So far crawled q=${q} totalPages=${countPageProcessed} totalThreads=${countThreadsSoFar}`
         );
       }
     } catch (err) {
@@ -527,7 +509,11 @@ async function _pollNewEmailThreads(doFullLoad, q = "") {
     }
   }
 
-  logger.debug(`${countPageProcessed} total pages crawled:  q=${q}`);
+  await Promise.all(promises);
+
+  logger.debug(
+    `Done crawling q=${q} totalPages=${countPageProcessed} totalThreads=${countThreadsSoFar}`
+  );
 
   logger.debug(
     `Done Crawl list of email threads: q=${q} duration=${
@@ -711,7 +697,7 @@ export async function fetchRawContentsByThreadId(threadIds) {
             id: id,
             threadId: threadId,
             rawApiResponse: JSON.stringify(message),
-            date: message.internalDate || Date.now(),
+            date: Math.round((message.internalDate || Date.now()) / 1000),
             status: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
           };
 
@@ -750,8 +736,8 @@ export async function fetchRawContentsByThreadId(threadIds) {
 /**
  * This is simply to get a list of all email threadIds
  */
-export async function pollForNewThreadList(doFullLoad = true) {
-  _pollNewEmailThreads(doFullLoad, "from:(me)"); // get emails sent by me
-  _pollNewEmailThreads(doFullLoad, "in:drafts"); // messages that are in draft
-  _pollNewEmailThreads(doFullLoad); // get emails from inbox
+export async function pollForNewThreadList() {
+  _pollNewEmailThreads("from:(me)"); // get emails sent by me
+  _pollNewEmailThreads("in:drafts"); // messages that are in draft
+  _pollNewEmailThreads(""); // get emails from inbox
 }
