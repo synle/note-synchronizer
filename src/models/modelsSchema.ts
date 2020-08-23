@@ -56,7 +56,7 @@ export class Attachment extends Model {
   @attribute(Attachment, { allowNull: false, type: DataTypes.STRING(20) })
   threadId!: string;
 
-  @attribute(Email)
+  @attribute(Attachment)
   driveFileId!: string;
 
   @attribute(Attachment, { allowNull: false })
