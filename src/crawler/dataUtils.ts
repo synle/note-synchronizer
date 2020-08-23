@@ -26,8 +26,9 @@ export async function getAttachmentByMessageId(messageId) {
 }
 
 export async function bulkUpsertAttachments(attachments) {
-  return Models.Attachment.bulkCreate(_makeArray(attachments), {
-    updateOnDuplicate: ["mimeType", "fileName", "path", "headers"],
+  attachments = _makeArray(attachments);
+  return Models.Attachment.bulkCreate(attachments, {
+    updateOnDuplicate: Object.keys(attachments[0]),
   });
 }
 
@@ -82,33 +83,25 @@ export async function getEmailByMessageId(messageId): Email {
   return null;
 }
 
-export async function bulkUpsertEmails(
-  emails: Email[],
-  fieldsToUpdate = [
-    "from",
-    "body",
-    "rawBody",
-    "subject",
-    "rawSubject",
-    "headers",
-    "to",
-    "bcc",
-    "date",
-    "status",
-    "size",
-    "inline",
-  ]
-) {
-  return Models.Email.bulkCreate(_makeArray(emails), {
-    updateOnDuplicate: fieldsToUpdate,
+// raw content
+export async function getRawContentsByThreadId(
+  threadId
+): Promise<GmailMessageResponse[]> {
+  const res = await Models.Email.findAll({
+    attributes: ["rawApiResponse"],
+    where: {
+      threadId,
+    },
+    raw: true,
   });
+  return res.map((message) => JSON.parse(message.rawApiResponse));
 }
 
-export async function updateEmailUploadStatus(email: Email) {
-  return Models.Email.update(email, {
-    where: {
-      id: email.id,
-    },
+
+export async function bulkUpsertEmails(emails: Email[]) {
+  emails = _makeArray(emails);
+  return Models.Email.bulkCreate(emails, {
+    updateOnDuplicate: Object.keys(emails[0]),
   });
 }
 
@@ -121,9 +114,6 @@ export async function getAllThreadIdsToFetchRawContents() {
         [Op.eq]: THREAD_JOB_STATUS_ENUM.PENDING_CRAWL,
       },
     },
-    order: [
-      ["updatedAt", "DESC"], // start with the one that changes recenty
-    ],
     raw: true,
   };
 
@@ -140,9 +130,6 @@ export async function getAllThreadIdsToParseEmails(limit = 2250) {
         [Op.eq]: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
       },
     },
-    // order: [
-    //   ["updatedAt", "DESC"], // start with the one that changes recenty
-    // ],
     raw: true,
     limit,
   };
@@ -163,9 +150,6 @@ export async function getAllThreadIdsToSyncWithGoogleDrive(
         [Op.eq]: THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE,
       },
     },
-    // order: [
-    //   ["date", "DESC"], // start with the most recent one first
-    // ],
     raw: true,
     limit,
   });
@@ -182,33 +166,21 @@ export async function getAllMessageIdsToSyncWithGoogleDrive(
         [Op.eq]: THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE,
       },
     },
-    // order: [
-    //   ["date", "DESC"], // start with the most recent one first
-    // ],
     raw: true,
     limit,
   });
   return res.map((thread) => thread.id);
 }
 
-export async function bulkUpsertThreadJobStatuses(
-         threads,
-         fieldsToUpdate = [
-           "processedDate",
-           "duration",
-           "totalMessages",
-           "historyId",
-           "snippet",
-           "status",
-         ]
-       ) {
-         return Models.Thread.bulkCreate(_makeArray(threads), {
-           updateOnDuplicate: fieldsToUpdate,
-         });
-       }
+export async function bulkUpsertThreadJobStatuses(threads) {
+  threads = _makeArray(threads);
+  return Models.Thread.bulkCreate(threads, {
+    updateOnDuplicate: Object.keys(threads[0]),
+  });
+}
 
 export async function recoverInProgressThreadJobStatus(oldStatus, newStatus) {
-  await Models.Thread.update(
+  const promiseThread = Models.Thread.update(
     {
       status: THREAD_JOB_STATUS_ENUM.PENDING_CRAWL,
       duration: null,
@@ -221,7 +193,7 @@ export async function recoverInProgressThreadJobStatus(oldStatus, newStatus) {
     }
   );
 
-  await Models.Email.update(
+  const promiseEmail = Models.Email.update(
     {
       status: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
     },
@@ -231,18 +203,6 @@ export async function recoverInProgressThreadJobStatus(oldStatus, newStatus) {
       },
     }
   );
-}
 
-// raw content
-export async function getRawContentsByThreadId(
-  threadId
-): Promise<GmailMessageResponse[]> {
-  const res = await Models.Email.findAll({
-    attributes: ["rawApiResponse"],
-    where: {
-      threadId,
-    },
-    raw: true,
-  });
-  return res.map((message) => JSON.parse(message.rawApiResponse));
+  await Promise.all([promiseThread, promiseEmail]);
 }

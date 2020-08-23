@@ -371,14 +371,11 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           status: THREAD_JOB_STATUS_ENUM.ERROR_CRAWL,
         });
 
-        await DataUtils.bulkUpsertEmails(
-          {
-            id,
-            threadId,
-            status: THREAD_JOB_STATUS_ENUM.ERROR_CRAWL,
-          },
-          ["status"]
-        );
+        await DataUtils.bulkUpsertEmails({
+          id,
+          threadId,
+          status: THREAD_JOB_STATUS_ENUM.ERROR_CRAWL,
+        });
         break;
       }
     }
