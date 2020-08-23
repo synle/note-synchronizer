@@ -307,11 +307,11 @@ async function _processThreadEmail(email: Email) {
     const hasSomeAttachments =
       nonImageAttachments.length > 0 || imagesAttachments.length > 0;
 
-    const friendlyDateTimeString1 = moment(parseInt(date)).format(
+    const friendlyDateTimeString1 = moment(parseInt(date) * 1000).format(
       "MM/DD/YY hh:mmA"
     );
 
-    const friendlyDateTimeString2 = moment(parseInt(date)).format(
+    const friendlyDateTimeString2 = moment(parseInt(date) * 1000).format(
       "YY/MM/DD HH:mm"
     );
 

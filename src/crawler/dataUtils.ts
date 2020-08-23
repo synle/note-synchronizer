@@ -8,10 +8,6 @@ import Models from "../models/modelsSchema";
 
 import { THREAD_JOB_STATUS_ENUM } from "./commonUtils";
 
-function _makeArray(arr) {
-  return [].concat(arr || []);
-}
-
 // attachments
 export async function getAttachmentByMessageId(messageId) {
   return Models.Attachment.findAll({
@@ -26,10 +22,7 @@ export async function getAttachmentByMessageId(messageId) {
 }
 
 export async function bulkUpsertAttachments(attachments) {
-  attachments = _makeArray(attachments);
-  return Models.Attachment.bulkCreate(attachments, {
-    updateOnDuplicate: Object.keys(attachments[0]),
-  });
+  return Models.Attachment.bulkUpsert(attachments);
 }
 
 // emails
@@ -98,10 +91,7 @@ export async function getRawContentsByThreadId(
 }
 
 export async function bulkUpsertEmails(emails: Email[]) {
-  emails = _makeArray(emails);
-  return Models.Email.bulkCreate(emails, {
-    updateOnDuplicate: Object.keys(emails[0]),
-  });
+  return Models.Email.bulkUpsert(emails);
 }
 
 // step 1 fetch raw content
@@ -172,10 +162,12 @@ export async function getAllMessageIdsToSyncWithGoogleDrive(
 }
 
 export async function bulkUpsertThreadJobStatuses(threads) {
-  threads = _makeArray(threads);
-  return Models.Thread.bulkCreate(threads, {
-    updateOnDuplicate: Object.keys(threads[0]),
-  });
+  return Models.Thread.bulkUpsert(threads, [
+    "status",
+    "processedDate",
+    "totalMessages",
+    "historyId",
+  ]);
 }
 
 export async function recoverInProgressThreadJobStatus(oldStatus, newStatus) {
