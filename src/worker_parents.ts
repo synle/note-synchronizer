@@ -1,20 +1,13 @@
 // @ts-nocheck
+import { logger, initLogger } from "./loggers";
+initLogger(Date.now());
 require("dotenv").config();
 import path from "path";
-import { Worker, threadId } from "worker_threads";
-
+import { Worker } from "worker_threads";
 import initDatabase from "./models/modelsFactory";
-
-import {
-  initGoogleApi,
-  createNoteDestinationFolder,
-} from "./crawler/googleApiUtils";
-
-import { pollForNewThreadList } from "./crawler/gmailCrawler";
-
+import * as googleApiUtils from "./crawler/googleApiUtils";
+import * as gmailCrawler from "./crawler/gmailCrawler";
 import * as DataUtils from "./crawler/dataUtils";
-
-import { logger } from "./loggers";
 
 import {
   WORKER_STATUS_ENUM,
@@ -34,10 +27,6 @@ let getNewWorkFunc = () => {};
 const WORKER_REFRESH_INTERVAL = 1000;
 
 const action = process.argv[2] || "";
-const targetThreadIds = (process.argv[3] || "")
-  .split(",")
-  .map((r) => (r || "").trim())
-  .filter((r) => !!r);
 
 process.title = `Node Note-Sync ${action}`;
 
@@ -100,7 +89,7 @@ function _setupWorkers(inputThreadToSpawn) {
 }
 
 async function _init() {
-  await initGoogleApi();
+  await googleApiUtils.initGoogleApi();
   await initDatabase();
 
   switch (action) {
@@ -111,13 +100,16 @@ async function _init() {
 
     // job0
     case WORK_ACTION_ENUM.GENERATE_CONTAINER_FOLDERS:
-      await createNoteDestinationFolder();
+      await googleApiUtils.createNoteDestinationFolder();
       break;
 
     // job1
     case WORK_ACTION_ENUM.FETCH_THREADS:
-      await pollForNewThreadList(true);
-      setInterval(() => pollForNewThreadList(true), 1.5 * 60 * 60 * 1000);
+      await gmailCrawler.pollForNewThreadList(true);
+      setInterval(
+        () => gmailCrawler.pollForNewThreadList(true),
+        1.5 * 60 * 60 * 1000
+      );
       break;
 
     // job2
@@ -169,9 +161,9 @@ async function _enqueueWorkWithRemainingInputs() {
   remainingWorkInputs = remainingWorkInputs || [];
 
   if (remainingWorkInputs.length === 0) {
-    logger.debug(
-      `Finding work to do command=${action} workers=${workers.length}`
-    );
+    // logger.debug(
+    //   `Finding work to do command=${action} workers=${workers.length}`
+    // );
     clearTimeout(timerWorkSchedule);
     remainingWorkInputs = await getNewWorkFunc();
     lastWorkIdx = 0;
@@ -179,9 +171,9 @@ async function _enqueueWorkWithRemainingInputs() {
     lastWorkIdx < remainingWorkInputs.length &&
     remainingWorkInputs.length > 0
   ) {
-    logger.debug(
-      `Distribute works command=${action} workers=${workers.length}`
-    );
+    // logger.debug(
+    //   `Distribute works command=${action} workers=${workers.length}`
+    // );
 
     for (let worker of workers) {
       if (worker.status === WORKER_STATUS_ENUM.FREE) {

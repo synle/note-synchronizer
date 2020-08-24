@@ -1,4 +1,6 @@
 // @ts-nocheck
+import { logger, initLogger } from "./loggers";
+initLogger(Date.now());
 require("dotenv").config();
 import { isMainThread } from "worker_threads";
 import { workerData } from "worker_threads";
@@ -6,26 +8,11 @@ import { parentPort } from "worker_threads";
 
 import initDatabase from "./models/modelsFactory";
 
-import { initGoogleApi } from "./crawler/googleApiUtils";
+import * as googleApiUtils from "./crawler/googleApiUtils";
+import * as gmailCrawler from "./crawler/gmailCrawler";
+import * as gdriveCrawler from "./crawler/gdriveCrawler";
 
-import {
-  fetchRawContentsByThreadId,
-  processMessagesByThreadId,
-} from "./crawler/gmailCrawler";
-
-import {
-  uploadLogsToDrive,
-  uploadEmailMsgToGoogleDrive,
-} from "./crawler/gdriveCrawler";
-
-import {
-  WORKER_STATUS_ENUM,
-  WORK_ACTION_ENUM,
-  WorkActionRequest,
-} from "./crawler/commonUtils";
-
-import { logger } from "./loggers";
-import { threadId } from "worker_threads";
+import { WORK_ACTION_ENUM, WorkActionRequest } from "./crawler/commonUtils";
 
 if (isMainThread) {
   throw new Error("Its not a worker");
@@ -33,7 +20,7 @@ if (isMainThread) {
 
 async function _init() {
   await initDatabase();
-  await initGoogleApi();
+  await googleApiUtils.initGoogleApi();
 
   parentPort.on("message", async (data: WorkActionRequest) => {
     try {
@@ -42,7 +29,7 @@ async function _init() {
           if (!data.id) {
             throw `${data.action} requires threadId found threadId=${data.id}`;
           }
-          await fetchRawContentsByThreadId(data.id);
+          await gmailCrawler.fetchRawContentsByThreadId(data.id);
           parentPort.postMessage({
             success: true,
             ...data,
@@ -52,7 +39,7 @@ async function _init() {
           if (!data.id) {
             throw `${data.action} requires threadId found threadId=${data.id}`;
           }
-          await processMessagesByThreadId(data.id);
+          await gmailCrawler.processMessagesByThreadId(data.id);
           parentPort.postMessage({
             success: true,
             ...data,
@@ -62,14 +49,14 @@ async function _init() {
           if (!data.id) {
             throw `${data.action} requires threadId found messageId=${data.id}`;
           }
-          await uploadEmailMsgToGoogleDrive(data.id);
+          await gdriveCrawler.uploadEmailMsgToGoogleDrive(data.id);
           parentPort.postMessage({
             success: true,
             ...data,
           });
           break;
         case WORK_ACTION_ENUM.UPLOAD_LOGS:
-          await uploadLogsToDrive();
+          await gdriveCrawler.uploadLogsToDrive();
           parentPort.postMessage({
             success: true,
             ...data,
@@ -79,7 +66,7 @@ async function _init() {
     } catch (err) {
       parentPort.postMessage({
         success: false,
-        error: err.stack || JSON.stringify(err),
+        error: JSON.stringify(err.stack || err),
         ...data,
       });
     }

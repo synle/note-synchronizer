@@ -10,6 +10,7 @@ import { logger } from "../loggers";
 export default async () => {
   // notes such as emails and attachments
   const dialect = process.env.DB_DIALECT || "mysql" || "sqlite";
+  const dbLogging = process.env.DB_LOGGING === "true";
 
   if (dialect === "mysql") {
     // mysql
@@ -20,7 +21,7 @@ export default async () => {
       {
         dialect,
         host: process.env.DB_HOST,
-        logging: process.env.DB_LOGGING === "true" ? console.log : false,
+        logging: dbLogging ? console.log : false,
         pool: {
           max: 1,
           min: 0,
@@ -85,11 +86,13 @@ export default async () => {
 
           if (!!foundItem) {
             // do an update
-            logger.debug(
-              `${modelName} Upsert with update for ${priKey}=${priVal} ${JSON.stringify(
-                foundItem
-              )}`
-            );
+            if (dbLogging) {
+              logger.debug(
+                `${modelName} Upsert with update for ${priKey}=${priVal} ${JSON.stringify(
+                  foundItem
+                )}`
+              );
+            }
 
             try {
               await this.update(item, {
@@ -100,21 +103,27 @@ export default async () => {
               return resolve("Updated");
             } catch (err) {
               return reject(
-                `${modelName} Upsert with Update failed ${err.stack || JSON.stringify(err)}`
+                `${modelName} Upsert with Update failed ${JSON.stringify(
+                  err.stack || err
+                )}`
               );
             }
           } else {
             // do a create
-            logger.debug(
-              `${modelName} Upsert with Create for ${priKey}=${priVal}`
-            );
+            if (dbLogging) {
+              logger.debug(
+                `${modelName} Upsert with Create for ${priKey}=${priVal}`
+              );
+            }
 
             try {
               await this.create(item);
               return resolve("Created");
             } catch (err) {
               return reject(
-                `${modelName} Upsert with Create failed ${err.stack || JSON.stringify(err)}`
+                `${modelName} Upsert with Create failed ${JSON.stringify(
+                  err.stack || err
+                )}`
               );
             }
           }
