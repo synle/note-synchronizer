@@ -3,6 +3,22 @@ import { table, attribute, index } from "sequelize-typescript-decorators";
 
 import { DataTypes, Model } from "sequelize";
 
+
+@table("folders", {
+  timestamps: true,
+})
+export class Folder extends Model {
+  @attribute(Folder, {
+    allowNull: false,
+    primaryKey: true,
+    unique: true,
+  })
+  folderName!: string;
+
+  @attribute(Folder)
+  driveFileId!: string;
+}
+
 /**
  * threads
  */
@@ -204,4 +220,5 @@ export default {
   Attachment,
   Email,
   Thread,
+  Folder,
 };

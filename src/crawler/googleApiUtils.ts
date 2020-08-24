@@ -3,9 +3,9 @@ import fs from "fs";
 import readline from "readline";
 import { google } from "googleapis";
 import moment from "moment";
-import { MIME_TYPE_ENUM, myEmails } from "./commonUtils";
+import { MIME_TYPE_ENUM, myEmails, generateFolderName } from "./commonUtils";
+import * as commonUtils from "./commonUtils";
 import { logger } from "../loggers";
-import { generateFolderName } from "./gdriveCrawler";
 
 let gmailApiInstance;
 let driveApiInstance;
@@ -70,7 +70,7 @@ export async function createNoteDestinationFolder() {
   // generate the bucket for all of my emails
   const promiseQueue = [];
   for (const myEmail of myEmails) {
-    const fromEmailDomain = generateFolderName(myEmail);
+    const fromEmailDomain = commonUtils.generateFolderName(myEmail);
 
     promiseQueue.push(
       createDriveFolder({
