@@ -198,6 +198,15 @@ export async function recoverInProgressThreadJobStatus(oldStatus, newStatus) {
   await Promise.all([promiseThread, promiseEmail]);
 }
 
-export async function bulkUpsertFolder(folders) {
+export async function bulkUpsertFolders(folders) {
   return Models.Folder.bulkUpsert(folders);
+}
+
+export async function getAllParentFolders() {
+  const res = await Models.Folder.findAll({
+    attributes: ["folderName"],
+    raw: true,
+    order: ["folderName"],
+  });
+  return res.map((folder) => folder.folderName);
 }

@@ -172,6 +172,7 @@ SELECT id, threadId,  subject, body, datetime(date / 1000, 'unixepoch') as time 
 ```
 DELETE FROM emails;
 DELETE FROM attachments;
+DELETE FROM folders WHERE folderName NOT LIKE '_ME %';
 
 UPDATE `threads`
 SET status='PENDING_CRAWL',

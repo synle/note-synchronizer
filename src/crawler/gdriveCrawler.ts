@@ -237,13 +237,13 @@ async function _processThreadEmail(email: Email) {
       from.includes(myEmail)
     );
 
-    const isEmailSentToMySelf = commonUtils.interestedEmails.some((myEmail) =>
-      toEmailList.some((toEmail) => toEmail.includes(myEmail))
+    const isEmailSentByMeToMe = isEmailSentByMe && commonUtils.interestedEmails.some(
+      (myEmail) => toEmailList.some((toEmail) => toEmail.includes(myEmail))
     );
 
     const starred =
       labelIdsList.some((labelId) => labelId.includes("STARRED")) ||
-      (isEmailSentByMe && isEmailSentToMySelf);
+      isEmailSentByMeToMe;
 
     const hasSomeAttachments =
       nonImageAttachments.length > 0 || imagesAttachments.length > 0;
@@ -290,7 +290,7 @@ async function _processThreadEmail(email: Email) {
       return; // skip this
     }
 
-    if (isEmailSentByMe || isEmailSentToMySelf || hasSomeAttachments) {
+    if (isEmailSentByMe || isEmailSentByMeToMe || hasSomeAttachments) {
       // create the bucket folder
       const parentFolderName = commonUtils.generateFolderName(from);
       const folderIdToUse = await googleApiUtils.createDriveFolder({
@@ -305,9 +305,9 @@ async function _processThreadEmail(email: Email) {
       });
 
       // update the folder id into the database
-      await DataUtils.bulkUpsertFolder({
+      await DataUtils.bulkUpsertFolders({
         folderName: parentFolderName,
-        driveFileId: parentFolderId,
+        driveFileId: folderIdToUse,
       });
 
       // upload the doc itself
