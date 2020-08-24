@@ -16,8 +16,6 @@ import { logger } from "./loggers";
 import {
   WORKER_STATUS_ENUM,
   WORK_ACTION_ENUM,
-  maxThreadCount,
-  THREAD_JOB_STATUS_ENUM,
   WorkActionRequest,
   WorkActionResponse,
 } from "./crawler/commonUtils";
@@ -26,6 +24,7 @@ import {
 const workers = [];
 
 // work related
+let numThreadsToSpawn = 1;
 let intervalWorkSchedule;
 let lastWorkIdx, remainingWorkInputs;
 let getNewWorkFunc = () => {};
@@ -83,22 +82,21 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
   return workerDetails;
 }
 
-function _setupWorkers(threadToSpawn) {
-  threadToSpawn = Math.min(maxThreadCount, 8);
-  while (threadToSpawn > 0) {
-    threadToSpawn--;
+function _setupWorkers(inputThreadToSpawn) {
+  numThreadsToSpawn = Math.min(inputThreadToSpawn, 12);
+
+  logger.debug(`Starting work: command=${action} maxWorkers=${numThreadsToSpawn}`);
+
+  while (numThreadsToSpawn > 0) {
+    numThreadsToSpawn--;
     const myThreadId = workers.length;
     workers.push(_newWorker(myThreadId, action, workers));
   }
 }
 
 async function _init() {
-  logger.debug(`Starting work: command=${action} maxWorkers=${maxThreadCount}`);
-
   await initGoogleApi();
   await initDatabase();
-
-  let threadToSpawn;
 
   switch (action) {
     default:
@@ -114,30 +112,22 @@ async function _init() {
 
     // job2
     case WORK_ACTION_ENUM.FETCH_RAW_CONTENT:
-      await _setupWorkers(Math.min(maxThreadCount, process.env.MAX_THREADS_FETCH_RAW_CONTENT || 6));
-
-      // get a list of threads to start working
+      await _setupWorkers(process.env.MAX_THREADS_FETCH_RAW_CONTENT || 6);
       getNewWorkFunc = DataUtils.getAllThreadIdsToFetchRawContents;
       await _enqueueWorkWithRemainingInputs();
       break;
 
     // job3
     case WORK_ACTION_ENUM.PARSE_EMAIL:
-      await _setupWorkers(Math.min(maxThreadCount, process.env.MAX_THREADS_PARSE_EMAIL || 6));
-
-      // reprocess any in progress tasks
+      await _setupWorkers(process.env.MAX_THREADS_PARSE_EMAIL || 6);
       await DataUtils.recoverInProgressThreadJobStatus();
-
-      // get a list of threads to start working
       getNewWorkFunc = DataUtils.getAllThreadIdsToParseEmails;
       await _enqueueWorkWithRemainingInputs();
       break;
 
     // job4
     case WORK_ACTION_ENUM.UPLOAD_EMAILS_BY_MESSAGE_ID:
-      await _setupWorkers(Math.min(maxThreadCount, process.env.MAX_THREADS_UPLOAD_EMAILS_BY_MESSAGE_ID || 6));
-
-      // get a list of threads to start working
+      await _setupWorkers(process.env.MAX_THREADS_UPLOAD_EMAILS_BY_MESSAGE_ID || 6);
       getNewWorkFunc = DataUtils.getAllMessageIdsToSyncWithGoogleDrive;
       await _enqueueWorkWithRemainingInputs();
       break;
@@ -170,9 +160,9 @@ async function _enqueueWorkWithRemainingInputs() {
   remainingWorkInputs = remainingWorkInputs || [];
 
   if (remainingWorkInputs.length === 0) {
-    logger.debug(
-      `Finding work to do command=${action} workers=${workers.length}`
-    );
+    // logger.debug(
+    //   `Finding work to do command=${action} workers=${workers.length}`
+    // );
     clearInterval(intervalWorkSchedule);
     remainingWorkInputs = await getNewWorkFunc();
     lastWorkIdx = 0;
@@ -180,6 +170,7 @@ async function _enqueueWorkWithRemainingInputs() {
       _enqueueWorkWithRemainingInputs,
       WORKER_REFRESH_INTERVAL
     );
+    _enqueueWorkWithRemainingInputs();
   } else if (
     lastWorkIdx < remainingWorkInputs.length &&
     remainingWorkInputs.length > 0
@@ -204,7 +195,7 @@ async function _enqueueWorkWithRemainingInputs() {
       if (lastWorkIdx >= remainingWorkInputs.length) {
         // refresh task list and do again
         logger.debug(
-          `Done work: command=${action} workers=${maxThreadCount} totalWork=${remainingWorkInputs.length}. Restarting with new work`
+          `Done work: command=${action} workers=${numThreadsToSpawn} totalWork=${remainingWorkInputs.length}. Restarting with new work`
         );
 
         remainingWorkInputs = []; // note that this will trigger fetching new work

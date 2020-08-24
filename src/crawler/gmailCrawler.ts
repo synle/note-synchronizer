@@ -267,9 +267,11 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
         let body = strippedDownBody;
 
+        let urlToCrawl;
+
         if (isStringUrl(subject)) {
           // if subject is a url
-          const urlToCrawl = extractUrlFromString(subject);
+          urlToCrawl = extractUrlFromString(subject);
 
           try {
             logger.debug(`Crawl subject with url: id=${id} url=${urlToCrawl}`);
@@ -279,17 +281,15 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               `Done CrawlUrl threadId=${threadId} id=${id} url=${urlToCrawl} res=${websiteRes.subject}`
             );
 
-            subject = (websiteRes.subject || rawSubject).trim();
+            subject = `${rawSubject} ${websiteRes.subject}`;
             body = tryParseBody(`
-              ${body}
-
-              ------------------------------------------------
-
-              ${urlToCrawl}
-
-              ------------------------------------------------
-
-                ${websiteRes.body}
+              <div>${rawBody}</div>
+              <div>====================================</div>
+              <div>${urlToCrawl}</div>
+              <div>====================================</div>
+              <div>${websiteRes.subject}</div>
+              <div>====================================</div>
+              <div>${websiteRes.body}</div>
             `);
           } catch (err) {
             logger.debug(
@@ -299,7 +299,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           }
         } else if (isStringUrl(body)) {
           // if body is a url
-          const urlToCrawl = extractUrlFromString(_parseBodyWithHtml(body));
+          urlToCrawl = extractUrlFromString(_parseBodyWithHtml(body));
 
           try {
             // crawl the URL for title
@@ -310,18 +310,15 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               `Done CrawlUrl threadId=${threadId} id=${id} url=${urlToCrawl} res=${websiteRes.subject}`
             );
 
-            subject = (websiteRes.subject || rawSubject).trim();
+            subject = `${rawSubject} ${websiteRes.subject}`;
             body = tryParseBody(`
-              ${body}
-
-              ------------------------------------------------
-
-              ${urlToCrawl}
-
-              ------------------------------------------------
-
-
-              ${websiteRes.body}
+              <div>${rawBody}</div>
+              <div>====================================</div>
+              <div>${urlToCrawl}</div>
+              <div>====================================</div>
+              <div>${websiteRes.subject}</div>
+              <div>====================================</div>
+              <div>${websiteRes.body}</div>
             `);
           } catch (err) {
             logger.debug(
@@ -562,11 +559,10 @@ function _parseGmailMessage(bodyData) {
     .replace(/[\r\n]/g, "\n");
 }
 
-function _parseBodyWithText(html) {
+export function _parseBodyWithText(html) {
   let body = html || "";
   try {
-    const dom = new JSDOM(_cleanHtml(html));
-    body = dom.window.document.body.textContent;
+    body = new JSDOM(_cleanHtml(html)).window.document.body.textContent;
   } catch (e) {}
 
   try {
@@ -587,11 +583,7 @@ function _parseBodyWithText(html) {
 export function _parseBodyWithHtml(html) {
   try {
     const dom = new JSDOM(_cleanHtml(html));
-    return new JSDOM(
-      new Readability(dom.window.document).parse().content
-    ).window.document.body.textContent
-      .replace("  ", "\n")
-      .trim();
+    return dom.window.document.textContent.replace("  ", "\n").trim();
   } catch (err) {
     logger.debug(`_parseBodyWithHtml failed err=${err.stack}`);
   }

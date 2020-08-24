@@ -190,13 +190,13 @@ WHERE status != 'PENDING_CRAWL' AND status != 'SUCCESS';
 ```
 
 ```
-UPDATE `emails`
-SET status='PENDING_SYNC_TO_GDRIVE'
-WHERE status != 'PENDING_SYNC_TO_GDRIVE' AND status != 'PENDING_PARSE_EMAIL';
-
 UPDATE `threads`
 SET status='PENDING_CRAWL'
 WHERE status != 'PENDING_CRAWL' AND status != 'SUCCESS';
+
+UPDATE `emails`
+SET status='PENDING_SYNC_TO_GDRIVE'
+WHERE status != 'PENDING_SYNC_TO_GDRIVE' AND status != 'PENDING_PARSE_EMAIL';
 ```
 
 #### Get job status stats

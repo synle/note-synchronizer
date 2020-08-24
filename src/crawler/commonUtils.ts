@@ -22,8 +22,6 @@ export const ignoredWordTokens = (process.env.IGNORED_WORD_TOKENS || "").split(
 
 const ignoredUrlTokens = (process.env.IGNORED_URL_TOKENS || "").split("|||");
 
-export const maxThreadCount = process.env.MAX_CONCURRENT_THREAD_QUEUE || 2;
-
 export enum MIME_TYPE_ENUM {
   APP_JSON = "application/json",
   APP_GOOGLE_DOCUMENT = "application/vnd.google-apps.document",
