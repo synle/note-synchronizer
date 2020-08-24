@@ -151,7 +151,7 @@ export async function crawlUrl(url): Promise<WebContent> {
       body: rawHtmlBody,
     };
   } catch (err) {
-    return Promise.reject(err.stack || err);
+    return Promise.reject(err);
   }
 }
 

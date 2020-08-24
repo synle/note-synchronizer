@@ -91,8 +91,8 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
       }
     } catch (err) {
       logger.error(
-        `Cannot fetch Raw Content threadId=${targetThreadId} : ${
-          err.stack || err
+        `Cannot fetch Raw Content threadId=${targetThreadId} error=${
+          err.stack || JSON.stringify(err)
         }`
       );
     }
@@ -385,7 +385,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
     // no need to wait for this attachments
     DataUtils.bulkUpsertAttachments(attachmentsToSave).catch((err) => {
       logger.error(
-        `Bulk create attachment failed, trying to do update instead threadId=${targetThreadId} ${
+        `Bulk create attachment failed, trying to do update instead threadId=${targetThreadId} error=${
           err.stack || JSON.stringify(err)
         }`
       );
@@ -420,8 +420,8 @@ function _parseEmailAddressList(emailAddressesAsString) {
           return _parseEmailAddress(emailAddress);
         } catch (err) {
           logger.error(
-            `Cannot parse email address list: ${emailAddress} : ${
-              err.stack || err
+            `Cannot parse email address list: ${emailAddress} error=${
+              err.stack || JSON.stringify(err)
             }`
           );
           return emailAddress;
@@ -443,7 +443,9 @@ function _parseEmailAddress(emailAddress) {
       .toLowerCase()
       .trim();
   } catch (err) {
-    logger.error(`Cannot parse email: ${emailAddress} ${err.stack || err}`);
+    logger.error(
+      `Cannot parse email: ${emailAddress} error=${err.stack || JSON.stringify(err)}`
+    );
     return null;
   }
 }
@@ -504,7 +506,9 @@ async function _pollNewEmailThreads(q = "") {
       }
     } catch (err) {
       logger.error(
-        `Failed to get thread list q=${q} pageToken=${pageToken} error=${err.stack}`
+        `Failed to get thread list q=${q} pageToken=${pageToken} error=${
+          err.stack || JSON.stringify(err)
+        }`
       );
       break;
     }
@@ -592,7 +596,7 @@ export function _parseBodyWithHtml(html) {
 
     return dom.window.document.body.textContent.trim();
   } catch (err) {
-    logger.debug(`_parseBodyWithHtml failed err=${err.stack}`);
+    logger.debug(`_parseBodyWithHtml failed error=${err.stack || JSON.stringify(err)}`);
   }
 }
 
@@ -733,9 +737,9 @@ export async function fetchRawContentsByThreadId(threadIds) {
 
           return DataUtils.bulkUpsertEmails(emailMessageToSave).catch((err) => {
             logger.error(
-              `Insert raw content failed threadId=${threadId} ${
+              `Insert raw content failed threadId=${threadId} id=${id} error=${
                 err.stack || JSON.stringify(err)
-              } id=${id}`
+              }`
             );
             throw err;
           });
@@ -754,7 +758,9 @@ export async function fetchRawContentsByThreadId(threadIds) {
       });
     } catch (err) {
       logger.error(
-        `Fetch raw content failed threadId=${threadId} ${err.stack || err}`
+        `Fetch raw content failed threadId=${threadId} error=${
+          err.stack || JSON.stringify(err)
+        }`
       );
       await DataUtils.bulkUpsertThreadJobStatuses({
         threadId: threadId,

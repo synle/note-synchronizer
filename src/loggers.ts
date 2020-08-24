@@ -2,15 +2,15 @@ import winston from "winston";
 import { format } from "winston";
 import isPlainObject from "lodash/isPlainObject";
 
-const { combine, timestamp, label, printf } = format;
+const { combine, timestamp, printf } = format;
 
 export const logger = winston.createLogger({
   level: globalThis.LOG_LEVEL || process.env.LOG_LEVEL || "debug", // https://github.com/winstonjs/winston#logging-levels
   format: combine(
-    format.timestamp({
+    timestamp({
       format: "MM/DD hh:mm:ssA",
     }),
-    format.printf(
+    printf(
       (info) =>
         `${info.timestamp} [${info.level.substr(0, 1).toUpperCase()}] ${
           info.message

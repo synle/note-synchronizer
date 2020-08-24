@@ -100,7 +100,7 @@ export default async () => {
               return resolve("Updated");
             } catch (err) {
               return reject(
-                `${modelName} Upsert with Update failed ${err.stack || err}`
+                `${modelName} Upsert with Update failed ${err.stack || JSON.stringify(err)}`
               );
             }
           } else {
@@ -114,7 +114,7 @@ export default async () => {
               return resolve("Created");
             } catch (err) {
               return reject(
-                `${modelName} Upsert with Create failed ${err.stack || err}`
+                `${modelName} Upsert with Create failed ${err.stack || JSON.stringify(err)}`
               );
             }
           }

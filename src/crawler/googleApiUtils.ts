@@ -38,8 +38,18 @@ function _logAndWrapApiError(err, res, ...extra) {
 
   console.error(
     `Gmail API Failed:`,
-    extra.map(JSON.stringify).join(", "),
-    err.stack || err,
+    extra
+      .map((s) => {
+        if (s === null) {
+          return "NULL";
+        }
+        if (s === undefined) {
+          return "UNDEFINED";
+        }
+        return JSON.stringify(s);
+      })
+      .join(", "),
+    err.stack || JSON.stringify(err),
     res
   );
 

@@ -149,10 +149,7 @@ async function _init() {
       await _setupWorkers(1);
 
       _enqueueWorkWithoutInput();
-      setInterval(
-        _enqueueWorkWithoutInput,
-        20 * 60 * 1000
-      ); // every 20 mins
+      setInterval(_enqueueWorkWithoutInput, 20 * 60 * 1000); // every 20 mins
       break;
   }
 }
