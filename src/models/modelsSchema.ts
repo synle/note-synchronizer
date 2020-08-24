@@ -123,8 +123,8 @@ export class Email extends Model {
   @attribute(Email, { type: "MEDIUMTEXT", allowNull: false })
   rawApiResponse!: string;
 
-  @attribute(Email, { type: DataTypes.TEXT })
-  headers!: string;
+  // @attribute(Email, { type: DataTypes.TEXT })
+  // headers!: string;
 }
 
 /**
@@ -196,8 +196,8 @@ export class Attachment extends Model {
   @attribute(Attachment, { allowNull: false, allowNull: false })
   path!: string;
 
-  @attribute(Attachment, { type: DataTypes.TEXT, allowNull: false })
-  headers!: string;
+  // @attribute(Attachment, { type: DataTypes.TEXT, allowNull: false })
+  // headers!: string;
 }
 
 export default {

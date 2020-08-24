@@ -285,10 +285,9 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               <div>${rawBody}</div>
               <div>====================================</div>
               <div>${urlToCrawl}</div>
-              <div>====================================</div>
               <div>${websiteRes.subject}</div>
               <div>====================================</div>
-              <div>${websiteRes.body}</div>
+              <div>${truncate(websiteRes.body, { length: 1000 })}</div>
             `);
           } catch (err) {
             logger.debug(
@@ -314,10 +313,9 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               <div>${rawBody}</div>
               <div>====================================</div>
               <div>${urlToCrawl}</div>
-              <div>====================================</div>
               <div>${websiteRes.subject}</div>
               <div>====================================</div>
-              <div>${websiteRes.body}</div>
+              <div>${truncate(websiteRes.body, {length: 1000})}</div>
             `);
           } catch (err) {
             logger.debug(
@@ -586,6 +584,12 @@ export function _parseBodyWithHtml(html) {
       if (url.includes("http")) {
         anchor.innerText = url;
       }
+    }
+
+    // replace all the script tags
+    const scripts = dom.window.document.querySelectorAll("script");
+    for (const script of scripts) {
+      script.remove();
     }
 
     return dom.window.document.body.textContent.trim();
