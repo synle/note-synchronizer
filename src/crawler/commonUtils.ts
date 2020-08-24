@@ -158,8 +158,6 @@ export function get256Hash(string) {
   return crypto.createHash("sha256").update(string).digest("base64");
 }
 
-
-
 // this get the domain out of the email
 export function generateFolderName(string) {
   string = string.toLowerCase();

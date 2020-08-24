@@ -3,7 +3,6 @@ import { table, attribute, index } from "sequelize-typescript-decorators";
 
 import { DataTypes, Model } from "sequelize";
 
-
 @table("folders", {
   timestamps: true,
 })

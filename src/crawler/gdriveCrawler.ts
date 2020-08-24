@@ -292,16 +292,22 @@ async function _processThreadEmail(email: Email) {
 
     if (isEmailSentByMe || isEmailSentToMySelf || hasSomeAttachments) {
       // create the bucket folder
-      const fromEmailDomain = commonUtils.generateFolderName(from);
+      const parentFolderName = commonUtils.generateFolderName(from);
       const folderIdToUse = await googleApiUtils.createDriveFolder({
-        name: fromEmailDomain,
-        description: `Chats & Emails from ${fromEmailDomain}`,
+        name: parentFolderName,
+        description: `Chats & Emails from ${parentFolderName}`,
         parentFolderId: noteDestinationFolderId,
         starred: isEmailSentByMe,
         folderColorRgb: isEmailSentByMe ? "#FF0000" : "#0000FF",
         appProperties: {
-          fromDomain: fromEmailDomain,
+          fromDomain: parentFolderName,
         },
+      });
+
+      // update the folder id into the database
+      await DataUtils.bulkUpsertFolder({
+        folderName: parentFolderName,
+        driveFileId: parentFolderId,
       });
 
       // upload the doc itself

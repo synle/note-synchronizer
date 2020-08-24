@@ -17,16 +17,12 @@ import * as googleApiUtils from "./googleApiUtils";
 
 import {
   mySignatureTokens,
-  isStringUrl,
-  extractUrlFromString,
-  crawlUrl,
-  maxThreadCount,
   MIME_TYPE_ENUM,
   THREAD_JOB_STATUS_ENUM,
 } from "./commonUtils";
 
+import * as CommonUtils from "./commonUtils";
 import * as DataUtils from "./dataUtils";
-import { allColors } from "winston/lib/winston/config";
 
 // google crawler
 const GMAIL_ATTACHMENT_PATH = "./attachments";
@@ -268,13 +264,13 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
         let urlToCrawl;
 
-        if (isStringUrl(subject)) {
+        if (CommonUtils.isStringUrl(subject)) {
           // if subject is a url
-          urlToCrawl = extractUrlFromString(subject);
+          urlToCrawl = CommonUtils.extractUrlFromString(subject);
 
           try {
             logger.debug(`Crawl subject with url: id=${id} url=${urlToCrawl}`);
-            const websiteRes = await crawlUrl(urlToCrawl);
+            const websiteRes = await CommonUtils.crawlUrl(urlToCrawl);
 
             logger.debug(
               `Done CrawlUrl threadId=${threadId} id=${id} url=${urlToCrawl} res=${websiteRes.subject}`
@@ -295,14 +291,16 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
             );
             body = strippedDownBody;
           }
-        } else if (isStringUrl(body)) {
+        } else if (CommonUtils.isStringUrl(body)) {
           // if body is a url
-          urlToCrawl = extractUrlFromString(_parseBodyWithHtml(body));
+          urlToCrawl = CommonUtils.extractUrlFromString(
+            _parseBodyWithHtml(body)
+          );
 
           try {
             // crawl the URL for title
             logger.debug(`Crawl body with url: id=${id} url=${urlToCrawl}`);
-            const websiteRes = await crawlUrl(urlToCrawl);
+            const websiteRes = await CommonUtils.crawlUrl(urlToCrawl);
 
             logger.debug(
               `Done CrawlUrl threadId=${threadId} id=${id} url=${urlToCrawl} res=${websiteRes.subject}`
@@ -689,7 +687,8 @@ export async function fetchRawContentsByThreadId(threadIds) {
         // get emails from the google drafts api
 
         // parse the content and insert raw content
-        const promiseQueue = messages.map((message) => {
+        const promisesSaveParentFolders = [];
+        const promisesSaveMessages = messages.map((message) => {
           const { id, threadId } = message;
 
           const parts = googleApiUtils.flattenGmailPayloadParts(
@@ -704,10 +703,10 @@ export async function fetchRawContentsByThreadId(threadIds) {
           }
 
           const headers: Headers = _getHeaders(message.payload.headers || []);
-          const rawSubject = (headers.subject || `${from} ${id}`).trim();
           const from = _parseEmailAddress(headers.from) || headers.from;
           const to = _parseEmailAddressList(headers.to);
           const bcc = _parseEmailAddressList(headers.bcc);
+          const rawSubject = (headers.subject || `${from} ${id}`).trim();
 
           const emailMessageToSave = {
             id: id,
@@ -724,6 +723,14 @@ export async function fetchRawContentsByThreadId(threadIds) {
             status: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
           };
 
+          // generate the record for folder id for future use
+          const parentFolderName = CommonUtils.generateFolderName(from);
+          promisesSaveParentFolders.push(
+            DataUtils.bulkUpsertFolder({
+              folderName: parentFolderName,
+            })
+          );
+
           return DataUtils.bulkUpsertEmails(emailMessageToSave).catch((err) => {
             logger.error(
               `Insert raw content failed threadId=${threadId} ${
@@ -734,7 +741,9 @@ export async function fetchRawContentsByThreadId(threadIds) {
           });
         });
 
-        await Promise.all(promiseQueue);
+        await Promise.all(
+          [].concat(promisesSaveMessages).concat(promisesSaveParentFolders)
+        );
       } else {
         logger.debug(`Found raw content from cache for threadId=${threadId}`);
       }
@@ -745,7 +754,7 @@ export async function fetchRawContentsByThreadId(threadIds) {
         status: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
       });
     } catch (err) {
-      logger.error(`Fetch raw content failed threadId=${threadId} ${err}`);
+      logger.error(`Fetch raw content failed threadId=${threadId} ${err.stack || err}`);
       await DataUtils.bulkUpsertThreadJobStatuses({
         threadId: threadId,
         status: THREAD_JOB_STATUS_ENUM.ERROR_CRAWL,
