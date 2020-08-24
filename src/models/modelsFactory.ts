@@ -20,7 +20,7 @@ export default async () => {
       {
         dialect,
         host: process.env.DB_HOST,
-        logging: process.env.DB_LOGGING === "true",
+        logging: process.env.DB_LOGGING === "true" ? console.log : false,
         pool: {
           max: 1,
           min: 0,
@@ -73,27 +73,51 @@ export default async () => {
 
       for (const item of items) {
         const promise = new Promise(async (resolve, reject) => {
-          const errors = [];
-          try {
-            await this.create(item);
-            return resolve("Created");
-          } catch (err) {
-            errors.push(err.stack);
-          }
+          const priVal = item[priKey];
 
-          try {
-            // try update, if failed, then try create
-            await this.update(item, {
-              where: {
-                [priKey]: item[priKey],
-              },
-            });
-            return resolve("Updated");
-          } catch (err) {
-            errors.push(err.stack);
-          }
+          const foundItem = await this.findOne({
+            attributes: [priKey],
+            raw: true,
+            where: {
+              [priKey]: priVal,
+            },
+          });
 
-          reject(`${modelName} Upsert failed ${errors.join("\n")}`);
+          if (!!foundItem) {
+            // do an update
+            logger.debug(
+              `${modelName} Upsert with update for ${priKey}=${priVal} ${JSON.stringify(
+                foundItem
+              )}`
+            );
+
+            try {
+              await this.update(item, {
+                where: {
+                  [priKey]: priVal,
+                },
+              });
+              return resolve("Updated");
+            } catch (err) {
+              return reject(
+                `${modelName} Upsert with Update failed ${err.stack || err}`
+              );
+            }
+          } else {
+            // do a create
+            logger.debug(
+              `${modelName} Upsert with Create for ${priKey}=${priVal}`
+            );
+
+            try {
+              await this.create(item);
+              return resolve("Created");
+            } catch (err) {
+              return reject(
+                `${modelName} Upsert with Create failed ${err.stack || err}`
+              );
+            }
+          }
         });
         promises.push(promise);
       }

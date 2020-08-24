@@ -287,7 +287,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               <div>${urlToCrawl}</div>
               <div>${websiteRes.subject}</div>
               <div>====================================</div>
-              <div>${truncate(websiteRes.body, { length: 1000 })}</div>
+              <div>${truncate(websiteRes.body, { length: 2000 })}</div>
             `);
           } catch (err) {
             logger.debug(
@@ -315,7 +315,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               <div>${urlToCrawl}</div>
               <div>${websiteRes.subject}</div>
               <div>====================================</div>
-              <div>${truncate(websiteRes.body, {length: 1000})}</div>
+              <div>${truncate(websiteRes.body, {length: 2000})}</div>
             `);
           } catch (err) {
             logger.debug(
@@ -329,20 +329,20 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           id,
           threadId,
           status: THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE,
-          from: from || null,
           body: body || null,
           rawBody: rawBody || null,
           subject: truncate(subject, {
             length: 250,
           }),
-          rawSubject: truncate(rawSubject, {
-            length: 250,
-          }),
-          headers: JSON.stringify(headers),
-          to: to.join(",") || null,
-          bcc: bcc.join(",") || null,
-          labelIds: (labelIds || []).join(",") || null,
-          rawApiResponse: JSON.stringify(message),
+          // rawSubject: truncate(rawSubject, {
+          //   length: 250,
+          // }),
+          // from: from || null,
+          // to: to.join(",") || null,
+          // bcc: bcc.join(",") || null,
+          // labelIds: (labelIds || []).join(",") || null,
+          // rawApiResponse: JSON.stringify(message),
+          // headers: JSON.stringify(headers),
         };
 
         logger.debug(
@@ -703,9 +703,23 @@ export async function fetchRawContentsByThreadId(threadIds) {
             }
           }
 
+
+          const headers: Headers = _getHeaders(message.payload.headers || []);
+          const rawSubject = (headers.subject || `${from} ${id}`).trim();
+          const from = _parseEmailAddress(headers.from) || headers.from;
+          const to = _parseEmailAddressList(headers.to);
+          const bcc = _parseEmailAddressList(headers.bcc);
+
           const emailMessageToSave = {
             id: id,
             threadId: threadId,
+            labelIds: (message.labelIds || []).join(",") || null,
+            rawSubject: truncate(rawSubject, {
+              length: 250,
+            }),
+            from,
+            to: to.join(",") || null,
+            bcc: bcc.join(",") || null,
             rawApiResponse: JSON.stringify(message),
             date: Math.round((message.internalDate || Date.now()) / 1000),
             status: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,

@@ -83,7 +83,7 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
 }
 
 function _setupWorkers(inputThreadToSpawn) {
-  numThreadsToSpawn = Math.min(inputThreadToSpawn, 12);
+  numThreadsToSpawn = Math.min(inputThreadToSpawn, 20);
 
   logger.debug(`Starting work: command=${action} maxWorkers=${numThreadsToSpawn}`);
 
@@ -175,13 +175,8 @@ async function _enqueueWorkWithRemainingInputs() {
     lastWorkIdx < remainingWorkInputs.length &&
     remainingWorkInputs.length > 0
   ) {
-    let shouldPostUpdates = false;
-
     for (let worker of workers) {
-      if (worker.status === WORKER_STATUS_ENUM.FREE) {
-        // take task
-        shouldPostUpdates = true;
-
+      if (worker.status === WORKER_STATUS_ENUM.FREE) {// distribute new tasks
         const id = remainingWorkInputs[lastWorkIdx];
         const workActionRequest: WorkActionRequest = {
           id,
@@ -201,23 +196,6 @@ async function _enqueueWorkWithRemainingInputs() {
         remainingWorkInputs = []; // note that this will trigger fetching new work
         lastWorkIdx = 0;
         break;
-      }
-    }
-
-    if (shouldPostUpdates) {
-      const countTotalEmailThreads = remainingWorkInputs.length;
-      const percentDone = (
-        (lastWorkIdx / countTotalEmailThreads) *
-        100
-      ).toFixed(2);
-
-      if (
-        lastWorkIdx % 500 === 0 ||
-        (percentDone % 20 === 0 && percentDone > 0)
-      ) {
-        logger.warn(
-          `Progress of ${action}: ${percentDone}% (${lastWorkIdx} / ${countTotalEmailThreads})`
-        );
       }
     }
   }

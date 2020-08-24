@@ -40,8 +40,8 @@ function _sanitizeFileName(string) {
     .replace("-", " ")
     .replace(".", " ")
     .replace(/re:/gi, "")
-    .replace(/fw:?/gi, "")
     .replace(/fwd:?/gi, "")
+    .replace(/fw:?/gi, "")
     .split(" ")
     .filter((r) => r && r.length > 0)
     .join(" ")
@@ -251,7 +251,6 @@ async function _processThreadEmail(email: Email) {
     bcc,
     to,
     subject,
-    rawSubject,
     date,
     labelIds,
   } = email;
@@ -400,7 +399,7 @@ async function _processThreadEmail(email: Email) {
 
             From: ${from}
 
-            Subject: ${rawSubject}
+            Subject: ${subject}
 
             ThreadId: ${threadId}
 
@@ -455,7 +454,7 @@ async function _processThreadEmail(email: Email) {
 
             From: ${from}
 
-            Subject: ${rawSubject}
+            Subject: ${subject}
 
             ThreadId: ${threadId}
 
