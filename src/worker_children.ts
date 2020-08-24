@@ -79,7 +79,7 @@ async function _init() {
     } catch (err) {
       parentPort.postMessage({
         success: false,
-        error: err.stack || err,
+        error: err.stack || JSON.stringify(err),
         ...data,
       });
     }

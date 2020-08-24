@@ -237,9 +237,11 @@ async function _processThreadEmail(email: Email) {
       from.includes(myEmail)
     );
 
-    const isEmailSentByMeToMe = isEmailSentByMe && commonUtils.interestedEmails.some(
-      (myEmail) => toEmailList.some((toEmail) => toEmail.includes(myEmail))
-    );
+    const isEmailSentByMeToMe =
+      isEmailSentByMe &&
+      commonUtils.interestedEmails.some((myEmail) =>
+        toEmailList.some((toEmail) => toEmail.includes(myEmail))
+      );
 
     const starred =
       labelIdsList.some((labelId) => labelId.includes("STARRED")) ||
@@ -372,8 +374,8 @@ async function _processThreadEmail(email: Email) {
           });
         } catch (err) {
           logger.error(
-            `Error - Failed to upload original note - threadId=${threadId} id=${id} subject=${subject} attachmentName=${docFileName} localPath=${localPath} ${
-              err.stack || JSON.stringify(err, null, 2)
+            `Error - Failed to upload original note - threadId=${threadId} id=${id} subject=${subject} attachmentName=${docFileName} localPath=${localPath} error=${
+              err.stack || JSON.stringify(err)
             }`
           );
         }
@@ -439,9 +441,7 @@ async function _processThreadEmail(email: Email) {
           logger.error(
             `Error - Failed upload attachment - threadId=${threadId} id=${id} subject=${subject} attachmentName=${attachmentName} ${
               attachment.mimeType
-            } path=${attachment.path} ${
-              err.stack || JSON.stringify(err, null, 2)
-            }`
+            } path=${attachment.path} error=${err.stack || JSON.stringify(err)}`
           );
         }
       }
@@ -458,7 +458,7 @@ async function _processThreadEmail(email: Email) {
     logger.error(
       `Failed to upload emails with threadId=${email.threadId} messageId=${
         email.id
-      } err=${err.stack || JSON.stringify(err)}`
+      } error=${err.stack || JSON.stringify(err)}`
     );
 
     await DataUtils.bulkUpsertEmails({
