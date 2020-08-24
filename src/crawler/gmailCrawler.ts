@@ -439,7 +439,7 @@ function _parseEmailAddress(emailAddress) {
   try {
     return emailAddress
       .match(/<?[a-zA-Z0-9-_\.]+@[a-zA-Z0-9-_\.]+>?/)[0]
-      .replace(/<?>?/g, "")
+      .replace(/[<>]/g, "")
       .toLowerCase()
       .trim();
   } catch (err) {
@@ -726,7 +726,7 @@ export async function fetchRawContentsByThreadId(threadIds) {
           // generate the record for folder id for future use
           const parentFolderName = CommonUtils.generateFolderName(from);
           promisesSaveParentFolders.push(
-            DataUtils.bulkUpsertFolder({
+            DataUtils.bulkUpsertFolders({
               folderName: parentFolderName,
             })
           );
@@ -741,9 +741,8 @@ export async function fetchRawContentsByThreadId(threadIds) {
           });
         });
 
-        await Promise.all(
-          [].concat(promisesSaveMessages).concat(promisesSaveParentFolders)
-        );
+        await Promise.all(promisesSaveMessages);
+        await Promise.allSettled(promisesSaveParentFolders);
       } else {
         logger.debug(`Found raw content from cache for threadId=${threadId}`);
       }
@@ -754,7 +753,9 @@ export async function fetchRawContentsByThreadId(threadIds) {
         status: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
       });
     } catch (err) {
-      logger.error(`Fetch raw content failed threadId=${threadId} ${err.stack || err}`);
+      logger.error(
+        `Fetch raw content failed threadId=${threadId} ${err.stack || err}`
+      );
       await DataUtils.bulkUpsertThreadJobStatuses({
         threadId: threadId,
         status: THREAD_JOB_STATUS_ENUM.ERROR_CRAWL,

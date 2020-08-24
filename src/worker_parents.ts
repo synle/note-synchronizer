@@ -5,7 +5,10 @@ import { Worker, threadId } from "worker_threads";
 
 import initDatabase from "./models/modelsFactory";
 
-import { initGoogleApi } from "./crawler/googleApiUtils";
+import {
+  initGoogleApi,
+  createNoteDestinationFolder,
+} from "./crawler/googleApiUtils";
 
 import { pollForNewThreadList } from "./crawler/gmailCrawler";
 
@@ -25,7 +28,7 @@ const workers = [];
 
 // work related
 let numThreadsToSpawn = 1;
-let intervalWorkSchedule;
+let timerWorkSchedule;
 let lastWorkIdx, remainingWorkInputs;
 let getNewWorkFunc = () => {};
 const WORKER_REFRESH_INTERVAL = 1000;
@@ -106,6 +109,11 @@ async function _init() {
       process.exit();
       break;
 
+    // job0
+    case WORK_ACTION_ENUM.GENERATE_CONTAINER_FOLDERS:
+      await createNoteDestinationFolder();
+      break;
+
     // job1
     case WORK_ACTION_ENUM.FETCH_THREADS:
       await pollForNewThreadList(true);
@@ -141,7 +149,7 @@ async function _init() {
       await _setupWorkers(1);
 
       _enqueueWorkWithoutInput();
-      intervalWorkSchedule = setInterval(
+      setInterval(
         _enqueueWorkWithoutInput,
         20 * 60 * 1000
       ); // every 20 mins
@@ -164,21 +172,20 @@ async function _enqueueWorkWithRemainingInputs() {
   remainingWorkInputs = remainingWorkInputs || [];
 
   if (remainingWorkInputs.length === 0) {
-    // logger.debug(
-    //   `Finding work to do command=${action} workers=${workers.length}`
-    // );
-    clearInterval(intervalWorkSchedule);
+    logger.debug(
+      `Finding work to do command=${action} workers=${workers.length}`
+    );
+    clearTimeout(timerWorkSchedule);
     remainingWorkInputs = await getNewWorkFunc();
     lastWorkIdx = 0;
-    intervalWorkSchedule = setInterval(
-      _enqueueWorkWithRemainingInputs,
-      WORKER_REFRESH_INTERVAL
-    );
-    _enqueueWorkWithRemainingInputs();
   } else if (
     lastWorkIdx < remainingWorkInputs.length &&
     remainingWorkInputs.length > 0
   ) {
+    logger.debug(
+      `Distribute works command=${action} workers=${workers.length}`
+    );
+
     for (let worker of workers) {
       if (worker.status === WORKER_STATUS_ENUM.FREE) {
         // distribute new tasks
@@ -204,6 +211,12 @@ async function _enqueueWorkWithRemainingInputs() {
       }
     }
   }
+
+  // restart ping
+  timerWorkSchedule = setTimeout(
+    _enqueueWorkWithRemainingInputs,
+    WORKER_REFRESH_INTERVAL
+  );
 }
 
 _init();

@@ -5,6 +5,7 @@ import { google } from "googleapis";
 import moment from "moment";
 import { MIME_TYPE_ENUM, myEmails, generateFolderName } from "./commonUtils";
 import * as commonUtils from "./commonUtils";
+import * as DataUtils from "./dataUtils";
 import { logger } from "../loggers";
 
 let gmailApiInstance;
@@ -67,26 +68,32 @@ export async function createNoteDestinationFolder() {
     },
   });
 
-  // generate the bucket for all of my emails
-  const promiseQueue = [];
-  for (const myEmail of myEmails) {
-    const fromEmailDomain = commonUtils.generateFolderName(myEmail);
+  logger.warn(`createNoteDestinationFolder folder: ${noteDestFolderId}`);
 
-    promiseQueue.push(
+  // generate the bucket for all of my emails
+  let promises = [];
+  const folderNames = await DataUtils.getAllParentFolders();
+  for (const parentFolderName of folderNames) {
+    const starred = parentFolderName.indexOf("_") === 0;
+
+    promises.push(
       createDriveFolder({
-        name: fromEmailDomain,
-        description: `Chats & Emails from ${fromEmailDomain}`,
+        name: parentFolderName,
+        description: `Chats & Emails from ${parentFolderName}`,
         parentFolderId: noteDestFolderId,
-        starred: true,
-        folderColorRgb: "#FF0000",
+        starred,
+        folderColorRgb: starred ? "#FF0000" : "#0000FF",
         appProperties: {
-          fromDomain: fromEmailDomain,
+          fromDomain: parentFolderName,
         },
       })
     );
-  }
 
-  await Promise.allSettled(promiseQueue);
+    if (promises.length === 3) {
+      await Promise.allSettled(promises);
+      promises = [];
+    }
+  }
 
   return noteDestFolderId;
 }
