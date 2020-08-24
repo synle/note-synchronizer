@@ -157,3 +157,36 @@ export async function crawlUrl(url): Promise<WebContent> {
 export function get256Hash(string) {
   return crypto.createHash("sha256").update(string).digest("base64");
 }
+
+
+
+// this get the domain out of the email
+export function generateFolderName(string) {
+  string = string.toLowerCase();
+
+  if (interestedEmails.some((myEmail) => string.includes(myEmail))) {
+    // if sent by me, then group things under the same label
+    return `_ME ${string}`;
+  }
+
+  if (
+    string.includes("gmail") ||
+    string.includes("yahoo.com") ||
+    string.includes("ymail") ||
+    string.includes("hotmail.com") ||
+    string.includes("aol.com")
+  ) {
+    // common email domain, then should use their full name
+    return string.trim();
+  }
+
+  // break up things after @ and before the last dot
+  let domainParts = string.split(/[@.]/g);
+
+  const resParts = [
+    domainParts[domainParts.length - 2],
+    domainParts[domainParts.length - 1],
+  ];
+
+  return resParts.join(".").trim();
+}

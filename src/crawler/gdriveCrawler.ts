@@ -4,24 +4,13 @@ require("dotenv").config();
 import fs from "fs";
 import moment from "moment";
 
-import {
-  Document,
-  Media,
-  Packer,
-  Paragraph,
-  HeadingLevel,
-} from "docx";
+import { Document, Media, Packer, Paragraph, HeadingLevel } from "docx";
 
 import { Email, Attachment } from "../types";
 import * as googleApiUtils from "./googleApiUtils";
 import { logger } from "../loggers";
-import {
-  interestedEmails,
-  ignoredWordTokens,
-  THREAD_JOB_STATUS_ENUM,
-  MIME_TYPE_ENUM,
-  get256Hash,
-} from "./commonUtils";
+import { THREAD_JOB_STATUS_ENUM, MIME_TYPE_ENUM } from "./commonUtils";
+import * as commonUtils from "./commonUtils";
 import * as DataUtils from "./dataUtils";
 
 let noteDestinationFolderId;
@@ -46,37 +35,6 @@ function _sanitizeFileName(string) {
     .filter((r) => r && r.length > 0)
     .join(" ")
     .trim();
-}
-
-// this get the domain out of the email
-export function generateFolderName(string) {
-  string = string.toLowerCase();
-
-  if (interestedEmails.some((myEmail) => string.includes(myEmail))) {
-    // if sent by me, then group things under the same label
-    return `_ME ${string}`;
-  }
-
-  if (
-    string.includes("gmail") ||
-    string.includes("yahoo.com") ||
-    string.includes("ymail") ||
-    string.includes("hotmail.com") ||
-    string.includes("aol.com")
-  ) {
-    // common email domain, then should use their full name
-    return string.trim();
-  }
-
-  // break up things after @ and before the last dot
-  let domainParts = string.split(/[@.]/g);
-
-  const resParts = [
-    domainParts[domainParts.length - 2],
-    domainParts[domainParts.length - 1],
-  ];
-
-  return resParts.join(".").trim();
 }
 
 export async function generateDocFile(
@@ -244,16 +202,7 @@ async function _init() {
 }
 
 async function _processThreadEmail(email: Email) {
-  let {
-    threadId,
-    id,
-    from,
-    bcc,
-    to,
-    subject,
-    date,
-    labelIds,
-  } = email;
+  let { threadId, id, from, bcc, to, subject, date, labelIds } = email;
 
   let docDriveFileId;
 
@@ -284,11 +233,11 @@ async function _processThreadEmail(email: Email) {
 
     const toEmailAddresses = toEmailList.join(", ");
 
-    const isEmailSentByMe = interestedEmails.some((myEmail) =>
+    const isEmailSentByMe = commonUtils.interestedEmails.some((myEmail) =>
       from.includes(myEmail)
     );
 
-    const isEmailSentToMySelf = interestedEmails.some((myEmail) =>
+    const isEmailSentToMySelf = commonUtils.interestedEmails.some((myEmail) =>
       toEmailList.some((toEmail) => toEmail.includes(myEmail))
     );
 
@@ -322,10 +271,10 @@ async function _processThreadEmail(email: Email) {
 
     // ignored if content contains the ignored patterns
     if (
-      ignoredWordTokens.some((ignoredToken) =>
+      commonUtils.ignoredWordTokens.some((ignoredToken) =>
         rawBody.toLowerCase().includes(ignoredToken)
       ) ||
-      ignoredWordTokens.some((ignoredToken) =>
+      commonUtils.ignoredWordTokens.some((ignoredToken) =>
         subject.toLowerCase().includes(ignoredToken)
       )
     ) {
@@ -343,7 +292,7 @@ async function _processThreadEmail(email: Email) {
 
     if (isEmailSentByMe || isEmailSentToMySelf || hasSomeAttachments) {
       // create the bucket folder
-      const fromEmailDomain = generateFolderName(from);
+      const fromEmailDomain = commonUtils.generateFolderName(from);
       const folderIdToUse = await googleApiUtils.createDriveFolder({
         name: fromEmailDomain,
         description: `Chats & Emails from ${fromEmailDomain}`,
@@ -365,7 +314,7 @@ async function _processThreadEmail(email: Email) {
 
       if (rawBody.length > 0) {
         docFileName = _sanitizeFileName(subject);
-        const docSha = get256Hash(docFileName);
+        const docSha = commonUtils.get256Hash(docFileName);
 
         try {
           await generateDocFile(
@@ -441,7 +390,7 @@ async function _processThreadEmail(email: Email) {
 
         try {
           // upload attachment
-          const attachmentSha = get256Hash(attachment.id);
+          const attachmentSha = commonUtils.get256Hash(attachment.id);
 
           const attachmentDriveFileId = await googleApiUtils.uploadFile({
             name: attachmentName,

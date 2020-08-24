@@ -85,7 +85,9 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
 function _setupWorkers(inputThreadToSpawn) {
   numThreadsToSpawn = Math.min(inputThreadToSpawn, 20);
 
-  logger.debug(`Starting work: command=${action} maxWorkers=${numThreadsToSpawn}`);
+  logger.debug(
+    `Starting work: command=${action} maxWorkers=${numThreadsToSpawn}`
+  );
 
   while (numThreadsToSpawn > 0) {
     numThreadsToSpawn--;
@@ -127,7 +129,9 @@ async function _init() {
 
     // job4
     case WORK_ACTION_ENUM.UPLOAD_EMAILS_BY_MESSAGE_ID:
-      await _setupWorkers(process.env.MAX_THREADS_UPLOAD_EMAILS_BY_MESSAGE_ID || 6);
+      await _setupWorkers(
+        process.env.MAX_THREADS_UPLOAD_EMAILS_BY_MESSAGE_ID || 6
+      );
       getNewWorkFunc = DataUtils.getAllMessageIdsToSyncWithGoogleDrive;
       await _enqueueWorkWithRemainingInputs();
       break;
@@ -176,7 +180,8 @@ async function _enqueueWorkWithRemainingInputs() {
     remainingWorkInputs.length > 0
   ) {
     for (let worker of workers) {
-      if (worker.status === WORKER_STATUS_ENUM.FREE) {// distribute new tasks
+      if (worker.status === WORKER_STATUS_ENUM.FREE) {
+        // distribute new tasks
         const id = remainingWorkInputs[lastWorkIdx];
         const workActionRequest: WorkActionRequest = {
           id,
