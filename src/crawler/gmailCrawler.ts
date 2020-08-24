@@ -315,7 +315,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               <div>${urlToCrawl}</div>
               <div>${websiteRes.subject}</div>
               <div>====================================</div>
-              <div>${truncate(websiteRes.body, {length: 2000})}</div>
+              <div>${truncate(websiteRes.body, { length: 2000 })}</div>
             `);
           } catch (err) {
             logger.debug(
@@ -702,7 +702,6 @@ export async function fetchRawContentsByThreadId(threadIds) {
               }
             }
           }
-
 
           const headers: Headers = _getHeaders(message.payload.headers || []);
           const rawSubject = (headers.subject || `${from} ${id}`).trim();
