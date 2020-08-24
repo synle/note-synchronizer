@@ -1,6 +1,5 @@
 // @ts-nocheck
 import fs from "fs";
-import { Readability } from "@mozilla/readability";
 import { Base64 } from "js-base64";
 import { JSDOM } from "jsdom";
 import prettier from "prettier";
@@ -562,10 +561,6 @@ function _parseGmailMessage(bodyData) {
 export function _parseBodyWithText(html) {
   let body = html || "";
   try {
-    body = new JSDOM(_cleanHtml(html)).window.document.body.textContent;
-  } catch (e) {}
-
-  try {
     return body
       .replace("\r", "\n")
       .split(/[ ]/)
@@ -583,7 +578,17 @@ export function _parseBodyWithText(html) {
 export function _parseBodyWithHtml(html) {
   try {
     const dom = new JSDOM(_cleanHtml(html));
-    return dom.window.document.textContent.replace("  ", "\n").trim();
+
+    // replace anchors href with links
+    const anchors = dom.window.document.querySelectorAll("a");
+    for (const anchor of anchors) {
+      const url = anchors[0].getAttribute("href");
+      if (url.includes("http")) {
+        anchor.innerText = url;
+      }
+    }
+
+    return dom.window.document.body.textContent.trim();
   } catch (err) {
     logger.debug(`_parseBodyWithHtml failed err=${err.stack}`);
   }
