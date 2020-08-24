@@ -49,7 +49,7 @@ function _logAndWrapApiError(err, res, ...extra) {
         return JSON.stringify(s);
       })
       .join(", "),
-    err.stack || JSON.stringify(err),
+    JSON.stringify(err.stack || err),
     res
   );
 

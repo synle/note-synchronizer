@@ -159,6 +159,11 @@ export function get256Hash(string) {
   return crypto.createHash("sha256").update(string).digest("base64");
 }
 
+export function getMd5Hash(string) {
+  string = (string || "") + "";
+  return crypto.createHash("md5").update(string).digest("hex");
+}
+
 // this get the domain out of the email
 export function generateFolderName(string) {
   string = string.toLowerCase();

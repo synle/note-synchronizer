@@ -374,9 +374,9 @@ async function _processThreadEmail(email: Email) {
           });
         } catch (err) {
           logger.error(
-            `Error - Failed to upload original note - threadId=${threadId} id=${id} subject=${subject} attachmentName=${docFileName} localPath=${localPath} error=${
-              err.stack || JSON.stringify(err)
-            }`
+            `Error - Failed to upload original note - threadId=${threadId} id=${id} subject=${subject} attachmentName=${docFileName} localPath=${localPath} error=${JSON.stringify(
+              err.stack || err
+            )}`
           );
         }
       }
@@ -441,7 +441,7 @@ async function _processThreadEmail(email: Email) {
           logger.error(
             `Error - Failed upload attachment - threadId=${threadId} id=${id} subject=${subject} attachmentName=${attachmentName} ${
               attachment.mimeType
-            } path=${attachment.path} error=${err.stack || JSON.stringify(err)}`
+            } path=${attachment.path} error=${JSON.stringify(err.stack || err)}`
           );
         }
       }
@@ -458,7 +458,7 @@ async function _processThreadEmail(email: Email) {
     logger.error(
       `Failed to upload emails with threadId=${email.threadId} messageId=${
         email.id
-      } error=${err.stack || JSON.stringify(err)}`
+      } error=${JSON.stringify(err.stack || err)}`
     );
 
     await DataUtils.bulkUpsertEmails({

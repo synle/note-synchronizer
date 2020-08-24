@@ -207,6 +207,11 @@ export async function getAllParentFolders() {
     attributes: ["folderName"],
     raw: true,
     order: ["folderName"],
+    where: {
+      driveFileId: {
+        [Op.ne]: null,
+      },
+    },
   });
   return res.map((folder) => folder.folderName);
 }
