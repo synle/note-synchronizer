@@ -2,21 +2,14 @@
 require("dotenv").config();
 
 import fs from "fs";
-import { Readability } from "@mozilla/readability";
 import moment from "moment";
 
 import {
   Document,
-  HorizontalPositionAlign,
-  HorizontalPositionRelativeFrom,
   Media,
   Packer,
   Paragraph,
-  VerticalPositionAlign,
-  VerticalPositionRelativeFrom,
-  TextRun,
   HeadingLevel,
-  PageBreak,
 } from "docx";
 
 import { Email, Attachment } from "../types";
@@ -29,7 +22,6 @@ import {
   MIME_TYPE_ENUM,
   get256Hash,
 } from "./commonUtils";
-import { tryParseBody } from "./gmailCrawler";
 import * as DataUtils from "./dataUtils";
 
 let noteDestinationFolderId;
@@ -37,6 +29,7 @@ let noteDestinationFolderId;
 const PROCESSED_EMAIL_PREFIX_PATH = "./processed";
 
 const FORMAT_DATE_TIME1 = "MM/DD/YY hh:mmA";
+const FORMAT_DATE_TIME2 = "YY/MM/DD HH:mm";
 
 function _sanitizeFileName(string) {
   return string
@@ -312,7 +305,7 @@ async function _processThreadEmail(email: Email) {
     );
 
     const friendlyDateTimeString2 = moment(parseInt(date) * 1000).format(
-      "YY/MM/DD HH:mm"
+      FORMAT_DATE_TIME2
     );
 
     if (labelIdsList.some((labelId) => labelId.includes("CHAT"))) {

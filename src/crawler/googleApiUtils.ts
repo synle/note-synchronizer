@@ -436,8 +436,12 @@ export function createFolderInDrive(resource) {
       },
       function (err, res) {
         if (err) {
-          _logAndWrapApiError(err, res, "createFolderInDrive", resource);
-          return null;
+          return reject(_logAndWrapApiError(
+            err,
+            res,
+            "createFolderInDrive",
+            resource
+          ));
         }
         resolve(res.data.id);
       }
@@ -535,8 +539,10 @@ export async function createDriveFolder({
       }
 
       // create the folder itself
+      logger.debug(`Create Google Drive Folder ${name}`);
       return createFolderInDrive(fileGDriveMetadata);
     } else {
+      logger.debug(`Skipped Create Google Drive Folder ${name} due to duplicate`);
       return matchedResults[0].id;
     }
   } catch (err) {
