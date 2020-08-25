@@ -293,3 +293,22 @@ show variables LIKE '%innodb_buffer%';
 | wait_timeout                      | 28800    |
 +-----------------------------------+----------+
 ```
+
+
+### Redis Notes
+```
+DEL ALL_MESSAGE_IDS;
+DEL ALL_THREAD_IDS;
+DEL FETCH_RAW_CONTENT;
+DEL PARSE_EMAIL;
+DEL UPLOAD_EMAILS_BY_MESSAGE_ID;
+
+EXISTS FETCH_RAW_CONTENT _threadId_
+SCARD FETCH_RAW_CONTENT
+
+EXISTS PARSE_EMAIL _threadId_
+SCARD PARSE_EMAIL
+
+EXISTS UPLOAD_EMAILS_BY_MESSAGE_ID _messageId_
+SCARD UPLOAD_EMAILS_BY_MESSAGE_ID
+```

@@ -105,7 +105,7 @@ export default async () => {
               return reject(
                 `${modelName} Upsert with Update failed ${JSON.stringify(
                   err.stack || err
-                )}`
+                )} item=${JSON.stringify(item)}`
               );
             }
           } else {
@@ -123,7 +123,7 @@ export default async () => {
               return reject(
                 `${modelName} Upsert with Create failed ${JSON.stringify(
                   err.stack || err
-                )}`
+                )} item=${JSON.stringify(item)}`
               );
             }
           }

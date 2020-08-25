@@ -16,7 +16,6 @@ enum REDIS_KEY {
   ALL_THREAD_IDS = 'ALL_THREAD_IDS',
   FETCH_RAW_CONTENT = 'FETCH_RAW_CONTENT',
   PARSE_EMAIL = 'PARSE_EMAIL',
-  GENERATE_CONTAINER_FOLDERS = 'GENERATE_CONTAINER_FOLDERS',
   UPLOAD_EMAILS_BY_MESSAGE_ID = 'UPLOAD_EMAILS_BY_MESSAGE_ID',
 }
 
@@ -30,7 +29,6 @@ export async function restartAllWork(){
   await redisInstance.del(REDIS_KEY.ALL_MESSAGE_IDS);
   await redisInstance.del(REDIS_KEY.FETCH_RAW_CONTENT);
   await redisInstance.del(REDIS_KEY.PARSE_EMAIL);
-  await redisInstance.del(REDIS_KEY.GENERATE_CONTAINER_FOLDERS);
   await redisInstance.del(REDIS_KEY.UPLOAD_EMAILS_BY_MESSAGE_ID);
   console.debug("Done Cleaning Up Redis");
 
@@ -44,7 +42,7 @@ export async function restartAllWork(){
   try{
     for (const threadId of allThreadIds){
       pipeline.sadd(REDIS_KEY.ALL_THREAD_IDS, threadId);
-      // pipeline.sadd(REDIS_KEY.FETCH_RAW_CONTENT, threadId); // no need to change this
+      pipeline.sadd(REDIS_KEY.FETCH_RAW_CONTENT, threadId); // no need to change this
     }
     await pipeline.exec();
   } catch(err){}
@@ -61,7 +59,7 @@ export async function restartAllWork(){
     for (const messageId of allMessageIds){
       pipeline.sadd(REDIS_KEY.ALL_MESSAGE_IDS, messageId);
       // pipeline.sadd(REDIS_KEY.PARSE_EMAIL, messageId); // no need to do this
-      pipeline.sadd(REDIS_KEY.UPLOAD_EMAILS_BY_MESSAGE_ID, messageId);
+      // pipeline.sadd(REDIS_KEY.UPLOAD_EMAILS_BY_MESSAGE_ID, messageId);
     }
     await pipeline.exec();
   } catch (err) {}
@@ -152,90 +150,127 @@ export async function getRawContentsByThreadId(
 }
 
 export async function bulkUpsertEmails(emails: Email[]) {
-  return Models.Email.bulkUpsert(emails);
+  await Models.Email.bulkUpsert(emails);
+
+  // upsert the status in the redis
+  const pipeline = redisInstance.pipeline();
+  for(const email of [].concat(emails)){
+    const id = email.id;
+    const status = email.status;
+
+    pipeline.sadd(REDIS_KEY.ALL_MESSAGE_IDS, id);
+
+    if (status){
+      pipeline.srem(REDIS_KEY.UPLOAD_EMAILS_BY_MESSAGE_ID, id);
+
+      switch (status) {
+        case THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE:
+          pipeline.sadd(REDIS_KEY.UPLOAD_EMAILS_BY_MESSAGE_ID, id);
+          break;
+      }
+    }
+  }
+
+  await pipeline.exec();
 }
 
 // step 1 fetch raw content
 export async function getAllThreadIdsToFetchRawContents() {
-  const req = {
-    attributes: ["threadId"], // only fetch threadId
-    where: {
-      status: {
-        [Op.eq]: THREAD_JOB_STATUS_ENUM.PENDING_CRAWL,
-      },
-    },
-    raw: true,
-  };
-
-  const res = await Models.Thread.findAll(req);
-  return res.map((thread) => thread.threadId);
+  // use redis
+  const ids = await redisInstance.smembers(REDIS_KEY.FETCH_RAW_CONTENT);
+  const pipeline = redisInstance.pipeline();
+  for(let id of ids){
+    pipeline.srem(id);
+  }
+  await pipeline.exec();
+  return ids;
 }
 
 // step 2 parse email
 export async function getAllThreadIdsToParseEmails() {
-  const req = {
-    attributes: ["threadId"], // only fetch threadId
-    where: {
-      status: {
-        [Op.eq]: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
-      },
-    },
-    raw: true,
-  };
-
-  const res = await Models.Thread.findAll(req);
-  return res.map((thread) => thread.threadId);
+  // use redis
+  const ids = await redisInstance.smembers(REDIS_KEY.PARSE_EMAIL);
+  const pipeline = redisInstance.pipeline();
+  for(let id of ids){
+    pipeline.srem(id);
+  }
+  await pipeline.exec();
+  return ids;
 }
 
 // step 3 sync / upload to gdrive
 export async function getAllMessageIdsToSyncWithGoogleDrive(): String[] {
-  const res = await Models.Email.findAll({
-    attributes: ["id"],
-    where: {
-      status: {
-        [Op.eq]: THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE,
-      },
-    },
-    raw: true,
-  });
-  return res.map((thread) => thread.id);
+  // use redis
+  const ids = await redisInstance.smembers(REDIS_KEY.UPLOAD_EMAILS_BY_MESSAGE_ID);
+  const pipeline = redisInstance.pipeline();
+  for(let id of ids){
+    pipeline.srem(id);
+  }
+  await pipeline.exec();
+  return ids;
 }
 
 export async function bulkUpsertThreadJobStatuses(threads) {
-  return Models.Thread.bulkUpsert(threads, [
-    "status",
+  // upsert record in the database
+  await Models.Thread.bulkUpsert(threads, [
     "processedDate",
     "totalMessages",
     "historyId",
   ]);
+
+  // upsert the status in the redis
+  const pipeline = redisInstance.pipeline();
+  for(const thread of [].concat(threads)){
+    const id = thread.threadId;
+    const status = thread.status;
+
+    pipeline.sadd(REDIS_KEY.ALL_THREAD_IDS, id);
+
+    if (status){
+      pipeline.srem(REDIS_KEY.FETCH_RAW_CONTENT, id);
+      pipeline.srem(REDIS_KEY.PARSE_EMAIL, id);
+
+      switch (status) {
+        case THREAD_JOB_STATUS_ENUM.PENDING_CRAWL:
+          pipeline.sadd(REDIS_KEY.FETCH_RAW_CONTENT, id);
+          break;
+        case THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL:
+          pipeline.sadd(REDIS_KEY.PARSE_EMAIL, id);
+          break;
+      }
+    }
+  }
+
+  await pipeline.exec();
 }
 
 export async function recoverInProgressThreadJobStatus(oldStatus, newStatus) {
-  const promiseThread = Models.Thread.update(
-    {
-      status: THREAD_JOB_STATUS_ENUM.PENDING_CRAWL,
-      duration: null,
-      totalMessages: null,
-    },
-    {
-      where: {
-        status: THREAD_JOB_STATUS_ENUM.IN_PROGRESS,
-      },
-    }
-  );
+  // TODO: implement me
+  // const promiseThread = Models.Thread.update(
+  //   {
+  //     status: THREAD_JOB_STATUS_ENUM.PENDING_CRAWL,
+  //     duration: null,
+  //     totalMessages: null,
+  //   },
+  //   {
+  //     where: {
+  //       status: THREAD_JOB_STATUS_ENUM.IN_PROGRESS,
+  //     },
+  //   }
+  // );
 
-  const promiseEmail = Models.Email.update(
-    {
-      status: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
-    },
-    {
-      where: {
-        status: THREAD_JOB_STATUS_ENUM.IN_PROGRESS,
-      },
-    }
-  );
+  // const promiseEmail = Models.Email.update(
+  //   {
+  //     status: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
+  //   },
+  //   {
+  //     where: {
+  //       status: THREAD_JOB_STATUS_ENUM.IN_PROGRESS,
+  //     },
+  //   }
+  // );
 
-  await Promise.all([promiseThread, promiseEmail]);
+  // await Promise.all([promiseThread, promiseEmail]);
 }
 
 export async function bulkUpsertFolders(folders) {

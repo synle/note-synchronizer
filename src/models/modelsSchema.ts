@@ -24,12 +24,6 @@ export class Folder extends Model {
 @table("threads", {
   timestamps: true,
 })
-@index([
-  {
-    unique: false,
-    fields: ["status"],
-  },
-])
 export class Thread extends Model {
   @attribute(Thread, {
     allowNull: false,
@@ -53,9 +47,6 @@ export class Thread extends Model {
 
   @attribute(Thread, { allowNull: false })
   snippet!: string;
-
-  @attribute(Thread, { allowNull: false })
-  status!: string;
 }
 
 /**
@@ -72,10 +63,6 @@ export class Thread extends Model {
   {
     unique: false,
     fields: ["from"],
-  },
-  {
-    unique: false,
-    fields: ["status"],
   },
   {
     unique: false,
@@ -131,9 +118,6 @@ export class Email extends Model {
 
   @attribute(Email, { type: DataTypes.STRING(700) })
   labelIds!: string;
-
-  @attribute(Email, { allowNull: false })
-  status!: string;
 
   @attribute(Email, { type: "MEDIUMTEXT", allowNull: false })
   rawApiResponse!: string;
