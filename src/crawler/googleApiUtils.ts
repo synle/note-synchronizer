@@ -463,7 +463,7 @@ export function createFolderInDrive(resource) {
   });
 }
 
-export function searchDrive({ name, mimeType, parentFolderId, appProperties }) {
+export function searchDrive({ name, mimeType, parentFolderId, appProperties }, skippedPaging = true) {
   const queries = [];
 
   queries.push(`trashed=false`);
@@ -494,14 +494,45 @@ export function searchDrive({ name, mimeType, parentFolderId, appProperties }) {
 
   const q = queries.join(" AND ");
 
-  logger.debug(`Searching Google Drive: ${q}`);
+  return new Promise(async (resolve, reject) => {
+    try {
+      let nextPageToken = null;
+      const resultFiles = [];
+      while (nextPageToken || nextPageToken === null) {
+        const result = await searchFilesByQuery(q, nextPageToken);
+        nextPageToken = result.nextPageToken;
+        resultFiles.concat(result.files || []);
+        if(skippedPaging){
+          break;
+        }
+      }
+      resolve(resultFiles);
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+function searchFilesByQuery(q, nextPageToken) {
+  const query = {
+    fields: "nextPageToken, files(id, name)",
+    spaces: "drive",
+    pageSize: 1000,
+  };
+  if (nextPageToken) {
+    query[nextPageToken] = nextPageToken;
+  } else {
+    query[q] = q;
+  }
+
+  logger.debug(
+    `searchFilesByQuery q=${JSON.stringify(q)} nextPageToken=${nextPageToken}`
+  );
 
   return new Promise((resolve, reject) => {
     driveApiInstance.files.list(
       {
         q,
-        fields: "nextPageToken, files(id, name)",
-        spaces: "drive",
       },
       function (err, res) {
         if (err) {
@@ -509,14 +540,14 @@ export function searchDrive({ name, mimeType, parentFolderId, appProperties }) {
             _logAndWrapApiError(
               err,
               res,
-              "searchDrive",
+              "searchFilesByQuery",
               name,
               mimeType,
               parentFolderId
             )
           );
         }
-        resolve(res.data.files);
+        resolve(res.data);
       }
     );
   });
