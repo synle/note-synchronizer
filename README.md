@@ -15,6 +15,7 @@ Crawled Gmail Notes and push them to Google Drive
 
 - Node JS for backend jobs with Worker Threads APIs
 - MySQL / Sqlite3 for datastore
+- Redis for queue
 - Gmail API
 - Google Drive API
 
