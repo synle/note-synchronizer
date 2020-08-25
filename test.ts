@@ -133,7 +133,12 @@ async function _doWork5() {
   console.log(folderList.length);
 }
 
+async function _doWork6(){
+  await _init();
+  await DataUtils.restartAllWork();
+}
+
 //
-_doWork5();
+_doWork6();
 //_doWork3();
 //_doWork4();
