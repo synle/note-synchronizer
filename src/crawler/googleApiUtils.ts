@@ -497,11 +497,11 @@ export function searchDrive({ name, mimeType, parentFolderId, appProperties }, s
   return new Promise(async (resolve, reject) => {
     try {
       let nextPageToken = null;
-      const resultFiles = [];
+      let resultFiles = [];
       while (nextPageToken || nextPageToken === null) {
         const result = await searchFilesByQuery(q, nextPageToken);
         nextPageToken = result.nextPageToken;
-        resultFiles.concat(result.files || []);
+        resultFiles = resultFiles.concat(result.files || []);
         if(skippedPaging){
           break;
         }
@@ -564,9 +564,12 @@ export async function createDriveFolder({
   try {
     const mimeType = MIME_TYPE_ENUM.APP_GOOGLE_FOLDER;
 
+
     const matchedResults = await searchDrive({
+      name,
       mimeType,
-      appProperties,
+      parentFolderId: parentFolderId,
+      // appProperties,
     });
 
     if (matchedResults.length === 0) {

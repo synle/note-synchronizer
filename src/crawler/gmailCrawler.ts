@@ -252,7 +252,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
         // stripped down body (remove signatures and clean up the dom)
         rawBody = rawBodyPlain || rawBodyHtml;
-        let strippedDownBody = tryParseBody(rawBody); // attempt at using one of the parser;
+        let strippedDownBody = tryParseBody(rawBody, `id=${id}`); // attempt at using one of the parser;
 
         // trim the signatures
         for (let signature of mySignatureTokens) {
@@ -281,12 +281,14 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               <div>${rawBody}</div>
               <div>====================================</div>
               <div>${urlToCrawl}</div>
+              <div>====================================</div>
               <div>${websiteRes.subject}</div>
               <div>====================================</div>
-              <div>${truncate(tryParseBody(websiteRes.body), {
-                length: 2000,
-              })}</div>
-            `);
+              <div>${websiteRes.body}</div>
+            `, `id=${id} url=${urlToCrawl}`);
+            body = truncate(body, {
+              length: 2000,
+            });
           } catch (err) {
             logger.debug(
               `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
@@ -309,16 +311,21 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
             );
 
             subject = `${rawSubject} ${websiteRes.subject}`;
-            body = tryParseBody(`
+            body = tryParseBody(
+              `
               <div>${rawBody}</div>
               <div>====================================</div>
               <div>${urlToCrawl}</div>
+              <div>====================================</div>
               <div>${websiteRes.subject}</div>
               <div>====================================</div>
-              <div>${truncate(tryParseBody(websiteRes.body), {
-                length: 2000,
-              })}</div>
-            `);
+              <div>${websiteRes.body}</div>
+            `,
+              `id=${id} url=${urlToCrawl}`
+            );
+            body = truncate(body, {
+              length: 10000,
+            });
           } catch (err) {
             logger.debug(
               `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
@@ -581,7 +588,7 @@ export function _parseBodyWithText(html) {
   }
 }
 
-export function _parseBodyWithHtml(html) {
+export function _parseBodyWithHtml(html, loggerAdditionalInfo = '') {
   try {
     const dom = new JSDOM(_cleanHtml(html));
 
@@ -603,15 +610,20 @@ export function _parseBodyWithHtml(html) {
     return dom.window.document.body.textContent.trim();
   } catch (err) {
     logger.debug(
-      `_parseBodyWithHtml failed error=${JSON.stringify(err.stack || err)}`
+      `_parseBodyWithHtml failed error=${JSON.stringify(
+        err.stack || err
+      )} ${loggerAdditionalInfo}`
     );
   }
 }
 
-export function tryParseBody(rawBody) {
+export function tryParseBody(rawBody, loggerAdditionalInfo = '') {
   rawBody = (rawBody || "").trim();
   return (
-    _parseBodyWithHtml(rawBody) || _parseBodyWithText(rawBody) || rawBody || ""
+    _parseBodyWithHtml(rawBody, loggerAdditionalInfo) ||
+    _parseBodyWithText(rawBody) ||
+    rawBody ||
+    ""
   );
 }
 
