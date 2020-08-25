@@ -121,7 +121,19 @@ async function _doWork4() {
   console.log(data2);
 }
 
+async function _doWork5() {
+  await _init();
+
+  const folderList = await googleApiUtils.searchDrive({
+    mimeType: MIME_TYPE_ENUM.APP_GOOGLE_FOLDER,
+    parentFolderId: process.env.NOTE_DESTINATION_FOLDER_ID,
+  });
+
+  console.log(folderList[0]);
+  console.log(folderList.length);
+}
+
 //
-_doWork0();
+_doWork5();
 //_doWork3();
 //_doWork4();

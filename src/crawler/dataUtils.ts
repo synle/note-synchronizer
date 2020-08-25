@@ -111,7 +111,7 @@ export async function getAllThreadIdsToFetchRawContents() {
 }
 
 // step 2 parse email
-export async function getAllThreadIdsToParseEmails(limit = 2250) {
+export async function getAllThreadIdsToParseEmails(limit = 250) {
   const req = {
     attributes: ["threadId"], // only fetch threadId
     where: {
@@ -128,23 +128,6 @@ export async function getAllThreadIdsToParseEmails(limit = 2250) {
 }
 
 // step 3 sync / upload to gdrive
-export async function getAllThreadIdsToSyncWithGoogleDrive(
-  limit = 250
-): String[] {
-  const res = await Models.Email.findAll({
-    attributes: ["threadId"],
-    group: ["threadId"],
-    where: {
-      status: {
-        [Op.eq]: THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE,
-      },
-    },
-    raw: true,
-    limit,
-  });
-  return res.map((thread) => thread.threadId);
-}
-
 export async function getAllMessageIdsToSyncWithGoogleDrive(
   limit = 250
 ): String[] {
