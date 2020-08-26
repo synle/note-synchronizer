@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width">
-  <title>JS Bin</title>
+  <title>Note Synchronizer</title>
   <script src="https://cdn.jsdelivr.net/npm/jsdom@16.4.0/lib/api.min.js"></script>
 </head>
 <style>
@@ -63,8 +63,10 @@
     const messageId = document.querySelector('#input-message-id-to-sync').value;
     if(messageId.length >= 16 && messageId.length < 20){
       syncInProgress = true;
+      try{
       const result = await fetch(`/api/message/sync/${messageId}`).then(res => res.json());
       alert(JSON.stringify(result, null, 2))
+      } catch(err){}
       syncInProgress = false;
     }
   }

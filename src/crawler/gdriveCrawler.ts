@@ -96,12 +96,6 @@ export async function generateDocFile(
   mainContent = mainContent.split("\n");
   console.log("mainContent", mainContent.length);
   for (let content of mainContent) {
-    content = (content || "").trim();
-
-    if (content.length === 0) {
-      continue;
-    }
-
     children.push(
       new Paragraph({
         text: content,
@@ -201,6 +195,7 @@ async function _init() {
 
 async function _processThreadEmail(email: Email) {
   let { threadId, id, from, bcc, to, subject, date, labelIds } = email;
+  logger.debug(`_processThreadEmail threadId=${threadId} id=${id}`);
 
   let docDriveFileId;
 
