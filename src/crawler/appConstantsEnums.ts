@@ -41,6 +41,7 @@ export enum MIME_TYPE_ENUM {
   APP_MS_PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   APP_MS_DOC = "application/msword",
   APP_MS_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  APP_APPLE_IWORK = "application/x-iwork-pages-sffpages",
   APP_RTF = "application/rtf",
   APP_XML = "application/xml",
   APP_PDF = "application/pdf",
