@@ -6,20 +6,17 @@ import { Email, GmailMessageResponse } from "../types";
 
 import Models from "../models/modelsSchema";
 
-import { THREAD_JOB_STATUS_ENUM, WORK_ACTION_ENUM } from "./commonUtils";
+import {
+  REDIS_KEY,
+  THREAD_JOB_STATUS_ENUM,
+  WORK_ACTION_ENUM,
+} from "./appConstantsEnums";
 
 import Redis from "ioredis";
+
 const redisInstance = new Redis();
 
-enum REDIS_KEY {
-  ALL_MESSAGE_IDS = 'ALL_MESSAGE_IDS',
-  ALL_THREAD_IDS = 'ALL_THREAD_IDS',
-  FETCH_RAW_CONTENT = 'FETCH_RAW_CONTENT',
-  PARSE_EMAIL = 'PARSE_EMAIL',
-  UPLOAD_EMAILS_BY_MESSAGE_ID = 'UPLOAD_EMAILS_BY_MESSAGE_ID',
-}
-
-export async function restartAllWork(){
+export async function restartAllWork() {
   let res;
   const pipeline = redisInstance.pipeline();
 
@@ -33,39 +30,50 @@ export async function restartAllWork(){
   console.debug("Done Cleaning Up Redis");
 
   // move all the thread id into the allThreadIds set
-  console.debug("Start Cloning all threadIds into REDIS", REDIS_KEY.ALL_THREAD_IDS);
+  console.debug(
+    "Start Cloning all threadIds into REDIS",
+    REDIS_KEY.ALL_THREAD_IDS
+  );
   res = await Models.Thread.findAll({
     attributes: ["threadId"],
     raw: true,
   });
   const allThreadIds = res.map((thread) => thread.threadId);
-  try{
-    for (const threadId of allThreadIds){
+  try {
+    for (const threadId of allThreadIds) {
       pipeline.sadd(REDIS_KEY.ALL_THREAD_IDS, threadId);
       pipeline.sadd(REDIS_KEY.FETCH_RAW_CONTENT, threadId); // no need to change this
     }
     await pipeline.exec();
-  } catch(err){}
-  console.debug("Done Cloning all threadIds into REDIS", REDIS_KEY.ALL_THREAD_IDS);
+  } catch (err) {}
+  console.debug(
+    "Done Cloning all threadIds into REDIS",
+    REDIS_KEY.ALL_THREAD_IDS
+  );
 
   // move all the message id into the allMessageIds set
-  console.debug("Start Cloning all messageIds into REDIS", REDIS_KEY.ALL_MESSAGE_IDS);
+  console.debug(
+    "Start Cloning all messageIds into REDIS",
+    REDIS_KEY.ALL_MESSAGE_IDS
+  );
   res = await Models.Email.findAll({
     attributes: ["id"],
     raw: true,
   });
   const allMessageIds = res.map((message) => message.id);
   try {
-    for (const messageId of allMessageIds){
+    for (const messageId of allMessageIds) {
       pipeline.sadd(REDIS_KEY.ALL_MESSAGE_IDS, messageId);
       // pipeline.sadd(REDIS_KEY.PARSE_EMAIL, messageId); // no need to do this
       // pipeline.sadd(REDIS_KEY.UPLOAD_EMAILS_BY_MESSAGE_ID, messageId);
     }
     await pipeline.exec();
   } catch (err) {}
-  console.debug("Done Cloning all messageIds into REDIS", REDIS_KEY.ALL_MESSAGE_IDS);
+  console.debug(
+    "Done Cloning all messageIds into REDIS",
+    REDIS_KEY.ALL_MESSAGE_IDS
+  );
 }
-
 
 // attachments
 export async function getAttachmentByMessageId(messageId) {
@@ -154,13 +162,13 @@ export async function bulkUpsertEmails(emails: Email[]) {
 
   // upsert the status in the redis
   const pipeline = redisInstance.pipeline();
-  for(const email of [].concat(emails)){
+  for (const email of [].concat(emails)) {
     const id = email.id;
     const status = email.status;
 
     pipeline.sadd(REDIS_KEY.ALL_MESSAGE_IDS, id);
 
-    if (status){
+    if (status) {
       pipeline.srem(REDIS_KEY.UPLOAD_EMAILS_BY_MESSAGE_ID, id);
 
       switch (status) {
@@ -179,7 +187,7 @@ export async function getAllThreadIdsToFetchRawContents() {
   // use redis
   const ids = await redisInstance.smembers(REDIS_KEY.FETCH_RAW_CONTENT);
   const pipeline = redisInstance.pipeline();
-  for(let id of ids){
+  for (let id of ids) {
     pipeline.srem(id);
   }
   await pipeline.exec();
@@ -191,7 +199,7 @@ export async function getAllThreadIdsToParseEmails() {
   // use redis
   const ids = await redisInstance.smembers(REDIS_KEY.PARSE_EMAIL);
   const pipeline = redisInstance.pipeline();
-  for(let id of ids){
+  for (let id of ids) {
     pipeline.srem(id);
   }
   await pipeline.exec();
@@ -201,9 +209,11 @@ export async function getAllThreadIdsToParseEmails() {
 // step 3 sync / upload to gdrive
 export async function getAllMessageIdsToSyncWithGoogleDrive(): String[] {
   // use redis
-  const ids = await redisInstance.smembers(REDIS_KEY.UPLOAD_EMAILS_BY_MESSAGE_ID);
+  const ids = await redisInstance.smembers(
+    REDIS_KEY.UPLOAD_EMAILS_BY_MESSAGE_ID
+  );
   const pipeline = redisInstance.pipeline();
-  for(let id of ids){
+  for (let id of ids) {
     pipeline.srem(id);
   }
   await pipeline.exec();
@@ -220,13 +230,13 @@ export async function bulkUpsertThreadJobStatuses(threads) {
 
   // upsert the status in the redis
   const pipeline = redisInstance.pipeline();
-  for(const thread of [].concat(threads)){
+  for (const thread of [].concat(threads)) {
     const id = thread.threadId;
     const status = thread.status;
 
     pipeline.sadd(REDIS_KEY.ALL_THREAD_IDS, id);
 
-    if (status){
+    if (status) {
       pipeline.srem(REDIS_KEY.FETCH_RAW_CONTENT, id);
       pipeline.srem(REDIS_KEY.PARSE_EMAIL, id);
 
@@ -258,7 +268,6 @@ export async function recoverInProgressThreadJobStatus(oldStatus, newStatus) {
   //     },
   //   }
   // );
-
   // const promiseEmail = Models.Email.update(
   //   {
   //     status: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
@@ -269,7 +278,6 @@ export async function recoverInProgressThreadJobStatus(oldStatus, newStatus) {
   //     },
   //   }
   // );
-
   // await Promise.all([promiseThread, promiseEmail]);
 }
 

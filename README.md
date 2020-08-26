@@ -295,15 +295,25 @@ show variables LIKE '%innodb_buffer%';
 +-----------------------------------+----------+
 ```
 
-
 ### Redis Notes
+
+#### Clear all the redis cache
+
+```
+FLUSHDB
+```
+
 ```
 DEL ALL_MESSAGE_IDS;
 DEL ALL_THREAD_IDS;
 DEL FETCH_RAW_CONTENT;
 DEL PARSE_EMAIL;
 DEL UPLOAD_EMAILS_BY_MESSAGE_ID;
+```
 
+#### More detailed notes
+
+```
 EXISTS FETCH_RAW_CONTENT _threadId_
 SCARD FETCH_RAW_CONTENT
 

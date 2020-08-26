@@ -3,7 +3,8 @@ import fs from "fs";
 import readline from "readline";
 import { google } from "googleapis";
 import moment from "moment";
-import { MIME_TYPE_ENUM, myEmails, generateFolderName } from "./commonUtils";
+import { generateFolderName } from "./commonUtils";
+import { MIME_TYPE_ENUM, myEmails } from "./appConstantsEnums";
 import * as commonUtils from "./commonUtils";
 import * as DataUtils from "./dataUtils";
 import { logger } from "../loggers";
@@ -463,7 +464,10 @@ export function createFolderInDrive(resource) {
   });
 }
 
-export function searchDrive({ name, mimeType, parentFolderId, appProperties }, skippedPaging = true) {
+export function searchDrive(
+  { name, mimeType, parentFolderId, appProperties },
+  skippedPaging = true
+) {
   const queries = [];
 
   queries.push(`trashed=false`);
@@ -502,7 +506,7 @@ export function searchDrive({ name, mimeType, parentFolderId, appProperties }, s
         const result = await searchFilesByQuery(q, nextPageToken);
         nextPageToken = result.nextPageToken;
         resultFiles = resultFiles.concat(result.files || []);
-        if(skippedPaging){
+        if (skippedPaging) {
           break;
         }
       }
@@ -563,7 +567,6 @@ export async function createDriveFolder({
 }) {
   try {
     const mimeType = MIME_TYPE_ENUM.APP_GOOGLE_FOLDER;
-
 
     const matchedResults = await searchDrive({
       name,
