@@ -629,7 +629,7 @@ export function _parseBodyWithHtml(html) {
     ) {
       // if this is js snippet, just return it
       try {
-        return prettier.format(textContent);
+        return prettier.format(textContent, { parser: "babel" });
       } catch (err) {
         return textContent;
       }

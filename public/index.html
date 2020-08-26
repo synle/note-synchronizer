@@ -7,6 +7,9 @@
   <script src="https://cdn.jsdelivr.net/npm/jsdom@16.4.0/lib/api.min.js"></script>
 </head>
 <style>
+  *{
+    box-sizing: border-box;
+  }
   textarea{
     width:100%;
     height: 300px;
@@ -18,24 +21,51 @@
     padding: 5px;
   }
 
-  pre{
+  input, textarea, pre{
+    border: 1px solid #ccc;
+    display:block;
+    margin-bottom: 5px;
+  }
+  body{
+    display: flex;
+  }
+  #formParseBody, #formSyncToDrive{
+    flex-grow: 1;
     border: 1px solid black;
+    padding: 10px;
   }
 </style>
 <body>
-  <input id='input-message-id' placeholder="Message ID" value="10f4697640f6e6d6" oninput="parseBody()" onfocus="parseBody()"/>
-  <textarea id='output-raw-html' placeholder="Raw HTML"></textarea>
-  <textarea id='output-parsed-html1' placeholder="Parsed HTML"></textarea>
-  <textarea id='output-parsed-html2' placeholder="Parsed HTML"></textarea>
+  <form id="formParseBody" onsubmit="parseBody(); return false">
+    <input id='input-message-id-to-parse' placeholder="Message ID" value="10f4697640f6e6d6"/>
+    <textarea id='output-raw-html' placeholder="Raw HTML"></textarea>
+    <textarea id='output-parsed-html' placeholder="Parsed HTML"></textarea>
+  </form>
+  <form id="formSyncToDrive" onsubmit="syncToDrive(); return false">
+    <input id='input-message-id-to-sync' placeholder="Message ID" value="10f4697640f6e6d6"/>
+  </form>
 </body>
 <script>
   async function parseBody(){
-    const messageId = document.querySelector('#input-message-id').value;
+    const messageId = document.querySelector('#input-message-id-to-parse').value;
     if(messageId.length >= 16 && messageId.length < 20){
-      const result = await fetch(`/api/message/${messageId}`).then(res => res.json());
+      const result = await fetch(`/api/message/parse/${messageId}`).then(res => res.json());
       document.querySelector('#output-raw-html').value = result.raw;
-      document.querySelector('#output-parsed-html1').value = result.parsed_html;
-      document.querySelector('#output-parsed-html2').value = result.parsed_text;
+      document.querySelector('#output-parsed-html').value = result.parsed_text;
+    }
+  }
+
+  let syncInProgress = false;
+  async function syncToDrive(){
+    if(syncInProgress){
+      return;
+    }
+    const messageId = document.querySelector('#input-message-id-to-sync').value;
+    if(messageId.length >= 16 && messageId.length < 20){
+      syncInProgress = true;
+      const result = await fetch(`/api/message/sync/${messageId}`).then(res => res.json());
+      alert(JSON.stringify(result, null, 2))
+      syncInProgress = false;
     }
   }
 </script>
