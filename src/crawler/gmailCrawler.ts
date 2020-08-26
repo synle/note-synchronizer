@@ -4,6 +4,7 @@ import { Base64 } from "js-base64";
 import { JSDOM } from "jsdom";
 import prettier from "prettier";
 import truncate from "lodash/truncate";
+import trim from "lodash/trim";
 
 import {
   Email,
@@ -606,7 +607,42 @@ export function _parseBodyWithHtml(html) {
       script.remove();
     }
 
-    return dom.window.document.body.textContent.trim();
+    // clean up all the whitespaces
+    const blocks = dom.window.document.querySelectorAll(
+      "div,p,section,span,header,footer"
+    );
+    for (const block of blocks) {
+      block.textContent = block.textContent
+        .replace("\r", "\n")
+        .split("\n")
+        .join(" ");
+    }
+
+    const textContent = trim(dom.window.document.body.textContent);
+
+    if (
+      (textContent.includes("// ") ||
+        textContent.includes("/* ") ||
+        textContent.includes("var ") ||
+        textContent.includes("const ")) &&
+      textContent.includes("function ")
+    ) {
+      // if this is js snippet, just return it
+      try {
+        return prettier.format(textContent);
+      } catch (err) {
+        return textContent;
+      }
+    }
+
+    return textContent
+      .replace("\r", "\n")
+      .replace("\n\n", "__TWO_SPACES__")
+      .split("\n")
+      .map((s) => trim(s))
+      .filter((s) => !!s)
+      .join("\n")
+      .replace("__TWO_SPACES__", "\n\n");
   } catch (err) {
     logger.debug(
       `_parseBodyWithHtml failed error=${JSON.stringify(err.stack || err)}`
