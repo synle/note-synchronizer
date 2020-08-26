@@ -93,11 +93,7 @@ export async function generateDocFile(
     );
   }
 
-  mainContent = mainContent
-    .trim()
-    .replace(/[\r\n]/g, "\n")
-    .split("\n")
-    .filter((s) => !!s);
+  mainContent = mainContent.split("\n");
   console.log("mainContent", mainContent.length);
   for (let content of mainContent) {
     content = (content || "").trim();

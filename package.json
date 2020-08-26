@@ -6,7 +6,7 @@
   "main": "index.js",
   "scripts": {
     "clean": "sh clean.sh",
-    "prestart": "npm run format:js && npm run clean && npm run build",
+    "prestart2": "npm run format:js && npm run build",
     "job0": "node --max_old_space_size=4000 build/src/worker_parents.js GENERATE_CONTAINER_FOLDERS",
     "job1": "node --max_old_space_size=4000 build/src/worker_parents.js FETCH_THREADS",
     "job2": "node --max_old_space_size=4000 build/src/worker_parents.js FETCH_RAW_CONTENT",

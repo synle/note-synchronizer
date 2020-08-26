@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>JS Bin</title>
+  <script src="https://cdn.jsdelivr.net/npm/jsdom@16.4.0/lib/api.min.js"></script>
+</head>
+<style>
+  textarea{
+    width:100%;
+    height: 300px;
+    padding: 5px;
+  }
+
+  input{
+    width:100%;
+    padding: 5px;
+  }
+
+  pre{
+    border: 1px solid black;
+  }
+</style>
+<body>
+  <input id='input-message-id' placeholder="Message ID" value="10f4697640f6e6d6" oninput="parseBody()" onfocus="parseBody()"/>
+  <textarea id='output-raw-html' placeholder="Raw HTML"></textarea>
+  <textarea id='output-parsed-html1' placeholder="Parsed HTML"></textarea>
+  <textarea id='output-parsed-html2' placeholder="Parsed HTML"></textarea>
+</body>
+<script>
+  async function parseBody(){
+    const messageId = document.querySelector('#input-message-id').value;
+    if(messageId.length >= 16 && messageId.length < 20){
+      const result = await fetch(`/api/message/${messageId}`).then(res => res.json());
+      document.querySelector('#output-raw-html').value = result.raw;
+      document.querySelector('#output-parsed-html1').value = result.parsed_html;
+      document.querySelector('#output-parsed-html2').value = result.parsed_text;
+    }
+  }
+</script>
+</html>
