@@ -260,7 +260,12 @@ async function _processThreadEmail(email: Email) {
       FORMAT_DATE_TIME2
     );
 
+    let isChat = false;
+    let isEmail = true;
+
     if (labelIdsList.some((labelId) => labelId.includes("CHAT"))) {
+      isChat = true;
+      isEmail = false;
       subject = `${friendlyDateTimeString2} Chat : ${subject}`;
     } else {
       subject = `${friendlyDateTimeString2} ${subject}`;
@@ -284,6 +289,19 @@ async function _processThreadEmail(email: Email) {
     ) {
       logger.debug(
         `Skipped due to Ignored Pattern: threadId=${threadId} id=${id} subject=${subject}`
+      );
+
+      await DataUtils.bulkUpsertEmails({
+        id,
+        status: THREAD_JOB_STATUS_ENUM.SKIPPED,
+      });
+
+      return; // skip this
+    }
+
+    if (isChat) {
+      logger.debug(
+        `Skipped due to content being chat threadId=${threadId} id=${id} subject=${subject}`
       );
 
       await DataUtils.bulkUpsertEmails({
