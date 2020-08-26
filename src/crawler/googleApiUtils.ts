@@ -60,6 +60,9 @@ function _logAndWrapApiError(err, res, ...extra) {
 export async function getNoteDestinationFolderId() {
   if (!noteDestinationFolderId) {
     // not there, then create it
+    logger.debug(
+      `getNoteDestinationFolderId attempted at create the folder noteDestinationFolderId=${noteDestinationFolderId}`
+    );
     noteDestinationFolderId = await createNoteDestinationFolder();
   }
 
@@ -498,6 +501,8 @@ export function searchDrive(
 
   const q = queries.join(" AND ");
 
+  logger.debug(`searchDrive q=${q}`);
+
   return new Promise(async (resolve, reject) => {
     try {
       let nextPageToken = null;
@@ -545,7 +550,6 @@ function searchFilesByQuery(q, nextPageToken) {
               err,
               res,
               "searchFilesByQuery",
-              name,
               mimeType,
               parentFolderId
             )
@@ -632,7 +636,7 @@ export async function uploadFile({
       MIME_TYPE_ENUM.APP_RTF,
       MIME_TYPE_ENUM.APP_MS_DOC,
       MIME_TYPE_ENUM.APP_MS_DOCX,
-      MIME_TYPE_ENUM.APP_APPLE_IWORK,
+      // MIME_TYPE_ENUM.APP_APPLE_IWORK,
       MIME_TYPE_ENUM.TEXT_X_AMP_HTML,
       MIME_TYPE_ENUM.TEXT_HTML,
       MIME_TYPE_ENUM.TEXT_PLAIN,

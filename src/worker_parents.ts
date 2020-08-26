@@ -74,7 +74,7 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
 }
 
 function _setupWorkers(inputThreadToSpawn) {
-  numThreadsToSpawn = Math.min(inputThreadToSpawn, 20);
+  numThreadsToSpawn = Math.min(inputThreadToSpawn, 40);
 
   logger.debug(
     `Starting work: command=${action} maxWorkers=${numThreadsToSpawn}`
