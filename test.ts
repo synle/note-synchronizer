@@ -15,7 +15,8 @@ import * as gdriveCrawler from "./src/crawler/gdriveCrawler";
 
 import Models from "./src/models/modelsSchema";
 import * as DataUtils from "./src/crawler/dataUtils";
-import { crawlUrl, myEmails, MIME_TYPE_ENUM } from "./src/crawler/commonUtils";
+import { crawlUrl } from "./src/crawler/commonUtils";
+import { myEmails, MIME_TYPE_ENUM } from "./src/crawler/appConstantsEnums";
 
 async function _init() {
   console.log("test inits");
@@ -133,7 +134,7 @@ async function _doWork5() {
   console.log(folderList.length);
 }
 
-async function _doWork6(){
+async function _doWork6() {
   await _init();
   await DataUtils.restartAllWork();
 }

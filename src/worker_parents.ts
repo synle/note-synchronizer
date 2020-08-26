@@ -10,11 +10,11 @@ import * as gmailCrawler from "./crawler/gmailCrawler";
 import * as DataUtils from "./crawler/dataUtils";
 
 import {
+  WORKER_REFRESH_INTERVAL,
   WORKER_STATUS_ENUM,
   WORK_ACTION_ENUM,
-  WorkActionRequest,
-  WorkActionResponse,
-} from "./crawler/commonUtils";
+} from "./crawler/appConstantsEnums";
+import { WorkActionRequest, WorkActionResponse } from "./types";
 
 // workers
 const workers = [];
@@ -24,7 +24,6 @@ let numThreadsToSpawn = 1;
 let timerWorkSchedule;
 let lastWorkIdx, remainingWorkInputs;
 let getNewWorkFunc = () => {};
-const WORKER_REFRESH_INTERVAL = 1000;
 
 const action = process.argv[2] || "";
 

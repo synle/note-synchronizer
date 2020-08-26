@@ -9,16 +9,18 @@ import { Document, Media, Packer, Paragraph, HeadingLevel } from "docx";
 import { Email, Attachment } from "../types";
 import * as googleApiUtils from "./googleApiUtils";
 import { logger } from "../loggers";
-import { THREAD_JOB_STATUS_ENUM, MIME_TYPE_ENUM } from "./commonUtils";
+import {
+  THREAD_JOB_STATUS_ENUM,
+  MIME_TYPE_ENUM,
+  PROCESSED_EMAIL_PREFIX_PATH,
+  FORMAT_DATE_TIME1,
+  FORMAT_DATE_TIME2,
+} from "./appConstantsEnums";
 import * as commonUtils from "./commonUtils";
+import * as mySignatureTokens from "./appConstantsEnums";
 import * as DataUtils from "./dataUtils";
 
 let noteDestinationFolderId;
-
-const PROCESSED_EMAIL_PREFIX_PATH = "./processed";
-
-const FORMAT_DATE_TIME1 = "MM/DD/YY hh:mmA";
-const FORMAT_DATE_TIME2 = "YY/MM/DD HH:mm";
 
 function _sanitizeFileName(string) {
   return string
@@ -233,13 +235,13 @@ async function _processThreadEmail(email: Email) {
 
     const toEmailAddresses = toEmailList.join(", ");
 
-    const isEmailSentByMe = commonUtils.interestedEmails.some((myEmail) =>
+    const isEmailSentByMe = mySignatureTokens.interestedEmails.some((myEmail) =>
       from.includes(myEmail)
     );
 
     const isEmailSentByMeToMe =
       isEmailSentByMe &&
-      commonUtils.interestedEmails.some((myEmail) =>
+      mySignatureTokens.interestedEmails.some((myEmail) =>
         toEmailList.some((toEmail) => toEmail.includes(myEmail))
       );
 
@@ -273,10 +275,10 @@ async function _processThreadEmail(email: Email) {
 
     // ignored if content contains the ignored patterns
     if (
-      commonUtils.ignoredWordTokens.some((ignoredToken) =>
+      mySignatureTokens.ignoredWordTokens.some((ignoredToken) =>
         rawBody.toLowerCase().includes(ignoredToken)
       ) ||
-      commonUtils.ignoredWordTokens.some((ignoredToken) =>
+      mySignatureTokens.ignoredWordTokens.some((ignoredToken) =>
         subject.toLowerCase().includes(ignoredToken)
       )
     ) {

@@ -12,7 +12,8 @@ import * as googleApiUtils from "./crawler/googleApiUtils";
 import * as gmailCrawler from "./crawler/gmailCrawler";
 import * as gdriveCrawler from "./crawler/gdriveCrawler";
 
-import { WORK_ACTION_ENUM, WorkActionRequest } from "./crawler/commonUtils";
+import { WORK_ACTION_ENUM } from "./crawler/appConstantsEnums";
+import { WorkActionRequest } from "./types";
 
 if (isMainThread) {
   throw new Error("Its not a worker");

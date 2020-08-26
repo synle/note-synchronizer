@@ -19,17 +19,14 @@ import {
   mySignatureTokens,
   MIME_TYPE_ENUM,
   THREAD_JOB_STATUS_ENUM,
-} from "./commonUtils";
+  GMAIL_ATTACHMENT_PATH,
+  MAX_TIME_PER_THREAD,
+} from "./appConstantsEnums";
 
 import * as CommonUtils from "./commonUtils";
 import * as DataUtils from "./dataUtils";
 
 // google crawler
-const GMAIL_ATTACHMENT_PATH = "./attachments";
-
-const MAX_TIME_PER_THREAD = 20 * 60 * 1000; // spend up to this many mins per thread
-// crawler start
-
 /**
  * api to get and process the list of message by a thread id
  * @param targetThreadId
@@ -252,7 +249,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
         // stripped down body (remove signatures and clean up the dom)
         rawBody = rawBodyPlain || rawBodyHtml;
-        let strippedDownBody = tryParseBody(rawBody, `id=${id}`); // attempt at using one of the parser;
+        let strippedDownBody = tryParseBody(rawBody); // attempt at using one of the parser;
 
         // trim the signatures
         for (let signature of mySignatureTokens) {
@@ -277,7 +274,8 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
             );
 
             subject = `${rawSubject} ${websiteRes.subject}`;
-            body = tryParseBody(`
+            body = tryParseBody(
+              `
               <div>${rawBody}</div>
               <div>====================================</div>
               <div>${urlToCrawl}</div>
@@ -285,7 +283,8 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               <div>${websiteRes.subject}</div>
               <div>====================================</div>
               <div>${websiteRes.body}</div>
-            `, `id=${id} url=${urlToCrawl}`);
+            `
+            );
             body = truncate(body, {
               length: 2000,
             });
@@ -588,7 +587,7 @@ export function _parseBodyWithText(html) {
   }
 }
 
-export function _parseBodyWithHtml(html, loggerAdditionalInfo = '') {
+export function _parseBodyWithHtml(html) {
   try {
     const dom = new JSDOM(_cleanHtml(html));
 
@@ -610,20 +609,15 @@ export function _parseBodyWithHtml(html, loggerAdditionalInfo = '') {
     return dom.window.document.body.textContent.trim();
   } catch (err) {
     logger.debug(
-      `_parseBodyWithHtml failed error=${JSON.stringify(
-        err.stack || err
-      )} ${loggerAdditionalInfo}`
+      `_parseBodyWithHtml failed error=${JSON.stringify(err.stack || err)}`
     );
   }
 }
 
-export function tryParseBody(rawBody, loggerAdditionalInfo = '') {
+export function tryParseBody(rawBody) {
   rawBody = (rawBody || "").trim();
   return (
-    _parseBodyWithHtml(rawBody, loggerAdditionalInfo) ||
-    _parseBodyWithText(rawBody) ||
-    rawBody ||
-    ""
+    _parseBodyWithHtml(rawBody) || _parseBodyWithText(rawBody) || rawBody || ""
   );
 }
 

@@ -1,3 +1,5 @@
+import { WORK_ACTION_ENUM } from "./crawler/appConstantsEnums";
+
 export interface Headers {
   date: string;
   subject: string;
@@ -71,4 +73,14 @@ export interface Attachment {
 export interface WebContent {
   subject: string;
   body: string;
+}
+
+export interface WorkActionRequest {
+  id: string;
+  action: WORK_ACTION_ENUM;
+}
+
+export interface WorkActionResponse extends WorkActionRequest {
+  success: boolean;
+  error: any;
 }
