@@ -24,9 +24,10 @@ export async function restartAllWork() {
   console.debug("Start Cleaning Up Redis");
   await redisInstance.del(REDIS_KEY.ALL_THREAD_IDS);
   await redisInstance.del(REDIS_KEY.ALL_MESSAGE_IDS);
-  await redisInstance.del(REDIS_KEY.FETCH_RAW_CONTENT);
-  await redisInstance.del(REDIS_KEY.PARSE_EMAIL);
-  await redisInstance.del(REDIS_KEY.UPLOAD_EMAILS_BY_MESSAGE_ID);
+  await redisInstance.del(REDIS_KEY.QUEUE_FETCH_RAW_CONTENT);
+  await redisInstance.del(REDIS_KEY.QUEUE_PARSE_EMAIL);
+  await redisInstance.del(REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID);
+  await redisInstance.del(REDIS_KEY.QUEUE_SKIPPED_MESSAGE_ID);
   console.debug("Done Cleaning Up Redis");
 
   // move all the thread id into the allThreadIds set
@@ -42,7 +43,7 @@ export async function restartAllWork() {
   try {
     for (const threadId of allThreadIds) {
       pipeline.sadd(REDIS_KEY.ALL_THREAD_IDS, threadId);
-      pipeline.sadd(REDIS_KEY.FETCH_RAW_CONTENT, threadId); // no need to change this
+      pipeline.sadd(REDIS_KEY.QUEUE_FETCH_RAW_CONTENT, threadId); // no need to change this
     }
     await pipeline.exec();
   } catch (err) {}
@@ -169,11 +170,19 @@ export async function bulkUpsertEmails(emails: Email[]) {
     pipeline.sadd(REDIS_KEY.ALL_MESSAGE_IDS, id);
 
     if (status) {
-      pipeline.srem(REDIS_KEY.UPLOAD_EMAILS_BY_MESSAGE_ID, id);
+      pipeline.srem(REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID, id);
+      pipeline.srem(REDIS_KEY.QUEUE_SKIPPED_MESSAGE_ID, id);
+      pipeline.srem(REDIS_KEY.QUEUE_ERROR_MESSAGE_ID, id);
 
       switch (status) {
         case THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE:
-          pipeline.sadd(REDIS_KEY.UPLOAD_EMAILS_BY_MESSAGE_ID, id);
+          pipeline.sadd(REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID, id);
+          break;
+        case THREAD_JOB_STATUS_ENUM.SKIPPED:
+          pipeline.sadd(REDIS_KEY.QUEUE_SKIPPED_MESSAGE_ID, id);
+          break;
+        case THREAD_JOB_STATUS_ENUM.ERROR_GENERIC:
+          pipeline.sadd(REDIS_KEY.QUEUE_ERROR_MESSAGE_ID, id);
           break;
       }
     }
@@ -185,7 +194,7 @@ export async function bulkUpsertEmails(emails: Email[]) {
 // step 1 fetch raw content
 export async function getAllThreadIdsToFetchRawContents() {
   // use redis
-  const ids = await redisInstance.smembers(REDIS_KEY.FETCH_RAW_CONTENT);
+  const ids = await redisInstance.smembers(REDIS_KEY.QUEUE_FETCH_RAW_CONTENT);
   const pipeline = redisInstance.pipeline();
   for (let id of ids) {
     pipeline.srem(id);
@@ -197,7 +206,7 @@ export async function getAllThreadIdsToFetchRawContents() {
 // step 2 parse email
 export async function getAllThreadIdsToParseEmails() {
   // use redis
-  const ids = await redisInstance.smembers(REDIS_KEY.PARSE_EMAIL);
+  const ids = await redisInstance.smembers(REDIS_KEY.QUEUE_PARSE_EMAIL);
   const pipeline = redisInstance.pipeline();
   for (let id of ids) {
     pipeline.srem(id);
@@ -210,7 +219,7 @@ export async function getAllThreadIdsToParseEmails() {
 export async function getAllMessageIdsToSyncWithGoogleDrive(): String[] {
   // use redis
   const ids = await redisInstance.smembers(
-    REDIS_KEY.UPLOAD_EMAILS_BY_MESSAGE_ID
+    REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID
   );
   const pipeline = redisInstance.pipeline();
   for (let id of ids) {
@@ -237,15 +246,15 @@ export async function bulkUpsertThreadJobStatuses(threads) {
     pipeline.sadd(REDIS_KEY.ALL_THREAD_IDS, id);
 
     if (status) {
-      pipeline.srem(REDIS_KEY.FETCH_RAW_CONTENT, id);
-      pipeline.srem(REDIS_KEY.PARSE_EMAIL, id);
+      pipeline.srem(REDIS_KEY.QUEUE_FETCH_RAW_CONTENT, id);
+      pipeline.srem(REDIS_KEY.QUEUE_PARSE_EMAIL, id);
 
       switch (status) {
         case THREAD_JOB_STATUS_ENUM.PENDING_CRAWL:
-          pipeline.sadd(REDIS_KEY.FETCH_RAW_CONTENT, id);
+          pipeline.sadd(REDIS_KEY.QUEUE_FETCH_RAW_CONTENT, id);
           break;
         case THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL:
-          pipeline.sadd(REDIS_KEY.PARSE_EMAIL, id);
+          pipeline.sadd(REDIS_KEY.QUEUE_PARSE_EMAIL, id);
           break;
       }
     }
