@@ -107,7 +107,7 @@ async function _init() {
       await gmailCrawler.pollForNewThreadList(true);
       setInterval(
         () => gmailCrawler.pollForNewThreadList(true),
-        1.5 * 60 * 60 * 1000
+        1 * 60 * 60 * 1000
       );
       break;
 

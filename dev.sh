@@ -1,5 +1,3 @@
-while true; do
-    npm run build
-    npm run format
-    sleep 3
-done
+chokidar --initial --throttle "1000" --debounce "1000" \
+  "src/**/**/**/**/*" \
+  -c "npm run build && npm run format"
