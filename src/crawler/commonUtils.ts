@@ -26,6 +26,11 @@ export function isStringUrl(string) {
 export function extractUrlFromString(string) {
   try {
     const urlMatches = string.match(REGEX_URL);
+
+    logger.debug(
+      `extractUrlFromString tokens for urlMatches=${JSON.stringify(urlMatches)}`
+    );
+
     if (urlMatches && urlMatches.length > 0) {
       const matchedUrl = urlMatches[0];
 
@@ -33,7 +38,7 @@ export function extractUrlFromString(string) {
     }
   } catch (err) {
     logger.debug(
-      `extractUrlFromString failed "${string}" err=${err}. Fall back to empty string for URL`
+      `extractUrlFromString failed err=${err}. Fall back to empty string for URL`
     );
   }
   return "";

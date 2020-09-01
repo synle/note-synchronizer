@@ -49,9 +49,14 @@
   async function parseBody(){
     const messageId = document.querySelector('#input-message-id-to-parse').value;
     if(messageId.length >= 16 && messageId.length < 20){
-      const result = await fetch(`/api/message/parse/${messageId}`).then(res => res.json());
-      document.querySelector('#output-raw-html').value = result.raw;
-      document.querySelector('#output-parsed-html').value = result.parsed_text;
+      try{
+        const result = await fetch(`/api/message/parse/${messageId}`).then(res => res.json());
+        if(result.error){
+          return alert(result.error);
+        }
+        document.querySelector('#output-raw-html').value = result.raw;
+        document.querySelector('#output-parsed-html').value = result.parsed_text;
+      } catch(err){}
     }
   }
 
