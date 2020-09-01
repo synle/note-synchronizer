@@ -14,7 +14,9 @@ import {
 
 import Redis from "ioredis";
 
-const redisInstance = new Redis();
+const redisInstance = new Redis({
+  connectTimeout: 30000,
+});
 
 export async function restartAllWork() {
   let res;

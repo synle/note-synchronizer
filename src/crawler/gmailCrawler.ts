@@ -279,16 +279,10 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               `
               <div>${rawBody}</div>
               <div>====================================</div>
-              <div>${urlToCrawl}</div>
-              <div>====================================</div>
               <div>${websiteRes.subject}</div>
-              <div>====================================</div>
-              <div>${websiteRes.body}</div>
+              <div>${urlToCrawl}</div>
             `
             );
-            body = truncate(body, {
-              length: 2000,
-            });
           } catch (err) {
             logger.debug(
               `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
@@ -315,17 +309,11 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               `
               <div>${rawBody}</div>
               <div>====================================</div>
-              <div>${urlToCrawl}</div>
-              <div>====================================</div>
               <div>${websiteRes.subject}</div>
-              <div>====================================</div>
-              <div>${websiteRes.body}</div>
+              <div>${urlToCrawl}</div>
             `,
               `id=${id} url=${urlToCrawl}`
             );
-            body = truncate(body, {
-              length: 10000,
-            });
           } catch (err) {
             logger.debug(
               `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
@@ -514,12 +502,12 @@ async function _pollNewEmailThreads(q = "") {
 
       if (countPageProcessed % 25 === 0 && countPageProcessed > 0) {
         logger.debug(
-          `So far crawled q=${q} totalPages=${countPageProcessed} totalThreads=${countThreadsSoFar}`
+          `So far crawled q=${q} totalPages=${countPageProcessed}/${countTotalPagesToCrawl} totalThreads=${countThreadsSoFar}`
         );
       }
     } catch (err) {
       logger.error(
-        `Failed to get thread list q=${q} pageToken=${pageToken} error=${JSON.stringify(
+        `Failed to get thread list q=${q} totalPages=${countPageProcessed}/${countTotalPagesToCrawl} pageToken=${pageToken} error=${JSON.stringify(
           err.stack || err
         )}`
       );
@@ -530,11 +518,7 @@ async function _pollNewEmailThreads(q = "") {
   await Promise.all(promises);
 
   logger.debug(
-    `Done crawling q=${q} totalPages=${countPageProcessed} totalThreads=${countThreadsSoFar}`
-  );
-
-  logger.debug(
-    `Done Crawl list of email threads: q=${q} duration=${
+    `Done Crawl list of email threads q=${q} totalPages=${countPageProcessed}/${countTotalPagesToCrawl} totalThreads=${countThreadsSoFar}  duration=${
       Date.now() - startTime
     }`
   );
@@ -783,6 +767,10 @@ export async function fetchRawContentsByThreadId(threadIds) {
             DataUtils.bulkUpsertFolders({
               folderName: parentFolderName,
             })
+          );
+
+          logger.debug(
+            `Saving raw content for threadId=${threadId} subject=${rawSubject}`
           );
 
           return DataUtils.bulkUpsertEmails(emailMessageToSave).catch((err) => {
