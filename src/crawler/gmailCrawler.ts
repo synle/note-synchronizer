@@ -813,8 +813,12 @@ export async function fetchRawContentsByThreadId(threadIds) {
 /**
  * This is simply to get a list of all email threadIds
  */
-export async function pollForNewThreadList() {
-  _pollNewEmailThreads("from:(me)"); // get emails sent by me
-  _pollNewEmailThreads("in:drafts"); // messages that are in draft
-  _pollNewEmailThreads(""); // get emails from inbox
+export async function pollForNewThreadList(afterThisDate) {
+  logger.debug(`pollForNewThreadList after=${afterThisDate}`);
+  if(afterThisDate){
+    afterThisDate = `after:${afterThisDate}`;
+  }
+  _pollNewEmailThreads(`from:(me) ${afterThisDate}`); // get emails sent by me
+  _pollNewEmailThreads(`in:drafts ${afterThisDate}`); // messages that are in draft
+  _pollNewEmailThreads(`${afterThisDate}`); // get emails from inbox
 }

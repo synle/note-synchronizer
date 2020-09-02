@@ -8,6 +8,7 @@ import initDatabase from "./models/modelsFactory";
 import * as googleApiUtils from "./crawler/googleApiUtils";
 import * as gmailCrawler from "./crawler/gmailCrawler";
 import * as DataUtils from "./crawler/dataUtils";
+import moment from 'moment';
 
 import {
   WORKER_REFRESH_INTERVAL,
@@ -104,9 +105,15 @@ async function _init() {
 
     // job1
     case WORK_ACTION_ENUM.FETCH_THREADS:
-      await gmailCrawler.pollForNewThreadList(true);
+      await gmailCrawler.pollForNewThreadList(
+        moment().subtract(1, "months").startOf("month").format("YYYY/MM/DD")
+      );
+      await gmailCrawler.pollForNewThreadList();
       setInterval(
-        () => gmailCrawler.pollForNewThreadList(true),
+        () =>
+          gmailCrawler.pollForNewThreadList(
+            moment().subtract(1, "months").startOf("month").format("YYYY/MM/DD")
+          ),
         1 * 60 * 60 * 1000
       );
       break;
