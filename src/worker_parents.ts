@@ -8,7 +8,7 @@ import initDatabase from "./models/modelsFactory";
 import * as googleApiUtils from "./crawler/googleApiUtils";
 import * as gmailCrawler from "./crawler/gmailCrawler";
 import * as DataUtils from "./crawler/dataUtils";
-import moment from 'moment';
+import moment from "moment";
 
 import {
   WORKER_REFRESH_INTERVAL,
