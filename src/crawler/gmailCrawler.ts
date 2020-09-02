@@ -815,7 +815,7 @@ export async function fetchRawContentsByThreadId(threadIds) {
  */
 export async function pollForNewThreadList(afterThisDate) {
   logger.debug(`pollForNewThreadList after=${afterThisDate}`);
-  if(afterThisDate){
+  if (afterThisDate) {
     afterThisDate = `after:${afterThisDate}`;
   }
   _pollNewEmailThreads(`from:(me) ${afterThisDate}`); // get emails sent by me

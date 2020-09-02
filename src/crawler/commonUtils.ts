@@ -45,7 +45,7 @@ export function extractUrlFromString(string) {
 }
 
 export async function crawlUrl(url): Promise<WebContent> {
-  if (!url || !isStringUrl(url)) {
+  if (!url) {
     throw `${url} url is is not valid`;
   }
 

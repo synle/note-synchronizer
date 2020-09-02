@@ -1,6 +1,7 @@
 // @ts-nocheck
 require("dotenv").config();
 
+import path from "path";
 import restify from "restify";
 import initDatabase from "./src/models/modelsFactory";
 import { initGoogleApi } from "./src/crawler/googleApiUtils";
@@ -13,30 +14,95 @@ initDatabase();
 initGoogleApi();
 
 const server = restify.createServer();
-server.get("/api/message/parse/:messageId", async function (req, res, next) {
-  const messageId = req.params.messageId;
+server.get("/api/message/parse/threadId/:threadId", async function (
+  req,
+  res,
+  next
+) {
+  const threadId = req.params.threadId;
 
-  const email = await DataUtils.getEmailByMessageId(messageId);
+  const emails = await DataUtils.getEmailsByThreadId(threadId);
+  if (emails.length > 0) {
+    for (let email of emails) {
+      let url_to_crawl;
 
-  const urlFromSubject = CommonUtils.extractUrlFromString(email.subject);
-  const urlFromBody = CommonUtils.extractUrlFromString(email.rawBody);
+      try {
+        url_to_crawl = CommonUtils.extractUrlFromString(email.subject);
+      } catch (err) {}
 
-  const url_to_crawl = urlFromSubject || urlFromBody;
+      try {
+        url_to_crawl = CommonUtils.extractUrlFromString(email.rawBody);
+      } catch (err) {}
 
-  try {
-    res.send({
-      raw: email.rawBody,
-      parsed_text: gmailCrawler.tryParseBody(email.rawBody),
-      crawled_content: await CommonUtils.crawlUrl(url_to_crawl),
-      url_to_crawl,
-    });
-  } catch (error) {
-    res.send({ error: error.stack || JSON.stringify(err) });
+      let crawled_content;
+      try {
+        crawled_content = await CommonUtils.crawlUrl(url_to_crawl);
+      } catch (err) {
+        console.error(err);
+      }
+
+      try {
+        res.send({
+          raw: email.rawBody,
+          parsed_text: gmailCrawler.tryParseBody(email.rawBody),
+          crawled_content,
+          url_to_crawl,
+        });
+      } catch (error) {
+        res.send(500, { error: error.stack || JSON.stringify(error) });
+      }
+    }
+  } else {
+    res.send(404, { error: "Not found" });
   }
   next();
 });
 
-server.get("/api/message/sync/:messageId", async function (req, res, next) {
+server.get("/api/message/parse/messageId/:messageId", async function (
+  req,
+  res,
+  next
+) {
+  const messageId = req.params.messageId;
+
+  const email = await DataUtils.getEmailByMessageId(messageId);
+  if (email) {
+    let url_to_crawl;
+
+    try {
+      url_to_crawl = CommonUtils.extractUrlFromString(email.subject);
+    } catch (err) {}
+
+    try {
+      url_to_crawl = CommonUtils.extractUrlFromString(email.rawBody);
+    } catch (err) {}
+
+    let crawled_content;
+    try {
+      crawled_content = await CommonUtils.crawlUrl(url_to_crawl);
+    } catch (err) {}
+
+    try {
+      res.send({
+        raw: email.rawBody,
+        parsed_text: gmailCrawler.tryParseBody(email.rawBody),
+        crawled_content,
+        url_to_crawl,
+      });
+    } catch (error) {
+      res.send({ error: error.stack || JSON.stringify(error) });
+    }
+  } else {
+    res.send(404, { error: "Not found" });
+  }
+  next();
+});
+
+server.get("/api/message/sync/messageId/:messageId", async function (
+  req,
+  res,
+  next
+) {
   const messageId = req.params.messageId;
 
   try {
@@ -44,7 +110,7 @@ server.get("/api/message/sync/:messageId", async function (req, res, next) {
 
     await gmailCrawler.processMessagesByThreadId(email.threadId);
 
-    await gdriveCrawler.uploadEmailMsgToGoogleDrive(messageId);
+    await gdriveCrawler.uploadEmailMsgToGoogleDrive(email.id);
 
     res.send({
       ok: true,
@@ -55,18 +121,42 @@ server.get("/api/message/sync/:messageId", async function (req, res, next) {
   next();
 });
 
+server.get("/api/message/sync/threadId/:threadId", async function (
+  req,
+  res,
+  next
+) {
+  const threadId = req.params.threadId;
+
+  try {
+    const emails = await DataUtils.getEmailsByThreadId(threadId);
+    for (let email of emails) {
+      await gmailCrawler.processMessagesByThreadId(email.threadId);
+
+      await gdriveCrawler.uploadEmailMsgToGoogleDrive(email.id);
+
+      res.send({
+        ok: true,
+      });
+    }
+  } catch (error) {
+    res.send({ error: error.stack || JSON.stringify(error) });
+  }
+  next();
+});
+
 server.get("/", async function (req, res, next) {
   res.redirect(301, "/public/index.html", next);
 });
 
-server.listen(8080, function () {
+server.listen(process.env.PORT || 8080, function () {
   console.log("%s listening at %s", server.name, server.url);
 });
 
 server.get(
   "/public/*",
   restify.plugins.serveStatic({
-    directory: process.cwd(),
+    directory: path.join(process.cwd(), "src"),
     default: "index.html",
   })
 );
