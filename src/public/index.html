@@ -50,7 +50,7 @@
         value="10f4697640f6e6d6"
       />
       <div>
-        <a id="output-url" target='_blank'></a>
+        <a id="output-url" target="_blank"></a>
       </div>
       <textarea id="output-raw-html" placeholder="Raw HTML"></textarea>
       <textarea id="output-parsed-html" placeholder="Parsed HTML"></textarea>
@@ -85,9 +85,9 @@
       const inputId = targetEl.querySelector("#input-id-to-parse").value;
       const inputType = targetEl.querySelector("#input-type-to-parse").value;
 
-      targetEl.querySelector("#output-raw-html").value = '';
-      targetEl.querySelector("#output-parsed-html").value = '';
-      targetEl.querySelector("#output-url").innerText = '';
+      targetEl.querySelector("#output-raw-html").value = "";
+      targetEl.querySelector("#output-parsed-html").value = "";
+      targetEl.querySelector("#output-url").innerText = "";
 
       if (inputId.length >= 16 && inputId.length < 20) {
         try {
@@ -100,8 +100,11 @@
           targetEl.querySelector("#output-raw-html").value = result.raw;
           targetEl.querySelector("#output-parsed-html").value =
             result.parsed_text;
-          targetEl.querySelector("#output-url").href = `http://${result.url_to_crawl}`;
-          targetEl.querySelector("#output-url").innerText = result.crawled_content.subject;
+          targetEl.querySelector(
+            "#output-url"
+          ).href = `http://${result.url_to_crawl}`;
+          targetEl.querySelector("#output-url").innerText =
+            result.crawled_content.subject;
         } catch (err) {}
       }
     });

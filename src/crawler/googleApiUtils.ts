@@ -16,7 +16,7 @@ let noteDestinationFolderId = process.env.NOTE_DESTINATION_FOLDER_ID;
 
 // google auth apis
 // If modifying these scopes, delete token.json.
-const SCOPES = [
+const GOOGLE_OAUTH_SCOPES = [
   "https://www.googleapis.com/auth/gmail.labels",
   "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/gmail.compose",
@@ -27,8 +27,7 @@ const SCOPES = [
 // The file token.json stores the user's access and refresh tokens, and is
 // created automatically when the authorization flow completes for the first
 // time.
-const GMAIL_TOKEN_PATH = "token.json";
-const GMAIL_CREDENTIALS_PATH = "credentials.json";
+const GOOGLE_OAUTH_TOKEN_PATH = "token.json";
 
 function _logAndWrapApiError(err, res, ...extra) {
   logger.error(
@@ -119,15 +118,23 @@ export async function createNoteDestinationFolder() {
 export function initGoogleApi(onAfterInitFunc = () => {}) {
   return new Promise((resolve, reject) => {
     // Load client secrets from a local file.
-    fs.readFile(GMAIL_CREDENTIALS_PATH, (err, content) => {
-      if (err) return reject("Error loading client secret file:" + err);
-      // Authorize a client with credentials, then call the Gmail API.
-      authorizeGoogle(JSON.parse(content), async function (auth) {
-        gmailApiInstance = google.gmail({ version: "v1", auth });
-        driveApiInstance = google.drive({ version: "v3", auth });
-        onAfterInitFunc(gmailApiInstance, driveApiInstance);
-        resolve();
-      });
+    // Authorize a client with credentials, then call the Gmail API.
+    const oAuthSettings = {
+      auth_uri: "https://accounts.google.com/o/oauth2/auth",
+      token_uri: "https://oauth2.googleapis.com/token",
+      auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+      redirect_uris: ["urn:ietf:wg:oauth:2.0:oob", "http://localhost"].concat(
+        (process.env.GOOGLE_OAUTH_REDIRECT_URLS || "").split(",")
+      ),
+      project_id: process.env.GOOGLE_OAUTH_PROJECT_ID,
+      client_id: process.env.GOOGLE_OAUTH_CLIENT_ID,
+      client_secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+    };
+    authorizeGoogle(oAuthSettings, async function (auth) {
+      gmailApiInstance = google.gmail({ version: "v1", auth });
+      driveApiInstance = google.drive({ version: "v3", auth });
+      onAfterInitFunc(gmailApiInstance, driveApiInstance);
+      resolve();
     });
   });
 }
@@ -139,7 +146,7 @@ export function initGoogleApi(onAfterInitFunc = () => {}) {
  * @param {function} callback The callback to call with the authorized client.
  */
 function authorizeGoogle(credentials, callback) {
-  const { client_secret, client_id, redirect_uris } = credentials.installed;
+  const { client_secret, client_id, redirect_uris } = credentials;
   const oAuth2Client = new google.auth.OAuth2(
     client_id,
     client_secret,
@@ -147,7 +154,7 @@ function authorizeGoogle(credentials, callback) {
   );
 
   // Check if we have previously stored a token.
-  fs.readFile(GMAIL_TOKEN_PATH, (err, token) => {
+  fs.readFile(GOOGLE_OAUTH_TOKEN_PATH, (err, token) => {
     if (err) return getNewGoogleToken(oAuth2Client, callback);
     oAuth2Client.setCredentials(JSON.parse(token));
     callback(oAuth2Client);
@@ -163,7 +170,7 @@ function authorizeGoogle(credentials, callback) {
 function getNewGoogleToken(oAuth2Client, callback) {
   const authUrl = oAuth2Client.generateAuthUrl({
     access_type: "offline",
-    scope: SCOPES,
+    scope: GOOGLE_OAUTH_SCOPES,
   });
   logger.info(`Authorize this app by visiting this url: ${authUrl}`);
   const rl = readline.createInterface({
@@ -176,9 +183,9 @@ function getNewGoogleToken(oAuth2Client, callback) {
       if (err) return console.error("Error retrieving access token", err);
       oAuth2Client.setCredentials(token);
       // Store the token to disk for later program executions
-      fs.writeFile(GMAIL_TOKEN_PATH, JSON.stringify(token), (err) => {
+      fs.writeFile(GOOGLE_OAUTH_TOKEN_PATH, JSON.stringify(token), (err) => {
         if (err) return console.error(err);
-        console.info("Token stored to", GMAIL_TOKEN_PATH);
+        console.info("Token stored to", GOOGLE_OAUTH_TOKEN_PATH);
       });
       callback(oAuth2Client);
     });
