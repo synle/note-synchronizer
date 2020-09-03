@@ -79,10 +79,22 @@ export async function restartAllWork() {
 }
 
 // attachments
-export async function getAttachmentByMessageId(messageId) {
+export async function getAttachmentsByMessageId(messageId) {
   return Models.Attachment.findAll({
     where: {
       messageId,
+      inline: {
+        [Op.eq]: 0, // only use attachments from non-inline attachments
+      },
+    },
+    raw: true,
+  });
+}
+
+export async function getAttachmentsByThreadId(threadId) {
+  return Models.Attachment.findAll({
+    where: {
+      messageId: threadId,
       inline: {
         [Op.eq]: 0, // only use attachments from non-inline attachments
       },
