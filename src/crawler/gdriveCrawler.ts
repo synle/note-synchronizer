@@ -205,7 +205,7 @@ async function _processThreadEmail(email: Email) {
       status: THREAD_JOB_STATUS_ENUM.IN_PROGRESS,
     });
 
-    const Attachments = await DataUtils.getAttachmentByMessageId(id);
+    const Attachments = await DataUtils.getAttachmentsByMessageId(id);
 
     const toEmailList = (bcc || "")
       .split(",")

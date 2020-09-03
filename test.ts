@@ -51,7 +51,7 @@ async function _doWork2() {
 
   const email = emails[0];
 
-  const attachments = await DataUtils.getAttachmentByMessageId(email.id);
+  const attachments = await DataUtils.getAttachmentsByMessageId(email.id);
 
   console.log(attachments[0].path);
   console.log(attachments[0].fileName);
