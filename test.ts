@@ -139,8 +139,16 @@ async function _doWork6() {
   await DataUtils.restartAllWork();
 }
 
+async function _doWork7(){
+  await _init();
+  // const threadId = "128205fe247fbde5";
+  const threadId = "140885a4be3eaf1a";
+  await gdriveCrawler.uploadEmailThreadToGoogleDrive(threadId);
+}
+
 //
 //_doWork0();
-_doWork6();
+// _doWork6();
 //_doWork3();
 //_doWork4();
+_doWork7();

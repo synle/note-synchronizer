@@ -100,14 +100,12 @@ async function _init() {
 
     // job0
     case WORK_ACTION_ENUM.GENERATE_CONTAINER_FOLDERS:
+      await DataUtils.restartAllWork();
       await googleApiUtils.createNoteDestinationFolder();
       break;
 
     // job1
     case WORK_ACTION_ENUM.FETCH_THREADS:
-      await gmailCrawler.pollForNewThreadList(
-        moment().subtract(1, "months").startOf("month").format("YYYY/MM/DD")
-      );
       await gmailCrawler.pollForNewThreadList();
       setInterval(
         () =>
