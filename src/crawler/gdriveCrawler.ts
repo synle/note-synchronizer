@@ -41,9 +41,7 @@ function _sanitizeFileName(string) {
 
 export async function generateDocFile(
   subject,
-  body,
-  mainContent,
-  attachments,
+  sections,
   newFileName
 ) {
   logger.debug(`generateDocFile subject=${subject} file=${newFileName}`);
@@ -58,102 +56,53 @@ export async function generateDocFile(
     })
   );
 
-  body = [].concat(body || []);
-  for (let content of body) {
-    content = (content || "").trim();
+  sections = [].concat(sections);
+  for(let section of sections){
+    let body = section.body;
+    let images = section.images;
 
-    if (content.length === 0) {
-      continue;
-    }
-
-    children.push(
-      new Paragraph({
-        text: content,
-        border: {
-          top: {
-            color: "auto",
-            space: 1,
-            value: "single",
-            size: 10,
-          },
-          bottom: {
-            color: "auto",
-            space: 1,
-            value: "single",
-            size: 10,
-          },
-        },
-        spacing: {
-          before: 250,
-          after: 250,
-        },
-        heading: HeadingLevel.HEADING_3,
-        color: "#0000FF",
-      })
-    );
-  }
-
-  mainContent = mainContent.split("\n");
-  console.log("mainContent", mainContent.length);
-  for (let content of mainContent) {
-    children.push(
-      new Paragraph({
-        text: content,
-        spacing: {
-          before: 250,
-          after: 250,
-        },
-        heading: HeadingLevel.HEADING_3,
-      })
-    );
-  }
-
-  if (attachments.length > 0) {
-    children.push(
-      new Paragraph({
-        text: "Attachments",
-        spacing: {
-          before: 250,
-          after: 250,
-        },
-        border: {
-          top: {
-            color: "auto",
-            space: 1,
-            value: "single",
-            size: 10,
-          },
-        },
-        heading: HeadingLevel.HEADING_2,
-      })
-    );
-
-    for (const attachment of attachments) {
-      const attachmentImage = Media.addImage(
-        doc,
-        fs.readFileSync(attachment.path),
-        700,
-        800
-      );
+    body = body.split("\n").map(r => r.trim()).filter(r => !!r);
+    for (let content of body) {
       children.push(
         new Paragraph({
-          text: `${attachment.fileName}`,
-          bold: true,
-          heading: HeadingLevel.HEADING_4,
+          text: content,
           spacing: {
             before: 250,
+            after: 250,
           },
-          border: {
-            bottom: {
-              color: "auto",
-              space: 1,
-              value: "single",
-              size: 6,
-            },
-          },
+          heading: HeadingLevel.HEADING_3,
         })
       );
-      children.push(new Paragraph(attachmentImage));
+    }
+
+    if (images.length > 0) {
+      for (const attachment of images) {
+        const attachmentImage = Media.addImage(
+          doc,
+          fs.readFileSync(attachment.path),
+          700,
+          800
+        );
+        children.push(
+          new Paragraph({
+            text: `${attachment.fileName}`,
+            bold: true,
+            heading: HeadingLevel.HEADING_4,
+            spacing: {
+              before: 250,
+            },
+            border: {
+              bottom: {
+                color: "auto",
+                space: 1,
+                value: "single",
+                size: 6,
+              },
+            },
+          })
+        );
+        children.push(new Paragraph(attachmentImage));
+      }
     }
   }
 
@@ -186,7 +135,9 @@ export function _getNonImagesAttachments(
 }
 
 async function _init() {
-  noteDestinationFolderId = await googleApiUtils.getNoteDestinationFolderId();
+  if (!noteDestinationFolderId){
+    noteDestinationFolderId = await googleApiUtils.getNoteDestinationFolderId();
+  }
 
   logger.debug(
     `ID for Google Drive Note Sync Folder: ${noteDestinationFolderId}`
@@ -295,10 +246,7 @@ async function _processThreadEmail(email: Email) {
         `Skipped due to content being chat threadId=${threadId} id=${id} subject=${subject}`
       );
 
-      await DataUtils.bulkUpsertEmails({
-        id,
-        status: THREAD_JOB_STATUS_ENUM.SKIPPED,
-      });
+      await uploadEmailThreadToGoogleDrive(email.threadId);
 
       return; // skip this
     }
@@ -338,19 +286,20 @@ async function _processThreadEmail(email: Email) {
         try {
           await generateDocFile(
             subject,
-            `
-            Date: ${friendlyDateTimeString1}
-            Uploaded: ${moment().format(FORMAT_DATE_TIME1)}
-            From: ${from}
-            To: ${toEmailAddresses}
-            ThreadId: ${threadId}
-            MessageId: ${id}
-            SHA: ${docSha}
-            `
-              .trim()
-              .split("\n"),
-            body,
-            imagesAttachments,
+            {
+              body: `
+              Date: ${friendlyDateTimeString1}
+              Uploaded: ${moment().format(FORMAT_DATE_TIME1)}
+              From: ${from}
+              To: ${toEmailAddresses}
+              ThreadId: ${threadId}
+              MessageId: ${id}
+              SHA: ${docSha}
+              ================================================
+              ${body}
+              `,
+              images: imagesAttachments,
+            },
             localPath
           );
 
@@ -486,6 +435,291 @@ export async function uploadEmailMsgToGoogleDrive(messageId) {
     await _processThreadEmail(email);
   } else {
     logger.error(`Cannot find message with messageId=${messageId}`);
+  }
+}
+
+async function _processThreads(threadId, emails: Email[]) {
+  let folderId;
+  let docDriveFileId;
+  let docFileName;
+  let docContentSections = [];
+  let starred = false;
+  let dateStart;
+  let dateEnd;
+  let date;
+  let isEmailSentByMe;
+  let isEmailSentByMeToMe;
+
+  const googleFileAppProperties = {
+    threadId,
+  }
+
+  // all attachments
+  const attachments = await DataUtils.getAttachmentsByThreadId(threadId);
+  const allNonImageAttachments: Attachment[] = _getNonImagesAttachments(
+    attachments
+  );
+  const hasSomeAttachments = allNonImageAttachments.length > 0;
+
+  // involvedEmails
+  let emailAddresses = [];
+  let from;
+
+  for (let email of emails) {
+    emailAddresses = emailAddresses
+      .concat((email.from || "").split(","))
+      .concat((email.bcc || "").split(","))
+      .concat((email.to || "").split(","))
+      .map((r) => r.trim())
+      .filter((r) => !!r);
+
+    const toEmailList = []
+      .concat((email.bcc || "").split(","))
+      .concat((email.to || "").split(","))
+      .map((r) => r.trim())
+      .filter((r) => !!r);
+    const toEmailAddresses = toEmailList.join(", ");
+
+    isEmailSentByMe = isEmailSentByMe ||mySignatureTokens.interestedEmails.some(
+      (myEmail) => email.from.includes(myEmail)
+    );
+
+    isEmailSentByMeToMe =
+      isEmailSentByMeToMe ||
+      (isEmailSentByMe &&
+        mySignatureTokens.interestedEmails.some((myEmail) =>
+          toEmailList.some((toEmail) => toEmail.includes(myEmail))
+        ));
+
+    const attachments = await DataUtils.getAttachmentsByMessageId(email.id);
+    const images: Attachment[] = _getImageAttachments(attachments);
+
+    const friendlyDateTimeString1 = moment(parseInt(email.date) * 1000).format(
+      FORMAT_DATE_TIME1
+    );
+
+    const friendlyDateTimeString2 = moment(parseInt(email.date) * 1000).format(
+      FORMAT_DATE_TIME2
+    );
+
+    if(!dateStart){
+      dateStart = friendlyDateTimeString1;
+    }
+    dateEnd = friendlyDateTimeString1;
+
+    const labelIdsList = (email.labelIds || "").split(",");
+
+    let isChat = false;
+    let isEmail = true;
+    let subject = email.subject;
+    if (labelIdsList.some((labelId) => labelId.includes("CHAT"))) {
+      isChat = true;
+      isEmail = false;
+      subject = `${friendlyDateTimeString2} Chat : ${subject}`;
+    } else {
+      subject = `${friendlyDateTimeString2} ${subject}`;
+    }
+    if (!docFileName) {
+      docFileName = subject;
+    }
+
+    if(!from){
+      from = email.from;
+    }
+
+    if(isEmailSentByMe){
+      starred = true;
+    }
+
+    date = email.date;
+
+    if(!folderId){ // create the parent folder
+      const folderName = commonUtils.generateFolderName(email.from);
+      folderId = await googleApiUtils.createDriveFolder({
+        name: folderName,
+        description: `Chats & Emails from ${folderName}`,
+        parentFolderId: noteDestinationFolderId,
+        starred: isEmailSentByMe,
+        folderColorRgb: isEmailSentByMe ? "#FF0000" : "#0000FF",
+        appProperties: {
+          fromDomain: folderName,
+        },
+      });
+
+      // update the folder id into the database
+      await DataUtils.bulkUpsertFolders({
+        folderName: folderName,
+        driveFileId: folderId,
+      });
+    }
+
+    // concatenate body
+    if(isChat){
+      docContentSections.push({
+        body: `
+        ================================================
+        ${friendlyDateTimeString1} ${from}:
+        ${email.body}
+      `,
+        images,
+      });
+    } else {
+      docContentSections.push({
+        body: `
+        ================================================
+        Subject: ${subject}
+        Date: ${friendlyDateTimeString1}
+        Uploaded: ${moment().format(FORMAT_DATE_TIME1)}
+        From: ${from}
+        To: ${toEmailAddresses}
+        ThreadId: ${threadId}
+        MessageId: ${email.id}
+        ================================================
+        ${email.body}
+      `,
+        images,
+      });
+    }
+  }
+
+  if (isEmailSentByMe || isEmailSentByMeToMe || hasSomeAttachments) {
+    emailAddresses = [...new Set(emailAddresses)];
+
+    const docLocalPath = `${PROCESSED_EMAIL_PREFIX_PATH}/processed.threadId.${threadId}.docx`;
+
+    await generateDocFile(docFileName, docContentSections, docLocalPath);
+
+    const docSha = commonUtils.get256Hash(`${threadId}.mainEmail`);
+
+    docDriveFileId = await googleApiUtils.uploadFile({
+      name: docFileName,
+      mimeType: MIME_TYPE_ENUM.APP_MS_DOCX,
+      localPath: docLocalPath,
+      description: `
+    Main Email
+    From:
+    ${from}
+
+    Date: ${dateStart} - ${dateEnd}
+
+    Path:
+    ${docLocalPath}
+
+    SHA:
+    ${docSha}
+
+    ThreadId:
+    ${threadId}
+    `
+        .split("\n")
+        .map((r) => r.trim())
+        .join("\n"),
+      date,
+      starred,
+      parentFolderId: folderId,
+      appProperties: {
+        sha: docSha,
+        ...googleFileAppProperties,
+      },
+    });
+
+    logger.debug(
+      `Link to google doc:\nhttps://docs.google.com/document/d/${docDriveFileId}`
+    );
+
+    // upload attachments
+    let attachmentIdx = 1;
+    for (let attachment of allNonImageAttachments) {
+      attachmentIdx++;
+      const attachmentName = _sanitizeFileName(
+        `${docFileName} #${attachmentIdx} ${attachment.fileName}`
+      );
+
+      logger.debug(
+        `Upload Attachment threadId=${threadId} attachmentName=${attachmentName} ${attachment.mimeType}`
+      );
+
+      try {
+        // upload attachment
+        const attachmentSha = commonUtils.get256Hash(attachment.id);
+
+        const attachmentDriveFileId = await googleApiUtils.uploadFile({
+          name: attachmentName,
+          mimeType: attachment.mimeType,
+          localPath: attachment.path,
+          description: `
+        Attachment #${attachmentIdx}
+        From:
+        ${from}
+
+        Date: ${dateStart} - ${dateEnd}
+
+        ThreadId:
+        ${threadId}
+
+        Path:
+        ${attachment.path}
+
+        SHA:
+        ${attachmentSha}
+
+        AttachmentId:
+        ${attachment.id.substr(0, 25)}
+        `
+            .split("\n")
+            .map((r) => r.trim())
+            .join("\n"),
+          date,
+          starred,
+          parentFolderId: folderId,
+          appProperties: {
+            sha: attachmentSha,
+            ...googleFileAppProperties,
+          },
+        });
+
+        await DataUtils.bulkUpsertAttachments({
+          id: attachment.id,
+          driveFileId: attachmentDriveFileId,
+        });
+      } catch (err) {
+        logger.error(
+          `Error - Failed upload attachment - threadId=${threadId} attachmentName=${attachmentName} ${
+            attachment.mimeType
+          } path=${attachment.path} error=${JSON.stringify(err.stack || err)}`
+        );
+      }
+    }
+
+    await DataUtils.bulkUpsertEmails(
+      emails.map(email => {
+        return {
+          ...email,
+          status: THREAD_JOB_STATUS_ENUM.SUCCESS,
+          driveFileId: docDriveFileId,
+        };
+      })
+    );
+  } else {
+    await DataUtils.bulkUpsertEmails(
+      emails.map((email) => {
+        return {
+          ...email,
+          status: THREAD_JOB_STATUS_ENUM.SKIPPED,
+          driveFileId: docDriveFileId,
+        };
+      })
+    );
+  }
+}
+
+export async function uploadEmailThreadToGoogleDrive(threadId) {
+  await _init();
+  const emails = await DataUtils.getEmailsByThreadId(threadId);
+  if (emails.length > 0) {
+    await _processThreads(threadId, emails);
+  } else {
+    logger.error(`Cannot find message with threadId=${threadId}`);
   }
 }
 

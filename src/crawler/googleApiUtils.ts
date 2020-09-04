@@ -557,8 +557,8 @@ function searchFilesByQuery(q, nextPageToken) {
               err,
               res,
               "searchFilesByQuery",
-              mimeType,
-              parentFolderId
+              q,
+              nextPageToken
             )
           );
         }

@@ -110,7 +110,7 @@ export async function bulkUpsertAttachments(attachments) {
 // emails
 export async function getEmailsByThreadId(threadId): Email[] {
   return await Models.Email.findAll({
-    attributes: [
+    /* attributes: [
       "id",
       "threadId",
       "from",
@@ -122,10 +122,11 @@ export async function getEmailsByThreadId(threadId): Email[] {
       "rawBody",
       "date",
       "labelIds",
-    ],
+    ], */
     where: {
       threadId,
     },
+    order: ["date"],
     raw: true,
   });
 }
@@ -246,9 +247,11 @@ export async function getAllMessageIdsToSyncWithGoogleDrive(): String[] {
 export async function bulkUpsertThreadJobStatuses(threads) {
   // upsert record in the database
   await Models.Thread.bulkUpsert(threads, [
+    "duration",
     "processedDate",
     "totalMessages",
     "historyId",
+    "snippet",
   ]);
 
   // upsert the status in the redis

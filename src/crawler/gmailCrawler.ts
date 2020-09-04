@@ -497,10 +497,11 @@ async function _pollNewEmailThreads(q = "") {
       countThreadsSoFar += threadIds.length;
 
       if (!nextPageToken) {
+        logger.debug(`Stopped crawl due to q=${q} totalPages=${countPageProcessed}/${countTotalPagesToCrawl} nextPageToken=${nextPageToken}`);
         break;
       }
 
-      if (countPageProcessed % 25 === 0 && countPageProcessed > 0) {
+      if (countPageProcessed % 5 === 0 && countPageProcessed > 0) {
         logger.debug(
           `So far crawled q=${q} totalPages=${countPageProcessed}/${countTotalPagesToCrawl} totalThreads=${countThreadsSoFar}`
         );
@@ -712,7 +713,6 @@ export async function fetchRawContentsByThreadId(threadIds) {
       let threadMessages = await DataUtils.getRawContentsByThreadId(threadId);
 
       // if not found from db, then fetch its raw content
-      if (!threadMessages || threadMessages.length === 0) {
         logger.debug(
           `fetch Gmail API to get raw content for threadId=${threadId}`
         );
@@ -785,9 +785,6 @@ export async function fetchRawContentsByThreadId(threadIds) {
 
         await Promise.all(promisesSaveMessages);
         await Promise.allSettled(promisesSaveParentFolders);
-      } else {
-        logger.debug(`Found raw content from cache for threadId=${threadId}`);
-      }
 
       // move on to next stage
       await DataUtils.bulkUpsertThreadJobStatuses({
@@ -813,7 +810,7 @@ export async function fetchRawContentsByThreadId(threadIds) {
 /**
  * This is simply to get a list of all email threadIds
  */
-export async function pollForNewThreadList(afterThisDate) {
+export async function pollForNewThreadList(afterThisDate = '') {
   logger.debug(`pollForNewThreadList after=${afterThisDate}`);
   if (afterThisDate) {
     afterThisDate = `after:${afterThisDate}`;

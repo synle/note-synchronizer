@@ -63,9 +63,9 @@ export default async () => {
   // introduce bulkUpsert
   Object.keys(Models).forEach((modelName) => {
     Models[modelName].bulkUpsert = function (items, updateOnDuplicate) {
-      items = [].concat(items || []);
+      items = [].concat(items);
 
-      if (items.length > 30) {
+      if (items.length > 150 && updateOnDuplicate) {
         return this.bulkCreate(items, { updateOnDuplicate });
       }
 
