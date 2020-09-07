@@ -101,51 +101,32 @@ export async function createNoteDestinationFolder() {
             fromDomain: folderName,
           },
         },
-        false // forced create
-      )
-      // .then(async (folderId) => {
-      //   // create the folder that are grouped by year
-      //   // this is where we will store the data
-      //   let yearString = 2020;
-      //   const promiseCreateFolderByYear = [];
-      //   while (yearString > 2006) {
-      //     logger.debug(
-      //       `Create the folder by year for ${folderName} ${yearString} folderId=${folderId}`
-      //     );
-      //     promiseCreateFolderByYear.push(
-      //       createDriveFolder(
-      //         {
-      //           name: `${folderName} ${yearString}`,
-      //           description: `Chats & Emails from ${folderName} in year ${yearString}`,
-      //           parentFolderId: folderId,
-      //           starred,
-      //           folderColorRgb: "#00FFFF",
-      //           appProperties: {
-      //             fromDomainAndYear: `${folderName}-${yearString}`,
-      //           },
-      //         },
-      //         false // forced create
-      //       ).catch(err => {
-      //         logger.error(
-      //           `Failed to create the folder by year ${folderName} ${yearString} folderId=${folderId} err=${err}`
-      //         );
-      //       })
-      //     );
-
-      //     if(promiseCreateFolderByYear.length === 15){
-      //       await Promise.allSettled(promiseCreateFolderByYear).catch((err) =>
-      //         console.error(`promiseCreateFolderByYear failed ${err}`)
-      //       );
-      //     }
-      //     yearString--;
-      //   }
-      // })
+        true // forced create
+      ).then((folderId) => {
+        // create the folder that are grouped by year
+        // this is where we will store the data
+        let yearString = 2020;
+        while (yearString > 2006) {
+          await googleApiUtils.createDriveFolder(
+            {
+              name: yearString,
+              description: `Chats & Emails from ${folderName} in year ${yearString}`,
+              parentFolderId: folderId,
+              starred,
+              folderColorRgb: "#00FFFF",
+              appProperties: {
+                fromDomainAndYear: `${folderName}-${yearString}`,
+              },
+            },
+            true // forced create
+          );
+          yearString--;
+        }
+      })
     );
 
-    if (promisesCreateFolders.length === 50) {
-      await Promise.allSettled(promisesCreateFolders).catch((err) =>
-        console.error(`promisesCreateFolders failed ${err}`)
-      );
+    if (promisesCreateFolders.length === 10) {
+      await Promise.allSettled(promisesCreateFolders);
       promisesCreateFolders = [];
     }
   }
@@ -649,16 +630,11 @@ export async function createDriveFolder(
       }
 
       // create the folder itself
-      const newFolderId = await createFolderInDrive(fileGDriveMetadata);
-
-      logger.debug(
-        `Create Google Drive Folder ${name} parentFolderId=${parentFolderId} folderId=${newFolderId}`
-      );
-
-      return newFolderId;
+      logger.debug(`Create Google Drive Folder ${name}`);
+      return createFolderInDrive(fileGDriveMetadata);
     } else {
       logger.debug(
-        `Skipped Create Google Drive Folder ${name} due to duplicate parentFolderId=${parentFolderId}`
+        `Skipped Create Google Drive Folder ${name} due to duplicate`
       );
       return matchedResults[0].id;
     }
