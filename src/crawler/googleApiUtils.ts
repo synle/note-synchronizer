@@ -659,6 +659,12 @@ export async function uploadFile({
     if (localPath.includes(".java")) {
       mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_DOCUMENT;
       keepRevisionForever = true;
+    } else if (localPath.includes(".xls") || localPath.includes(".xlsx") || localPath.includes(".csv")) {
+      mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_SPREADSHEET;
+      keepRevisionForever = true;
+    } else if (localPath.includes(".doc") || localPath.includes(".docx")) {
+      mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_DOCUMENT;
+      keepRevisionForever = true;
     }
   } else if (
     [MIME_TYPE_ENUM.APP_MS_PPT, MIME_TYPE_ENUM.APP_MS_PPTX].includes(mimeType)

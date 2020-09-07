@@ -139,11 +139,13 @@ async function _doWork6() {
   await DataUtils.restartAllWork();
 }
 
-async function _doWork7(){
+async function _doWork7() {
   await _init();
-  // const threadId = "128205fe247fbde5";
-  const threadId = "140885a4be3eaf1a";
-  await gdriveCrawler.uploadEmailThreadToGoogleDrive(threadId);
+  // // const threadId = "128205fe247fbde5";
+  // const threadId = "140885a4be3eaf1a";
+  // await gdriveCrawler.uploadEmailThreadToGoogleDrive(threadId);
+
+  await gdriveCrawler.uploadEmailMsgToGoogleDrive("13ab8e6433968907");
 }
 
 //

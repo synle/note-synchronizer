@@ -146,7 +146,7 @@ export class Email extends Model {
     fields: ["fileName"],
   },
   {
-    unique: false,
+    unique: true,
     fields: ["path"],
   },
   {
