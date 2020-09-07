@@ -325,7 +325,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
         const messageToSave = {
           id,
           threadId,
-          status: THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE,
+          status: THREAD_JOB_STATUS_ENUM.SUCCESS,
           body: body || null,
           rawBody: rawBody || null,
           subject: truncate(subject, {
@@ -397,7 +397,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
       processedDate: Math.round(Date.now() / 1000),
       duration: Math.round((Date.now() - startTime) / 1000),
       totalMessages: threadMessages.length,
-      status: THREAD_JOB_STATUS_ENUM.SUCCESS,
+      status: THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE,
     });
 
     resolve(threadMessages.length);

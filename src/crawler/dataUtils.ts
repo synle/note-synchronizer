@@ -28,7 +28,7 @@ export async function restartAllWork() {
   await redisInstance.del(REDIS_KEY.ALL_MESSAGE_IDS);
   await redisInstance.del(REDIS_KEY.QUEUE_FETCH_RAW_CONTENT);
   await redisInstance.del(REDIS_KEY.QUEUE_PARSE_EMAIL);
-  await redisInstance.del(REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID);
+  await redisInstance.del(REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_THREAD_ID);
   await redisInstance.del(REDIS_KEY.QUEUE_SKIPPED_MESSAGE_ID);
   console.debug("Done Cleaning Up Redis");
 
@@ -68,7 +68,7 @@ export async function restartAllWork() {
     for (const messageId of allMessageIds) {
       pipeline.sadd(REDIS_KEY.ALL_MESSAGE_IDS, messageId);
       // pipeline.sadd(REDIS_KEY.PARSE_EMAIL, messageId); // no need to do this
-      // pipeline.sadd(REDIS_KEY.UPLOAD_EMAILS_BY_MESSAGE_ID, messageId);
+      // pipeline.sadd(REDIS_KEY.UPLOAD_EMAILS_BY_THREAD_ID, messageId);
     }
     await pipeline.exec();
   } catch (err) {}
@@ -180,19 +180,18 @@ export async function bulkUpsertEmails(emails: Email[]) {
   const pipeline = redisInstance.pipeline();
   for (const email of [].concat(emails)) {
     const id = email.id;
+    const threadId = email.threadId;
     const status = email.status;
+
+    const pipeline = redisInstance.pipeline();
 
     pipeline.sadd(REDIS_KEY.ALL_MESSAGE_IDS, id);
 
     if (status) {
-      pipeline.srem(REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID, id);
       pipeline.srem(REDIS_KEY.QUEUE_SKIPPED_MESSAGE_ID, id);
       pipeline.srem(REDIS_KEY.QUEUE_ERROR_MESSAGE_ID, id);
 
       switch (status) {
-        case THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE:
-          pipeline.sadd(REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID, id);
-          break;
         case THREAD_JOB_STATUS_ENUM.SKIPPED:
           pipeline.sadd(REDIS_KEY.QUEUE_SKIPPED_MESSAGE_ID, id);
           break;
@@ -201,9 +200,9 @@ export async function bulkUpsertEmails(emails: Email[]) {
           break;
       }
     }
-  }
 
-  await pipeline.exec();
+    await pipeline.exec();
+  }
 }
 
 // step 1 fetch raw content
@@ -231,10 +230,10 @@ export async function getAllThreadIdsToParseEmails() {
 }
 
 // step 3 sync / upload to gdrive
-export async function getAllMessageIdsToSyncWithGoogleDrive(): String[] {
+export async function getAllThreadIdsToSyncWithGoogleDrive(): String[] {
   // use redis
   const ids = await redisInstance.smembers(
-    REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID
+    REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_THREAD_ID
   );
   const pipeline = redisInstance.pipeline();
   for (let id of ids) {
@@ -263,6 +262,7 @@ export async function bulkUpsertThreadJobStatuses(threads) {
     pipeline.sadd(REDIS_KEY.ALL_THREAD_IDS, id);
 
     if (status) {
+      pipeline.srem(REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_THREAD_ID, id);
       pipeline.srem(REDIS_KEY.QUEUE_FETCH_RAW_CONTENT, id);
       pipeline.srem(REDIS_KEY.QUEUE_PARSE_EMAIL, id);
 
@@ -272,6 +272,9 @@ export async function bulkUpsertThreadJobStatuses(threads) {
           break;
         case THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL:
           pipeline.sadd(REDIS_KEY.QUEUE_PARSE_EMAIL, id);
+          break;
+        case THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE:
+          pipeline.sadd(REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_THREAD_ID, id);
           break;
       }
     }
