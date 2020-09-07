@@ -39,11 +39,7 @@ function _sanitizeFileName(string) {
     .trim();
 }
 
-export async function generateDocFile(
-  subject,
-  sections,
-  newFileName
-) {
+export async function generateDocFile(subject, sections, newFileName) {
   logger.debug(`generateDocFile subject=${subject} file=${newFileName}`);
   const doc = new Document();
   const children = [];
@@ -51,17 +47,20 @@ export async function generateDocFile(
   children.push(
     new Paragraph({
       text: subject,
-      heading: HeadingLevel.TITLE,
+      heading: HeadingLevel.HEADING_2,
       color: "#ff0000",
     })
   );
 
   sections = [].concat(sections);
-  for(let section of sections){
+  for (let section of sections) {
     let body = section.body;
     let images = section.images;
 
-    body = body.split("\n").map(r => r.trim()).filter(r => !!r);
+    body = body
+      .split("\n")
+      .map((r) => r.trim())
+      .filter((r) => !!r);
     for (let content of body) {
       children.push(
         new Paragraph({
@@ -135,7 +134,7 @@ export function _getNonImagesAttachments(
 }
 
 async function _init() {
-  if (!noteDestinationFolderId){
+  if (!noteDestinationFolderId) {
     noteDestinationFolderId = await googleApiUtils.getNoteDestinationFolderId();
   }
 
@@ -452,7 +451,7 @@ async function _processThreads(threadId, emails: Email[]) {
 
   const googleFileAppProperties = {
     threadId,
-  }
+  };
 
   // all attachments
   const attachments = await DataUtils.getAttachmentsByThreadId(threadId);
@@ -480,9 +479,11 @@ async function _processThreads(threadId, emails: Email[]) {
       .filter((r) => !!r);
     const toEmailAddresses = toEmailList.join(", ");
 
-    isEmailSentByMe = isEmailSentByMe ||mySignatureTokens.interestedEmails.some(
-      (myEmail) => email.from.includes(myEmail)
-    );
+    isEmailSentByMe =
+      isEmailSentByMe ||
+      mySignatureTokens.interestedEmails.some((myEmail) =>
+        email.from.includes(myEmail)
+      );
 
     isEmailSentByMeToMe =
       isEmailSentByMeToMe ||
@@ -502,7 +503,7 @@ async function _processThreads(threadId, emails: Email[]) {
       FORMAT_DATE_TIME2
     );
 
-    if(!dateStart){
+    if (!dateStart) {
       dateStart = friendlyDateTimeString1;
     }
     dateEnd = friendlyDateTimeString1;
@@ -523,24 +524,25 @@ async function _processThreads(threadId, emails: Email[]) {
       docFileName = subject;
     }
 
-    if(!from){
+    if (!from) {
       from = email.from;
     }
 
-    if(isEmailSentByMe){
+    if (isEmailSentByMe) {
       starred = true;
     }
 
     date = email.date;
 
-    if(!folderId){ // create the parent folder
+    if (!folderId) {
+      // create the parent folder
       const folderName = commonUtils.generateFolderName(email.from);
       folderId = await googleApiUtils.createDriveFolder({
         name: folderName,
         description: `Chats & Emails from ${folderName}`,
         parentFolderId: noteDestinationFolderId,
-        starred: isEmailSentByMe,
-        folderColorRgb: isEmailSentByMe ? "#FF0000" : "#0000FF",
+        starred,
+        folderColorRgb: starred ? "#FF0000" : "#0000FF",
         appProperties: {
           fromDomain: folderName,
         },
@@ -551,10 +553,24 @@ async function _processThreads(threadId, emails: Email[]) {
         folderName: folderName,
         driveFileId: folderId,
       });
+
+      // create the folder that are grouped by year
+      // this is where we will store the data
+      const yearString = moment(parseInt(email.date) * 1000).format("YYYY");
+      folderId = await googleApiUtils.createDriveFolder({
+        name: yearString,
+        description: `Chats & Emails from ${folderName} in year ${yearString}`,
+        parentFolderId: folderId,
+        starred,
+        folderColorRgb: "#00FFFF",
+        appProperties: {
+          fromDomainAndYear: `${folderName}-${yearString}`,
+        },
+      });
     }
 
     // concatenate body
-    if(isChat){
+    if (isChat) {
       docContentSections.push({
         body: `
         ================================================
@@ -692,7 +708,7 @@ async function _processThreads(threadId, emails: Email[]) {
     }
 
     await DataUtils.bulkUpsertEmails(
-      emails.map(email => {
+      emails.map((email) => {
         return {
           ...email,
           status: THREAD_JOB_STATUS_ENUM.SUCCESS,
