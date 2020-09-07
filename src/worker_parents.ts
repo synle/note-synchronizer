@@ -132,11 +132,11 @@ async function _init() {
       break;
 
     // job4
-    case WORK_ACTION_ENUM.UPLOAD_EMAILS_BY_MESSAGE_ID:
+    case WORK_ACTION_ENUM.UPLOAD_EMAILS_BY_THREAD_ID:
       await _setupWorkers(
-        process.env.MAX_THREADS_UPLOAD_EMAILS_BY_MESSAGE_ID || 6
+        process.env.MAX_THREADS_UPLOAD_EMAILS_BY_THREAD_ID || 6
       );
-      getNewWorkFunc = DataUtils.getAllMessageIdsToSyncWithGoogleDrive;
+      getNewWorkFunc = DataUtils.getAllThreadIdsToSyncWithGoogleDrive;
       await _enqueueWorkWithRemainingInputs();
       break;
 

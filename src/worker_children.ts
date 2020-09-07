@@ -46,11 +46,16 @@ async function _init() {
             ...data,
           });
           break;
-        case WORK_ACTION_ENUM.UPLOAD_EMAILS_BY_MESSAGE_ID:
+        case WORK_ACTION_ENUM.UPLOAD_EMAILS_BY_THREAD_ID:
           if (!data.id) {
-            throw `${data.action} requires threadId found messageId=${data.id}`;
+            throw `${data.action} requires threadId found threadId=${data.id}`;
           }
-          await gdriveCrawler.uploadEmailMsgToGoogleDrive(data.id);
+          const docDriveFileId = await gdriveCrawler.uploadEmailThreadToGoogleDrive(data.id);
+
+          logger.debug(
+            `Link to google doc threadId=${data.id}:\nhttps://docs.google.com/document/d/${docDriveFileId}`
+          );
+
           parentPort.postMessage({
             success: true,
             ...data,

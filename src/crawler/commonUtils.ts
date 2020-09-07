@@ -87,7 +87,7 @@ export function generateFolderName(string) {
 
   if (myEmails.some((myEmail) => string.includes(myEmail))) {
     // if sent by me, then group things under the same label
-    return `_ME ${string}`;
+    return `_ME`;
   }
 
   if (
