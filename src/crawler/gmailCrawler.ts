@@ -497,7 +497,9 @@ async function _pollNewEmailThreads(q = "") {
       countThreadsSoFar += threadIds.length;
 
       if (!nextPageToken) {
-        logger.debug(`Stopped crawl due to q=${q} totalPages=${countPageProcessed}/${countTotalPagesToCrawl} nextPageToken=${nextPageToken}`);
+        logger.debug(
+          `Stopped crawl due to q=${q} totalPages=${countPageProcessed}/${countTotalPagesToCrawl} nextPageToken=${nextPageToken}`
+        );
         break;
       }
 
@@ -713,78 +715,76 @@ export async function fetchRawContentsByThreadId(threadIds) {
       let threadMessages = await DataUtils.getRawContentsByThreadId(threadId);
 
       // if not found from db, then fetch its raw content
-        logger.debug(
-          `fetch Gmail API to get raw content for threadId=${threadId}`
-        );
+      logger.debug(
+        `fetch Gmail API to get raw content for threadId=${threadId}`
+      );
 
-        const { messages } = await googleApiUtils.getEmailContentByThreadId(
-          threadId
-        );
+      const { messages } = await googleApiUtils.getEmailContentByThreadId(
+        threadId
+      );
 
-        // TODO:
-        // get emails from the google drafts api
+      // TODO:
+      // get emails from the google drafts api
 
-        // parse the content and insert raw content
-        const promisesSaveParentFolders = [];
-        const promisesSaveMessages = messages.map((message) => {
-          const { id, threadId } = message;
+      // parse the content and insert raw content
+      const promisesSaveParentFolders = [];
+      const promisesSaveMessages = messages.map((message) => {
+        const { id, threadId } = message;
 
-          const parts = googleApiUtils.flattenGmailPayloadParts(
-            message.payload
-          );
-          if (parts && parts.length > 0) {
-            for (let part of parts) {
-              if (part.body.data) {
-                part.body.data = _parseGmailMessage(part.body.data);
-              }
+        const parts = googleApiUtils.flattenGmailPayloadParts(message.payload);
+        if (parts && parts.length > 0) {
+          for (let part of parts) {
+            if (part.body.data) {
+              part.body.data = _parseGmailMessage(part.body.data);
             }
           }
+        }
 
-          const headers: Headers = _getHeaders(message.payload.headers || []);
-          const from = _parseEmailAddress(headers.from) || headers.from;
-          const to = _parseEmailAddressList(headers.to);
-          const bcc = _parseEmailAddressList(headers.bcc);
-          const rawSubject = (headers.subject || `${from} ${id}`).trim();
+        const headers: Headers = _getHeaders(message.payload.headers || []);
+        const from = _parseEmailAddress(headers.from) || headers.from;
+        const to = _parseEmailAddressList(headers.to);
+        const bcc = _parseEmailAddressList(headers.bcc);
+        const rawSubject = (headers.subject || `${from} ${id}`).trim();
 
-          const emailMessageToSave = {
-            id: id,
-            threadId: threadId,
-            labelIds: (message.labelIds || []).join(",") || null,
-            rawSubject: truncate(rawSubject, {
-              length: 250,
-            }),
-            from,
-            to: to.join(",") || null,
-            bcc: bcc.join(",") || null,
-            rawApiResponse: JSON.stringify(message),
-            date: Math.round((message.internalDate || Date.now()) / 1000),
-            status: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
-          };
+        const emailMessageToSave = {
+          id: id,
+          threadId: threadId,
+          labelIds: (message.labelIds || []).join(",") || null,
+          rawSubject: truncate(rawSubject, {
+            length: 250,
+          }),
+          from,
+          to: to.join(",") || null,
+          bcc: bcc.join(",") || null,
+          rawApiResponse: JSON.stringify(message),
+          date: Math.round((message.internalDate || Date.now()) / 1000),
+          status: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
+        };
 
-          // generate the record for folder id for future use
-          const parentFolderName = CommonUtils.generateFolderName(from);
-          promisesSaveParentFolders.push(
-            DataUtils.bulkUpsertFolders({
-              folderName: parentFolderName,
-            })
+        // generate the record for folder id for future use
+        const parentFolderName = CommonUtils.generateFolderName(from);
+        promisesSaveParentFolders.push(
+          DataUtils.bulkUpsertFolders({
+            folderName: parentFolderName,
+          })
+        );
+
+        logger.debug(
+          `Saving raw content for threadId=${threadId} subject=${rawSubject}`
+        );
+
+        return DataUtils.bulkUpsertEmails(emailMessageToSave).catch((err) => {
+          logger.error(
+            `Insert raw content failed threadId=${threadId} id=${id} error=${JSON.stringify(
+              err.stack || err
+            )}`
           );
-
-          logger.debug(
-            `Saving raw content for threadId=${threadId} subject=${rawSubject}`
-          );
-
-          return DataUtils.bulkUpsertEmails(emailMessageToSave).catch((err) => {
-            logger.error(
-              `Insert raw content failed threadId=${threadId} id=${id} error=${JSON.stringify(
-                err.stack || err
-              )}`
-            );
-            throw err;
-          });
+          throw err;
         });
+      });
 
-        await Promise.all(promisesSaveMessages);
-        await Promise.allSettled(promisesSaveParentFolders);
+      await Promise.all(promisesSaveMessages);
+      await Promise.allSettled(promisesSaveParentFolders);
 
       // move on to next stage
       await DataUtils.bulkUpsertThreadJobStatuses({
@@ -810,7 +810,7 @@ export async function fetchRawContentsByThreadId(threadIds) {
 /**
  * This is simply to get a list of all email threadIds
  */
-export async function pollForNewThreadList(afterThisDate = '') {
+export async function pollForNewThreadList(afterThisDate = "") {
   logger.debug(`pollForNewThreadList after=${afterThisDate}`);
   if (afterThisDate) {
     afterThisDate = `after:${afterThisDate}`;
