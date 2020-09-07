@@ -85,9 +85,9 @@ export function getMd5Hash(string) {
 export function generateFolderName(string) {
   string = string.toLowerCase();
 
-  if (myEmails.some((myEmail) => string.includes(myEmail))) {
+  if (myEmails.some((myEmail) => string === myEmail.toLowerCase())) {
     // if sent by me, then group things under the same label
-    return `_ME ${string}`;
+    return `_ME`;
   }
 
   if (

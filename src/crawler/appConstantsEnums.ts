@@ -1,20 +1,27 @@
-export const mySignatureTokens = (process.env.MY_SIGNATURE_TOKEN || "").split(
-  "|||"
-);
+export const mySignatureTokens = (process.env.MY_SIGNATURE_TOKEN || "")
+  .split("|||")
+  .filter((r) => !!r);
 
-export const myEmails = (process.env.MY_EMAIL_TOKENS || "").split("|||");
+export const myEmails = (process.env.MY_EMAIL_TOKENS || "")
+  .split("|||")
+  .map((r) => (r || "").trim().toLowerCase())
+  .filter((r) => !!r);
 
 export const interestedEmails = (process.env.INTERESTED_EMAIL_TOKENS || "")
   .split("|||")
-  .concat(myEmails);
+  .concat(myEmails)
+  .map((r) => (r || "").trim().toLowerCase())
+  .filter((r) => !!r);
 
-export const ignoredWordTokens = (process.env.IGNORED_WORD_TOKENS || "").split(
-  "|||"
-);
+export const ignoredWordTokens = (process.env.IGNORED_WORD_TOKENS || "")
+  .split("|||")
+  .map((r) => (r || "").trim().toLowerCase())
+  .filter((r) => !!r);
 
-export const ignoredUrlTokens = (process.env.IGNORED_URL_TOKENS || "").split(
-  "|||"
-);
+export const ignoredUrlTokens = (process.env.IGNORED_URL_TOKENS || "")
+  .split("|||")
+  .map((r) => (r || "").trim().toLowerCase())
+  .filter((r) => !!r);
 
 export const GMAIL_ATTACHMENT_PATH = "./attachments";
 

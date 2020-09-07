@@ -3,6 +3,8 @@ require("dotenv").config();
 
 import fs from "fs";
 import moment from "moment";
+import startCase from "lodash/startCase";
+import trim from "lodash/trim";
 
 import { Document, Media, Packer, Paragraph, HeadingLevel } from "docx";
 
@@ -15,12 +17,32 @@ import {
   PROCESSED_EMAIL_PREFIX_PATH,
   FORMAT_DATE_TIME1,
   FORMAT_DATE_TIME2,
+  interestedEmails,
+  ignoredWordTokens,
 } from "./appConstantsEnums";
 import * as commonUtils from "./commonUtils";
-import * as mySignatureTokens from "./appConstantsEnums";
 import * as DataUtils from "./dataUtils";
 
 let noteDestinationFolderId;
+const MIN_SUBJECT_LENGTH = 10;
+
+function _sanitizeSubject(subject, to, friendlyDateTimeString2, isChat, isEmail) {
+  subject = startCase(subject);
+
+  if (subject.length <= MIN_SUBJECT_LENGTH) {
+    // if subject is too short, let's add the from
+    subject = `${subject} ${to}`;
+  }
+  subject = `${friendlyDateTimeString2} ${subject}`;
+
+  if (isChat) {
+    if (!subject.toLowerCase().includes("chat")) {
+      subject = `${subject} Chat`;
+    }
+  }
+
+  return trim(subject, ' -_><:.()[]{}');
+}
 
 function _sanitizeFileName(string) {
   return string
@@ -39,11 +61,7 @@ function _sanitizeFileName(string) {
     .trim();
 }
 
-export async function generateDocFile(
-  subject,
-  sections,
-  newFileName
-) {
+export async function generateDocFile(subject, sections, newFileName) {
   logger.debug(`generateDocFile subject=${subject} file=${newFileName}`);
   const doc = new Document();
   const children = [];
@@ -51,17 +69,23 @@ export async function generateDocFile(
   children.push(
     new Paragraph({
       text: subject,
-      heading: HeadingLevel.TITLE,
+      heading: HeadingLevel.HEADING_1,
       color: "#ff0000",
     })
   );
 
   sections = [].concat(sections);
-  for(let section of sections){
+  for (let section of sections) {
     let body = section.body;
-    let images = section.images;
+    let images = section.images || [];
 
-    body = body.split("\n").map(r => r.trim()).filter(r => !!r);
+    body = body
+      .replace("\t", " ")
+      .replace(" >>", "\n>>")
+      .replace("    ", "\n")
+      .split("\n")
+      .map((r) => r.trim())
+      .filter((r) => !!r);
     for (let content of body) {
       children.push(
         new Paragraph({
@@ -135,7 +159,7 @@ export function _getNonImagesAttachments(
 }
 
 async function _init() {
-  if (!noteDestinationFolderId){
+  if (!noteDestinationFolderId) {
     noteDestinationFolderId = await googleApiUtils.getNoteDestinationFolderId();
   }
 
@@ -177,22 +201,24 @@ async function _processThreadEmail(email: Email) {
 
     const toEmailAddresses = toEmailList.join(", ");
 
-    const isEmailSentByMe = mySignatureTokens.interestedEmails.some((myEmail) =>
-      from.includes(myEmail)
+    const isEmailSentByMe = interestedEmails.some(
+      (myEmail) => from.toLowerCase() === myEmail.toLowerCase()
     );
 
     const isEmailSentByMeToMe =
       isEmailSentByMe &&
-      mySignatureTokens.interestedEmails.some((myEmail) =>
-        toEmailList.some((toEmail) => toEmail.includes(myEmail))
+      interestedEmails.some((myEmail) =>
+        toEmailList.some(
+          (toEmail) => toEmail.toLowerCase() === myEmail.toLowerCase()
+        )
       );
 
-    const starred =
-      labelIdsList.some((labelId) => labelId.includes("STARRED")) ||
-      isEmailSentByMeToMe;
+    const starred = labelIdsList.some((labelId) => labelId.includes("STARRED"));
 
     const hasSomeAttachments =
-      nonImageAttachments.length > 0 || imagesAttachments.length > 0;
+      nonImageAttachments.length > 0 ||
+      imagesAttachments.filter((attachment) => attachment.size >= 10000)
+        .length > 0;
 
     const friendlyDateTimeString1 = moment(parseInt(date) * 1000).format(
       FORMAT_DATE_TIME1
@@ -208,10 +234,9 @@ async function _processThreadEmail(email: Email) {
     if (labelIdsList.some((labelId) => labelId.includes("CHAT"))) {
       isChat = true;
       isEmail = false;
-      subject = `${friendlyDateTimeString2} Chat : ${subject}`;
-    } else {
-      subject = `${friendlyDateTimeString2} ${subject}`;
     }
+
+    subject = _sanitizeSubject(subject, to, friendlyDateTimeString2, isChat, isEmail)
 
     let docFileName = `${subject}`;
 
@@ -221,16 +246,37 @@ async function _processThreadEmail(email: Email) {
     };
 
     // ignored if content contains the ignored patterns
+    let hasIgnoredWordTokens = false;
     if (
-      mySignatureTokens.ignoredWordTokens.some((ignoredToken) =>
-        rawBody.toLowerCase().includes(ignoredToken)
+      ignoredWordTokens.some((ignoredToken) =>
+        rawBody.toLowerCase().includes(ignoredToken.toLowerCase())
       ) ||
-      mySignatureTokens.ignoredWordTokens.some((ignoredToken) =>
-        subject.toLowerCase().includes(ignoredToken)
+      ignoredWordTokens.some((ignoredToken) =>
+        `${subject}|||${from}`
+          .toLowerCase()
+          .includes(ignoredToken.toLowerCase())
       )
     ) {
+      hasIgnoredWordTokens = true;
+    }
+
+    if (isChat) {
       logger.debug(
-        `Skipped due to Ignored Pattern: threadId=${threadId} id=${id} subject=${subject}`
+        `Process chat threadId=${threadId} id=${id} subject=${subject}`
+      );
+
+      await uploadEmailThreadToGoogleDrive(email.threadId);
+
+      return; // skip this
+    }
+
+    logger.debug(
+      `Checking to see if we should upload this email threadId=${threadId} id=${id} subject=${subject}: hasIgnoredWordTokens=${hasIgnoredWordTokens} isEmailSentByMe=${isEmailSentByMe} isEmailSentByMeToMe=${isEmailSentByMeToMe} hasSomeAttachments=${hasSomeAttachments}`
+    );
+
+    if (hasIgnoredWordTokens && !isEmailSentByMeToMe) {
+      logger.debug(
+        `Skipped due to Ignored Pattern and this is not email sent to myself: threadId=${threadId} id=${id} subject=${subject}`
       );
 
       await DataUtils.bulkUpsertEmails({
@@ -241,25 +287,16 @@ async function _processThreadEmail(email: Email) {
       return; // skip this
     }
 
-    if (isChat) {
-      logger.debug(
-        `Skipped due to content being chat threadId=${threadId} id=${id} subject=${subject}`
-      );
-
-      await uploadEmailThreadToGoogleDrive(email.threadId);
-
-      return; // skip this
-    }
-
     if (isEmailSentByMe || isEmailSentByMeToMe || hasSomeAttachments) {
       // create the bucket folder
       const parentFolderName = commonUtils.generateFolderName(from);
+      const starredFolder = parentFolderName.indexOf("_") === 0;
       const folderIdToUse = await googleApiUtils.createDriveFolder({
         name: parentFolderName,
         description: `Chats & Emails from ${parentFolderName}`,
         parentFolderId: noteDestinationFolderId,
-        starred: isEmailSentByMe,
-        folderColorRgb: isEmailSentByMe ? "#FF0000" : "#0000FF",
+        starred: starredFolder,
+        folderColorRgb: starredFolder ? "#FF0000" : "#0000FF",
         appProperties: {
           fromDomain: parentFolderName,
         },
@@ -288,14 +325,16 @@ async function _processThreadEmail(email: Email) {
             subject,
             {
               body: `
-              Date: ${friendlyDateTimeString1}
-              Uploaded: ${moment().format(FORMAT_DATE_TIME1)}
-              From: ${from}
-              To: ${toEmailAddresses}
+              ================================
               ThreadId: ${threadId}
               MessageId: ${id}
-              SHA: ${docSha}
-              ================================================
+              Date: ${friendlyDateTimeString1} (Uploaded ${moment().format(
+                FORMAT_DATE_TIME1
+              )})
+              Link: mail.google.com/mail/u/0/#search/messageid/${id}
+              From: ${from}
+              To: ${toEmailAddresses}
+              ================================
               ${body}
               `,
               images: imagesAttachments,
@@ -309,6 +348,7 @@ async function _processThreadEmail(email: Email) {
           docDriveFileId = await googleApiUtils.uploadFile({
             name: docFileName,
             mimeType: MIME_TYPE_ENUM.APP_MS_DOCX,
+            dateEpochTime: parseInt(date) * 1000,
             localPath: localPath,
             description: `
             Main Email
@@ -364,6 +404,7 @@ async function _processThreadEmail(email: Email) {
             name: attachmentName,
             mimeType: attachment.mimeType,
             localPath: attachment.path,
+            dateEpochTime: parseInt(date) * 1000,
             description: `
             Attachment #${AttachmentIdx}
 
@@ -405,15 +446,26 @@ async function _processThreadEmail(email: Email) {
           );
         }
       }
+
+      await DataUtils.bulkUpsertEmails({
+        id: id,
+        status: THREAD_JOB_STATUS_ENUM.SUCCESS,
+        driveFileId: docDriveFileId,
+      });
+
+      logger.debug(
+        `Link to google doc threadId=${threadId} id=${id} subject=${subject}:\tdocs.google.com/document/d/${docDriveFileId}`
+      );
     } else {
       logger.debug(`Skipped threadId=${threadId} id=${id} subject=${subject}`);
-    }
 
-    await DataUtils.bulkUpsertEmails({
-      id: id,
-      status: THREAD_JOB_STATUS_ENUM.SUCCESS,
-      driveFileId: docDriveFileId,
-    });
+      await DataUtils.bulkUpsertEmails({
+        id,
+        status: THREAD_JOB_STATUS_ENUM.SKIPPED,
+      });
+
+      return; // skip this
+    }
   } catch (err) {
     logger.error(
       `Failed to upload emails with threadId=${email.threadId} messageId=${
@@ -452,7 +504,7 @@ async function _processThreads(threadId, emails: Email[]) {
 
   const googleFileAppProperties = {
     threadId,
-  }
+  };
 
   // all attachments
   const attachments = await DataUtils.getAttachmentsByThreadId(threadId);
@@ -480,14 +532,14 @@ async function _processThreads(threadId, emails: Email[]) {
       .filter((r) => !!r);
     const toEmailAddresses = toEmailList.join(", ");
 
-    isEmailSentByMe = isEmailSentByMe ||mySignatureTokens.interestedEmails.some(
-      (myEmail) => email.from.includes(myEmail)
-    );
+    isEmailSentByMe =
+      isEmailSentByMe ||
+      interestedEmails.some((myEmail) => email.from.includes(myEmail));
 
     isEmailSentByMeToMe =
       isEmailSentByMeToMe ||
       (isEmailSentByMe &&
-        mySignatureTokens.interestedEmails.some((myEmail) =>
+        interestedEmails.some((myEmail) =>
           toEmailList.some((toEmail) => toEmail.includes(myEmail))
         ));
 
@@ -502,7 +554,7 @@ async function _processThreads(threadId, emails: Email[]) {
       FORMAT_DATE_TIME2
     );
 
-    if(!dateStart){
+    if (!dateStart) {
       dateStart = friendlyDateTimeString1;
     }
     dateEnd = friendlyDateTimeString1;
@@ -511,29 +563,38 @@ async function _processThreads(threadId, emails: Email[]) {
 
     let isChat = false;
     let isEmail = true;
-    let subject = email.subject;
+
     if (labelIdsList.some((labelId) => labelId.includes("CHAT"))) {
       isChat = true;
       isEmail = false;
-      subject = `${friendlyDateTimeString2} Chat : ${subject}`;
-    } else {
-      subject = `${friendlyDateTimeString2} ${subject}`;
     }
+
+    let subject = email.subject;
+    let to = email.to;
+    subject = _sanitizeSubject(
+      subject,
+      to,
+      friendlyDateTimeString2,
+      isChat,
+      isEmail
+    );
+
     if (!docFileName) {
       docFileName = subject;
     }
 
-    if(!from){
+    if (!from) {
       from = email.from;
     }
 
-    if(isEmailSentByMe){
+    if (isEmailSentByMe) {
       starred = true;
     }
 
     date = email.date;
 
-    if(!folderId){ // create the parent folder
+    if (!folderId) {
+      // create the parent folder
       const folderName = commonUtils.generateFolderName(email.from);
       folderId = await googleApiUtils.createDriveFolder({
         name: folderName,
@@ -554,28 +615,47 @@ async function _processThreads(threadId, emails: Email[]) {
     }
 
     // concatenate body
-    if(isChat){
+    if (isChat) {
+      if (docContentSections.length === 0) {
+        // this is the initial section of the email
+        docContentSections.push({
+          body: `
+        ================================
+        ThreadId: ${threadId}
+        Uploaded: ${moment().format(FORMAT_DATE_TIME1)}
+      `,
+        });
+      }
+
       docContentSections.push({
         body: `
-        ================================================
+        ================================
         ${friendlyDateTimeString1} ${from}:
-        ${email.body}
+        ${email.body || email.rawBody}
       `,
         images,
       });
     } else {
+      if (docContentSections.length === 0) {
+        // this is the initial section of the email
+        docContentSections.push({
+          body: `
+        ================================
+        ThreadId: ${threadId}
+        Uploaded: ${moment().format(FORMAT_DATE_TIME1)}
+      `,
+        });
+      }
+
       docContentSections.push({
         body: `
-        ================================================
-        Subject: ${subject}
+        ================================
         Date: ${friendlyDateTimeString1}
-        Uploaded: ${moment().format(FORMAT_DATE_TIME1)}
         From: ${from}
         To: ${toEmailAddresses}
-        ThreadId: ${threadId}
         MessageId: ${email.id}
-        ================================================
-        ${email.body}
+        ================================
+        ${email.body || email.rawBody}
       `,
         images,
       });
@@ -594,6 +674,7 @@ async function _processThreads(threadId, emails: Email[]) {
     docDriveFileId = await googleApiUtils.uploadFile({
       name: docFileName,
       mimeType: MIME_TYPE_ENUM.APP_MS_DOCX,
+      dateEpochTime: parseInt(date) * 1000,
       localPath: docLocalPath,
       description: `
     Main Email
@@ -624,7 +705,7 @@ async function _processThreads(threadId, emails: Email[]) {
     });
 
     logger.debug(
-      `Link to google doc:\nhttps://docs.google.com/document/d/${docDriveFileId}`
+      `Link to google doc threadId=${threadId}:\ndocs.google.com/document/d/${docDriveFileId}`
     );
 
     // upload attachments
@@ -646,6 +727,7 @@ async function _processThreads(threadId, emails: Email[]) {
         const attachmentDriveFileId = await googleApiUtils.uploadFile({
           name: attachmentName,
           mimeType: attachment.mimeType,
+          dateEpochTime: parseInt(date) * 1000,
           localPath: attachment.path,
           description: `
         Attachment #${attachmentIdx}
@@ -692,7 +774,7 @@ async function _processThreads(threadId, emails: Email[]) {
     }
 
     await DataUtils.bulkUpsertEmails(
-      emails.map(email => {
+      emails.map((email) => {
         return {
           ...email,
           status: THREAD_JOB_STATUS_ENUM.SUCCESS,
