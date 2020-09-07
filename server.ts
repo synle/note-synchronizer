@@ -110,7 +110,7 @@ server.get("/api/message/sync/messageId/:messageId", async function (
 
     await gmailCrawler.processMessagesByThreadId(email.threadId);
 
-    await gdriveCrawler.uploadEmailThreadToGoogleDrive(email.id);
+    await gdriveCrawler.uploadEmailMsgToGoogleDrive(email.id);
 
     res.send({
       ok: true,
@@ -130,10 +130,10 @@ server.get("/api/message/sync/threadId/:threadId", async function (
 
   try {
     const emails = await DataUtils.getEmailsByThreadId(threadId);
+    for (let email of emails) {
+      await gmailCrawler.processMessagesByThreadId(email.threadId);
 
-    if (emails.length > 0) {
-      await gmailCrawler.processMessagesByThreadId(threadId);
-      await gdriveCrawler.uploadEmailThreadToGoogleDrive(threadId);
+      await gdriveCrawler.uploadEmailMsgToGoogleDrive(email.id);
 
       res.send({
         ok: true,
