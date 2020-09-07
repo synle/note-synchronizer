@@ -84,50 +84,27 @@ export async function createNoteDestinationFolder() {
   logger.warn(`createNoteDestinationFolder folder: ${noteDestFolderId}`);
 
   // generate the bucket for all of my emails
-  let promisesCreateFolders = [];
+  let promises = [];
   const folderNames = await DataUtils.getAllParentFolders();
-  for (const folderName of folderNames) {
-    const starred = folderName.indexOf("_") === 0;
+  for (const parentFolderName of folderNames) {
+    const starred = parentFolderName.indexOf("_") === 0;
 
-    promisesCreateFolders.push(
-      createDriveFolder(
-        {
-          name: folderName,
-          description: `Chats & Emails from ${folderName}`,
-          parentFolderId: noteDestFolderId,
-          starred,
-          folderColorRgb: starred ? "#FF0000" : "#0000FF",
-          appProperties: {
-            fromDomain: folderName,
-          },
+    promises.push(
+      createDriveFolder({
+        name: parentFolderName,
+        description: `Chats & Emails from ${parentFolderName}`,
+        parentFolderId: noteDestFolderId,
+        starred,
+        folderColorRgb: starred ? "#FF0000" : "#0000FF",
+        appProperties: {
+          fromDomain: parentFolderName,
         },
-        true // forced create
-      ).then((folderId) => {
-        // create the folder that are grouped by year
-        // this is where we will store the data
-        let yearString = 2020;
-        while (yearString > 2006) {
-          await googleApiUtils.createDriveFolder(
-            {
-              name: yearString,
-              description: `Chats & Emails from ${folderName} in year ${yearString}`,
-              parentFolderId: folderId,
-              starred,
-              folderColorRgb: "#00FFFF",
-              appProperties: {
-                fromDomainAndYear: `${folderName}-${yearString}`,
-              },
-            },
-            true // forced create
-          );
-          yearString--;
-        }
       })
     );
 
-    if (promisesCreateFolders.length === 10) {
-      await Promise.allSettled(promisesCreateFolders);
-      promisesCreateFolders = [];
+    if (promises.length === 3) {
+      await Promise.allSettled(promises);
+      promises = [];
     }
   }
 
@@ -591,29 +568,23 @@ function searchFilesByQuery(q, nextPageToken) {
   });
 }
 
-export async function createDriveFolder(
-  {
-    name,
-    description,
-    parentFolderId,
-    starred = false,
-    folderColorRgb = "FFFF00",
-    appProperties = {},
-  },
-  forcedCreate = false
-) {
+export async function createDriveFolder({
+  name,
+  description,
+  parentFolderId,
+  starred = false,
+  folderColorRgb = "FFFF00",
+  appProperties = {},
+}) {
   try {
     const mimeType = MIME_TYPE_ENUM.APP_GOOGLE_FOLDER;
 
-    const matchedResults =
-      forcedCreate === true
-        ? []
-        : await searchDrive({
-            name,
-            mimeType,
-            parentFolderId: parentFolderId,
-            // appProperties,
-          });
+    const matchedResults = await searchDrive({
+      name,
+      mimeType,
+      parentFolderId: parentFolderId,
+      // appProperties,
+    });
 
     if (matchedResults.length === 0) {
       const fileGDriveMetadata = {
