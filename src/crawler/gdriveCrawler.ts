@@ -283,12 +283,12 @@ async function _processThreadEmail(email: Email) {
     }
 
     logger.debug(
-      `Checking to see if we should upload this email threadId=${threadId} id=${id} subject=${subject}: hasIgnoredWordTokens=${hasIgnoredWordTokens} isEmailSentByMe=${isEmailSentByMe} isEmailSentByMeToMe=${isEmailSentByMeToMe} hasSomeAttachments=${hasSomeAttachments}`
+      `Checking to see if we should upload this email threadId=${threadId} id=${id} subject=${subject}: hasIgnoredWordTokens=${hasIgnoredWordTokens} isEmailSentByMe=${isEmailSentByMe} isEmailSentByMeToMe=${isEmailSentByMeToMe} hasSomeAttachments=${hasSomeAttachments} starred=${starred}`
     );
 
-    if (hasIgnoredWordTokens && !isEmailSentByMeToMe) {
+    if (hasIgnoredWordTokens && !isEmailSentByMeToMe && !starred) {
       logger.debug(
-        `Skipped due to Ignored Pattern and this is not email sent to myself: threadId=${threadId} id=${id} subject=${subject}`
+        `Skipped due to Ignored Pattern and this is not email sent to myself and not starred: threadId=${threadId} id=${id} subject=${subject}`
       );
 
       await DataUtils.bulkUpsertEmails({
@@ -299,7 +299,7 @@ async function _processThreadEmail(email: Email) {
       return; // skip this
     }
 
-    if (isEmailSentByMe || isEmailSentByMeToMe || hasSomeAttachments) {
+    if (isEmailSentByMe || isEmailSentByMeToMe || hasSomeAttachments || starred) {
       // create the bucket folder
       const parentFolderName = commonUtils.generateFolderName(from);
       const starredFolder = parentFolderName.indexOf("_") === 0;
