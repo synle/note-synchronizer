@@ -6,9 +6,11 @@
     <title>Note Synchronizer</title>
   </head>
   <style>
-    body,
-    html {
+    html, body {
       height: 100%;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
     * {
       box-sizing: border-box;
@@ -38,13 +40,15 @@
       margin-bottom: 5px;
     }
     body {
+      padding: 5px;
       display: flex;
     }
 
     .form {
       flex-grow: 1;
-      border: 1px solid black;
-      padding: 10px;
+      border: 1px solid #999;
+      border-radius: 3px;
+      padding: 5px;
       display: flex;
       flex-direction: column;
     }
@@ -142,8 +146,8 @@
     }
 
     const parseBody = _wrapWork(async function parseBody(targetEl) {
-      const inputId = targetEl.querySelector("#input-id-to-parse").value;
-      const inputType = targetEl.querySelector("#input-type-to-parse").value;
+      const inputId = targetEl.querySelector("#input-id-to-parse").value.trim();
+      const inputType = targetEl.querySelector("#input-type-to-parse").value.trim();
 
       targetEl.querySelector("#output-raw-html").value = "";
       targetEl.querySelector("#output-parsed-html").value = "";
@@ -170,8 +174,8 @@
     });
 
     const syncToDrive = _wrapWork(async function syncToDrive(targetEl) {
-      const inputId = targetEl.querySelector("#input-id-to-sync").value;
-      const inputType = targetEl.querySelector("#input-type-to-sync").value;
+      const inputId = targetEl.querySelector("#input-id-to-sync").value.trim();
+      const inputType = targetEl.querySelector("#input-type-to-sync").value.trim();
       if (inputId.length >= 16 && inputId.length < 20) {
         try {
           const result = await fetch(
@@ -183,7 +187,7 @@
     });
 
     const searchLogs = _wrapWork(async function searchLogs(targetEl) {
-      const searchKeyword = targetEl.querySelector("#input-search").value;
+      const searchKeyword = targetEl.querySelector("#input-search").value.trim();
       const sortLogsAsc =
         targetEl.querySelector("#input-logs-sort").value === "true";
 
@@ -191,43 +195,46 @@
 
       try {
         const result = await fetch(`/api/logs`, {
-          method: 'post',
+          method: "post",
           body: JSON.stringify({
-            search: searchKeyword
-          })
-        }).then((res) =>
-          res.json()
-        );
+            search: searchKeyword,
+          }),
+        }).then((res) => res.json());
 
         let newContent = (result.msg || ">> Not found")
           .split("\n")
           .map((msg) => {
-            msg = msg
-              .replace(/\d\d\/\d\d \d\d:\d\d:\d\d[AP]M \[[A-Za-z]\]/, function (
-                m
-              ) {
-                if (m.indexOf("[E]") >= 0) {
-                  return `<b style="color:red">${m}</b>`;
-                }
-                if (m.indexOf("[D]") >= 0) {
-                  return `<b style="color:blue">${m}</b>`;
-                }
-                return `<b style="color:green">${m}</b>`;
-              })
-              .replace(/[a-zA-Z0-9]+=[a-zA-Z0-9_\-/.]+/g, "<b>$&</b>")
-              .replace(/(error|failed|fail)/gi, function (m) {
-                return `<b style='color:red'>${m}</b>`;
-              })
-              .replace(/(success|succeed|done|finished|finish)/gi, function (
-                m
-              ) {
-                return `<b style='color:green;'>${m}</b>`;
-              })
-              .replace(
-                new RegExp(searchKeyword, "gi"),
-                '<b style="background: yellow"><u>$&</u></b>'
-              )
-              .trim();
+            try {
+              msg = msg
+                .replace(
+                  /\d\d\/\d\d \d\d:\d\d:\d\d[AP]M \[[A-Za-z]\]/,
+                  function (m) {
+                    if (m.indexOf("[E]") >= 0) {
+                      return `<b style="color:red">${m}</b>`;
+                    }
+                    if (m.indexOf("[D]") >= 0) {
+                      return `<b style="color:blue">${m}</b>`;
+                    }
+                    return `<b style="color:green">${m}</b>`;
+                  }
+                )
+                .replace(/[a-zA-Z0-9]+=[a-zA-Z0-9_\-/.]+/g, "<b>$&</b>")
+                .replace(/(error|failed|fail)/gi, function (m) {
+                  return `<b style='color:red'>${m}</b>`;
+                })
+                .replace(/(success|succeed|done|finished|finish)/gi, function (
+                  m
+                ) {
+                  return `<b style='color:green;'>${m}</b>`;
+                })
+                .replace(
+                  searchKeyword,
+                  '<b style="background: yellow"><u>$&</u></b>'
+                )
+                .trim();
+            } catch (e) {
+              console.log(e);
+            }
 
             return `<div>${msg}</div>`;
           });
@@ -236,7 +243,7 @@
           newContent = newContent.reverse();
         }
 
-        targetEl.querySelector("#output-logs").innerHTML = newContent.join("");
+        targetEl.querySelector("#output-logs").innerHTML = `<div>${newContent.length} Lines</div>${newContent.join("")}`;
       } catch (err) {}
     });
   </script>

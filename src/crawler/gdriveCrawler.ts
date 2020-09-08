@@ -33,8 +33,7 @@ function _sanitizeSubject(
   isChat,
   isEmail
 ) {
-  subject = startCase(subject);
-
+  subject = (subject || "").trim();
   if (subject.length <= MIN_SUBJECT_LENGTH) {
     // if subject is too short, let's add the from
     subject = `${subject} ${to}`;
@@ -168,10 +167,6 @@ async function _init() {
   if (!noteDestinationFolderId) {
     noteDestinationFolderId = await googleApiUtils.getNoteDestinationFolderId();
   }
-
-  logger.debug(
-    `ID for Google Drive Note Sync Folder: ${noteDestinationFolderId}`
-  );
 }
 
 async function _processThreadEmail(email: Email) {
@@ -179,6 +174,8 @@ async function _processThreadEmail(email: Email) {
   logger.debug(`_processThreadEmail threadId=${threadId} id=${id}`);
 
   let docDriveFileId;
+  let parentFolderName;
+  let folderIdToUse;
 
   try {
     await DataUtils.bulkUpsertEmails({
@@ -306,9 +303,9 @@ async function _processThreadEmail(email: Email) {
       starred
     ) {
       // create the bucket folder
-      const parentFolderName = commonUtils.generateFolderName(from);
+      parentFolderName = commonUtils.generateFolderName(from);
       const starredFolder = parentFolderName.indexOf("_") === 0;
-      const folderIdToUse = await googleApiUtils.createDriveFolder({
+      folderIdToUse = await googleApiUtils.createDriveFolder({
         name: parentFolderName,
         description: `Chats & Emails from ${parentFolderName}`,
         parentFolderId: noteDestinationFolderId,
@@ -333,41 +330,40 @@ async function _processThreadEmail(email: Email) {
         `Start upload original note threadId=${threadId} id=${id} subject=${subject} imageFiles=${imagesAttachments.length} nonImageAttachments=${nonImageAttachments.length}`
       );
 
-      if (rawBody.length > 0) {
-        docFileName = _sanitizeFileName(subject);
-        const docSha = commonUtils.get256Hash(docFileName);
+      docFileName = _sanitizeFileName(subject);
+      const docSha = commonUtils.get256Hash(docFileName);
 
-        try {
-          await generateDocFile(
-            subject,
-            {
-              body: `
+      try {
+        await generateDocFile(
+          subject,
+          {
+            body: `
               ================================
               ThreadId: ${threadId}
               MessageId: ${id}
               Date: ${friendlyDateTimeString1} (Uploaded ${moment().format(
-                FORMAT_DATE_TIME1
-              )})
+              FORMAT_DATE_TIME1
+            )})
               Link: mail.google.com/mail/u/0/#search/messageid/${id}
               From: ${from}
               To: ${toEmailAddresses}
               ================================
               ${body}
               `,
-              images: imagesAttachments,
-            },
-            localPath
-          );
+            images: imagesAttachments,
+          },
+          localPath
+        );
 
-          logger.debug(`Upload original note file ${docFileName}`);
+        logger.debug(`Upload original note file ${docFileName}`);
 
-          // upload original doc
-          docDriveFileId = await googleApiUtils.uploadFile({
-            name: docFileName,
-            mimeType: MIME_TYPE_ENUM.APP_MS_DOCX,
-            dateEpochTime: parseInt(date) * 1000,
-            localPath: localPath,
-            description: `
+        // upload original doc
+        docDriveFileId = await googleApiUtils.uploadFile({
+          name: docFileName,
+          mimeType: MIME_TYPE_ENUM.APP_MS_DOCX,
+          dateEpochTime: parseInt(date) * 1000,
+          localPath: localPath,
+          description: `
             Main Email
             Date: ${friendlyDateTimeString1}
 
@@ -381,21 +377,20 @@ async function _processThreadEmail(email: Email) {
 
             SHA: ${docSha}
             `.trim(),
-            date: date,
-            starred: starred,
-            parentFolderId: folderIdToUse,
-            appProperties: {
-              sha: docSha,
-              ...googleFileAppProperties,
-            },
-          });
-        } catch (err) {
-          logger.error(
-            `Error - Failed to upload original note - threadId=${threadId} id=${id} subject=${subject} attachmentName=${docFileName} localPath=${localPath} error=${JSON.stringify(
-              err.stack || err
-            )}`
-          );
-        }
+          date: date,
+          starred: starred,
+          parentFolderId: folderIdToUse,
+          appProperties: {
+            sha: docSha,
+            ...googleFileAppProperties,
+          },
+        });
+      } catch (err) {
+        logger.error(
+          `Error - Failed to upload original note - threadId=${threadId} id=${id} subject=${subject} attachmentName=${docFileName} localPath=${localPath} error=${JSON.stringify(
+            err.stack || err
+          )}`
+        );
       }
 
       // then upload the associated attachments
@@ -470,9 +465,15 @@ async function _processThreadEmail(email: Email) {
         driveFileId: docDriveFileId,
       });
 
-      logger.debug(
-        `Link to google doc threadId=${threadId} id=${id} subject=${subject}:\tdocs.google.com/document/d/${docDriveFileId}`
-      );
+      if (docDriveFileId) {
+        logger.debug(
+          `Link to google doc threadId=${threadId} id=${id} subject=${subject}:\tdocs.google.com/document/d/${docDriveFileId} parentFolderName=${parentFolderName} folderIdToUse=drive.google.com/drive/folders/${folderIdToUse}`
+        );
+      } else {
+        logger.debug(
+          `No Link was created for google doc threadId=${threadId} id=${id} subject=${subject}`
+        );
+      }
     } else {
       logger.debug(`Skipped threadId=${threadId} id=${id} subject=${subject}`);
 
@@ -730,7 +731,7 @@ async function _processThreads(threadId, emails: Email[]) {
     for (let attachment of allNonImageAttachments) {
       attachmentIdx++;
       const attachmentName = _sanitizeFileName(
-        `${docFileName} #${attachmentIdx} ${attachment.fileName}`
+        `${docFileName} File#${attachmentIdx} ${attachment.fileName}`
       );
 
       logger.debug(
