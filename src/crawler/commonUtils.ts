@@ -91,11 +91,19 @@ export function generateFolderName(string) {
   }
 
   if (
-    string.includes("gmail") ||
-    string.includes("yahoo.com") ||
-    string.includes("ymail") ||
-    string.includes("hotmail.com") ||
-    string.includes("aol.com")
+    [
+      "gmail",
+      "yahoo.com",
+      "ymail",
+      "hotmail",
+      "aol.com",
+      "pacbell.net",
+      "comcast.net",
+      "msn.com",
+      "live.com",
+      "outlook.com",
+      "icloud.com",
+    ].some((popularEmail) => string.includes(popularEmail.toLowerCase()))
   ) {
     // common email domain, then should use their full name
     return string.trim();

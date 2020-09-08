@@ -243,13 +243,17 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
         const bcc = _parseEmailAddressList(headers.bcc);
 
-        const rawSubject = startCase(
-          (headers.subject || `${from} ${id}`).trim()
-        );
+        let rawSubject;
+        if (headers.subject) {
+          rawSubject = startCase(headers.subject);
+        } else {
+          rawSubject = `${from} ${id}`;
+        }
+        rawSubject = trim(rawSubject, " -_><:.()[]{}");
 
         // see if we need to handle further fetching from here
         // here we might face body of a url or subject of a url
-        let subject = startCase(rawSubject);
+        let subject = rawSubject;
 
         // stripped down body (remove signatures and clean up the dom)
         rawBody = rawBodyPlain || rawBodyHtml;

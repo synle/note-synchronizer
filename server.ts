@@ -15,6 +15,9 @@ initDatabase();
 initGoogleApi();
 
 const server = restify.createServer();
+
+server.use(restify.plugins.bodyParser({ mapParams: false }));
+
 server.get("/api/message/parse/threadId/:threadId", async function (
   req,
   res,
@@ -154,23 +157,20 @@ server.get("/api/message/sync/threadId/:threadId", async function (
   next();
 });
 
-server.get("/api/logs/:search", async function (req, res, next) {
-  const search = req.params.search;
-
+server.post("/api/logs", async function (req, res, next) {
   try {
-    exec(
-      `cat logs/log_combined.data | grep -i "${search}"`,
-      (error, stdout, stderr) => {
-        if (error) {
-          res.send({ error: error.stack || JSON.stringify(error) });
-          return;
-        }
-        res.send({
-          ok: true,
-          msg: stdout,
-        });
+    const search = JSON.parse(req.body).search;
+    const cmd = `cat logs/log_combined.data | grep -i "${search}" | tail -100000`;
+    exec(cmd, { maxBuffer: 512 * 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error) {
+        res.send({ error: error.stack || JSON.stringify(error) });
+        return;
       }
-    );
+      res.send({
+        ok: true,
+        msg: stdout,
+      });
+    });
   } catch (error) {
     res.send({ error: error.stack || JSON.stringify(error) });
   }
