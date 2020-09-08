@@ -70,6 +70,7 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
   const workerDetails = {};
   workerDetails.work = worker;
   workerDetails.status = WORKER_STATUS_ENUM.FREE;
+  workerDetails.id = myThreadId;
 
   return workerDetails;
 }
@@ -188,6 +189,12 @@ async function _enqueueWorkWithRemainingInputs() {
           action,
         };
         worker.status = WORKER_STATUS_ENUM.BUSY;
+
+        logger.debug(
+          `Distribute work for command=${action} worker=${worker.id} lastWorkIdx=${lastWorkIdx} id=${id}
+          )}`
+        );
+
         worker.work.postMessage(workActionRequest);
         lastWorkIdx++;
       }

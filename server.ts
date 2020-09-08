@@ -109,6 +109,10 @@ server.get("/api/message/sync/messageId/:messageId", async function (
   try {
     const email = await DataUtils.getEmailByMessageId(messageId);
 
+    if (!email) {
+      throw `Not found messageId=${messageId}`;
+    }
+
     await gmailCrawler.processMessagesByThreadId(email.threadId);
 
     await gdriveCrawler.uploadEmailMsgToGoogleDrive(email.id);
@@ -131,6 +135,11 @@ server.get("/api/message/sync/threadId/:threadId", async function (
 
   try {
     const emails = await DataUtils.getEmailsByThreadId(threadId);
+
+    if (emails.length === 0) {
+      throw `Not found threadId=${threadId}`;
+    }
+
     for (let email of emails) {
       await gmailCrawler.processMessagesByThreadId(email.threadId);
       await gdriveCrawler.uploadEmailMsgToGoogleDrive(email.id);
