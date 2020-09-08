@@ -243,7 +243,9 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
         const bcc = _parseEmailAddressList(headers.bcc);
 
-        const rawSubject = startCase((headers.subject || `${from} ${id}`).trim());
+        const rawSubject = startCase(
+          (headers.subject || `${from} ${id}`).trim()
+        );
 
         // see if we need to handle further fetching from here
         // here we might face body of a url or subject of a url
