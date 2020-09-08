@@ -165,7 +165,13 @@ export class Email extends Model {
 export class Attachment extends Model {
   @attribute(Attachment, {
     allowNull: false,
+    allowNull: false,
     primaryKey: true,
+  })
+  path!: string;
+
+  @attribute(Attachment, {
+    allowNull: false,
     unique: true,
     type: DataTypes.STRING(750),
   })
@@ -191,9 +197,6 @@ export class Attachment extends Model {
 
   @attribute(Attachment, { type: DataTypes.TINYINT(1), allowNull: false })
   inline!: number;
-
-  @attribute(Attachment, { allowNull: false, allowNull: false })
-  path!: string;
 
   // @attribute(Attachment, { type: DataTypes.TEXT, allowNull: false })
   // headers!: string;

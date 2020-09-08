@@ -299,7 +299,12 @@ async function _processThreadEmail(email: Email) {
       return; // skip this
     }
 
-    if (isEmailSentByMe || isEmailSentByMeToMe || hasSomeAttachments || starred) {
+    if (
+      isEmailSentByMe ||
+      isEmailSentByMeToMe ||
+      hasSomeAttachments ||
+      starred
+    ) {
       // create the bucket folder
       const parentFolderName = commonUtils.generateFolderName(from);
       const starredFolder = parentFolderName.indexOf("_") === 0;
@@ -447,7 +452,7 @@ async function _processThreadEmail(email: Email) {
           });
 
           await DataUtils.bulkUpsertAttachments({
-            id: attachment.id,
+            path: attachment.path,
             driveFileId: attachmentDriveFileId,
           });
         } catch (err) {
@@ -773,7 +778,7 @@ async function _processThreads(threadId, emails: Email[]) {
         });
 
         await DataUtils.bulkUpsertAttachments({
-          id: attachment.id,
+          path: attachment.path,
           driveFileId: attachmentDriveFileId,
         });
       } catch (err) {

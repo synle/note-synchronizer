@@ -52,6 +52,7 @@
     .output-logs {
       flex-grow: 1;
       font-family: "Courier New", Courier, monospace;
+      overflow: auto;
     }
     .output-logs > div {
       margin-bottom: 10px;
@@ -92,8 +93,16 @@
       <div>
         <a id="output-url" target="_blank"></a>
       </div>
-      <textarea id="output-raw-html" class="output-logs" placeholder="Raw HTML"></textarea>
-      <textarea id="output-parsed-html" class="output-logs" placeholder="Parsed HTML"></textarea>
+      <textarea
+        id="output-raw-html"
+        class="output-logs"
+        placeholder="Raw HTML"
+      ></textarea>
+      <textarea
+        id="output-parsed-html"
+        class="output-logs"
+        placeholder="Parsed HTML"
+      ></textarea>
     </form>
     <form
       class="form"
@@ -181,7 +190,12 @@
       targetEl.querySelector("#output-logs").innerText = "";
 
       try {
-        const result = await fetch(`/api/logs/${searchKeyword}`).then((res) =>
+        const result = await fetch(`/api/logs`, {
+          method: 'post',
+          body: JSON.stringify({
+            search: searchKeyword
+          })
+        }).then((res) =>
           res.json()
         );
 
@@ -200,7 +214,6 @@
                 }
                 return `<b style="color:green">${m}</b>`;
               })
-              .replace(/trace=[a-zA-Z0-9/]+/, `<span style="color:#aaa">$&</span>`)
               .replace(/[a-zA-Z0-9]+=[a-zA-Z0-9_\-/.]+/g, "<b>$&</b>")
               .replace(/(error|failed|fail)/gi, function (m) {
                 return `<b style='color:red'>${m}</b>`;

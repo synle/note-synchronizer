@@ -39,7 +39,12 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
   });
   worker.on("message", (data: WorkActionResponse) => {
     if (data.success) {
-      console.debug("Worker Thread Done", myThreadName, data.id);
+      console.debug(
+        "Worker Thread Done",
+        myThreadName,
+        `action=${data.action}`,
+        `id=${data.id}`
+      );
     } else {
       console.error("Worker Thread Failed", myThreadName, data.error, data);
     }
