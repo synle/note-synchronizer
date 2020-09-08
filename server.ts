@@ -1,5 +1,6 @@
 // @ts-nocheck
 require("dotenv").config();
+const { exec } = require("child_process");
 
 import path from "path";
 import restify from "restify";
@@ -132,13 +133,35 @@ server.get("/api/message/sync/threadId/:threadId", async function (
     const emails = await DataUtils.getEmailsByThreadId(threadId);
     for (let email of emails) {
       await gmailCrawler.processMessagesByThreadId(email.threadId);
-
       await gdriveCrawler.uploadEmailMsgToGoogleDrive(email.id);
-
-      res.send({
-        ok: true,
-      });
     }
+
+    res.send({
+      ok: true,
+    });
+  } catch (error) {
+    res.send({ error: error.stack || JSON.stringify(error) });
+  }
+  next();
+});
+
+server.get("/api/logs/:search", async function (req, res, next) {
+  const search = req.params.search;
+
+  try {
+    exec(
+      `cat logs/log_combined.data | grep -i "${search}"`,
+      (error, stdout, stderr) => {
+        if (error) {
+          res.send({ error: error.stack || JSON.stringify(error) });
+          return;
+        }
+        res.send({
+          ok: true,
+          msg: stdout,
+        });
+      }
+    );
   } catch (error) {
     res.send({ error: error.stack || JSON.stringify(error) });
   }

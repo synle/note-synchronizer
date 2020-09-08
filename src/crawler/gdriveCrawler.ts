@@ -26,7 +26,13 @@ import * as DataUtils from "./dataUtils";
 let noteDestinationFolderId;
 const MIN_SUBJECT_LENGTH = 10;
 
-function _sanitizeSubject(subject, to, friendlyDateTimeString2, isChat, isEmail) {
+function _sanitizeSubject(
+  subject,
+  to,
+  friendlyDateTimeString2,
+  isChat,
+  isEmail
+) {
   subject = startCase(subject);
 
   if (subject.length <= MIN_SUBJECT_LENGTH) {
@@ -41,7 +47,7 @@ function _sanitizeSubject(subject, to, friendlyDateTimeString2, isChat, isEmail)
     }
   }
 
-  return trim(subject, ' -_><:.()[]{}');
+  return trim(subject, " -_><:.()[]{}");
 }
 
 function _sanitizeFileName(string) {
@@ -236,7 +242,13 @@ async function _processThreadEmail(email: Email) {
       isEmail = false;
     }
 
-    subject = _sanitizeSubject(subject, to, friendlyDateTimeString2, isChat, isEmail)
+    subject = _sanitizeSubject(
+      subject,
+      to,
+      friendlyDateTimeString2,
+      isChat,
+      isEmail
+    );
 
     let docFileName = `${subject}`;
 
