@@ -216,11 +216,11 @@ export async function bulkUpsertEmails(emails: Email[]) {
 export async function getAllThreadIdsToFetchRawContents() {
   // use redis
   const ids = await redisInstance.smembers(REDIS_KEY.QUEUE_FETCH_RAW_CONTENT);
+  const pipeline = redisInstance.pipeline();
   for (let id of ids) {
-    const pipeline = redisInstance.pipeline();
     pipeline.srem(REDIS_KEY.QUEUE_FETCH_RAW_CONTENT, id);
-    await pipeline.exec();
   }
+  await pipeline.exec();
   return ids;
 }
 
@@ -228,11 +228,11 @@ export async function getAllThreadIdsToFetchRawContents() {
 export async function getAllThreadIdsToParseEmails() {
   // use redis
   const ids = await redisInstance.smembers(REDIS_KEY.QUEUE_PARSE_EMAIL);
+  const pipeline = redisInstance.pipeline();
   for (let id of ids) {
-    const pipeline = redisInstance.pipeline();
     pipeline.srem(REDIS_KEY.QUEUE_PARSE_EMAIL, id);
-    await pipeline.exec();
   }
+  await pipeline.exec();
   return ids;
 }
 
@@ -242,11 +242,11 @@ export async function getAllMessageIdsToSyncWithGoogleDrive(): String[] {
   const ids = await redisInstance.smembers(
     REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID
   );
+  const pipeline = redisInstance.pipeline();
   for (let id of ids) {
-    const pipeline = redisInstance.pipeline();
     pipeline.srem(REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID, id);
-    await pipeline.exec();
   }
+  await pipeline.exec();
 
   return ids;
 }

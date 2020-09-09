@@ -67,7 +67,7 @@ function _sanitizeFileName(string) {
 }
 
 export async function generateDocFile(subject, sections, newFileName) {
-  logger.debug(`generateDocFile subject=${subject} file=${newFileName}`);
+  logger.debug(`generateDocFile file=${newFileName}`);
   const doc = new Document();
   const children = [];
 
@@ -105,6 +105,17 @@ export async function generateDocFile(subject, sections, newFileName) {
     }
 
     if (images.length > 0) {
+      children.push(
+        new Paragraph({
+          text: `${images.length} Images`,
+          spacing: {
+            before: 250,
+            after: 250,
+          },
+          heading: HeadingLevel.HEADING_3,
+        })
+      );
+
       for (const attachment of images) {
         const attachmentImage = Media.addImage(
           doc,
@@ -142,9 +153,7 @@ export async function generateDocFile(subject, sections, newFileName) {
   const buffer = await Packer.toBuffer(doc);
   fs.writeFileSync(newFileName, buffer);
 
-  logger.debug(
-    `generateDocFile - Success subject=${subject} file=${newFileName}`
-  );
+  logger.debug(`generateDocFile - Success file=${newFileName}`);
 
   return newFileName;
 }
@@ -171,7 +180,9 @@ async function _init() {
 
 async function _processThreadEmail(email: Email) {
   let { threadId, id, from, bcc, to, subject, date, labelIds } = email;
-  logger.debug(`_processThreadEmail threadId=${threadId} id=${id}`);
+  logger.debug(
+    `_processThreadEmail threadId=${threadId} id=${id} subject=${subject}`
+  );
 
   let docDriveFileId;
   let parentFolderName;
@@ -270,9 +281,7 @@ async function _processThreadEmail(email: Email) {
     }
 
     if (isChat) {
-      logger.debug(
-        `Process chat threadId=${threadId} id=${id} subject=${subject}`
-      );
+      logger.debug(`Process chat threadId=${threadId} id=${id}`);
 
       await uploadEmailThreadToGoogleDrive(email.threadId);
 
@@ -280,12 +289,12 @@ async function _processThreadEmail(email: Email) {
     }
 
     logger.debug(
-      `Checking to see if we should upload this email threadId=${threadId} id=${id} subject=${subject}: hasIgnoredWordTokens=${hasIgnoredWordTokens} isEmailSentByMe=${isEmailSentByMe} isEmailSentByMeToMe=${isEmailSentByMeToMe} hasSomeAttachments=${hasSomeAttachments} starred=${starred}`
+      `Checking to see if we should upload this email threadId=${threadId} id=${id} hasIgnoredWordTokens=${hasIgnoredWordTokens} isEmailSentByMe=${isEmailSentByMe} isEmailSentByMeToMe=${isEmailSentByMeToMe} hasSomeAttachments=${hasSomeAttachments} starred=${starred}`
     );
 
     if (hasIgnoredWordTokens && !isEmailSentByMeToMe && !starred) {
       logger.debug(
-        `Skipped due to Ignored Pattern and this is not email sent to myself and not starred: threadId=${threadId} id=${id} subject=${subject}`
+        `Skipped due to Ignored Pattern and this is not email sent to myself and not starred threadId=${threadId} id=${id}`
       );
 
       await DataUtils.bulkUpsertEmails({
@@ -327,32 +336,125 @@ async function _processThreadEmail(email: Email) {
       const localPath = `${PROCESSED_EMAIL_PREFIX_PATH}/processed.${email.id}.docx`;
 
       logger.debug(
-        `Start upload original note threadId=${threadId} id=${id} subject=${subject} imageFiles=${imagesAttachments.length} nonImageAttachments=${nonImageAttachments.length}`
+        `Start upload original note threadId=${threadId} id=${id} imageFiles=${imagesAttachments.length} nonImageAttachments=${nonImageAttachments.length}`
       );
 
       docFileName = _sanitizeFileName(subject);
-      const docSha = commonUtils.get256Hash(docFileName);
 
+      let attachmentLinks = [];
+
+      // upload the associated attachments
+      logger.debug(
+        `Start upload attachment job threadId=${threadId} id=${id} ${nonImageAttachments.length}`
+      );
+      let AttachmentIdx = 0;
+      for (let attachment of nonImageAttachments) {
+        AttachmentIdx++;
+        const attachmentName = _sanitizeFileName(
+          `${docFileName} #${AttachmentIdx} ${attachment.fileName}`
+        );
+
+        logger.debug(
+          `Upload Attachment threadId=${threadId} id=${id} attachmentName=${attachmentName} ${attachment.mimeType}`
+        );
+
+        try {
+          // upload attachment
+          const attachmentSha = commonUtils.get256Hash(attachment.path);
+
+          const attachmentDriveFileId = await googleApiUtils.uploadFile({
+            name: attachmentName,
+            mimeType: attachment.mimeType,
+            localPath: attachment.path,
+            dateEpochTime: parseInt(date) * 1000,
+            description: `
+            Attachment #${AttachmentIdx}
+
+            Date: ${friendlyDateTimeString1}
+
+            From: ${from}
+
+            Subject: ${subject}
+
+            ThreadId: ${threadId}
+
+            MessageId: ${id}
+
+            Path: ${attachment.path}
+
+            SHA:
+            ${attachmentSha}
+            `.trim(),
+            date: date,
+            starred: starred,
+            parentFolderId: folderIdToUse,
+            appProperties: {
+              sha: attachmentSha,
+              ...googleFileAppProperties,
+            },
+          });
+
+          // retain the attachment links to be put inside the doc later
+          attachmentLinks.push(
+            `
+          ${attachment.fileName}
+          drive.google.com/file/d/${attachmentDriveFileId}
+          `.trim()
+          );
+
+          logger.debug(
+            `Link to Attachment threadId=${threadId} id=${id} attachmentName=${attachmentName} attachmentLink=drive.google.com/file/d/${attachmentDriveFileId}`
+          );
+
+          await DataUtils.bulkUpsertAttachments({
+            path: attachment.path,
+            driveFileId: attachmentDriveFileId,
+          });
+        } catch (err) {
+          logger.error(
+            `Error - Failed upload attachment - threadId=${threadId} id=${id} attachmentName=${attachmentName} ${
+              attachment.mimeType
+            } path=${attachment.path} error=${JSON.stringify(err.stack || err)}`
+          );
+        }
+      }
+
+      // upload original doc
+      const docSha = commonUtils.get256Hash(localPath);
       try {
         const gmailLink = from.includes("getpocket")
           ? ""
           : `Link: mail.google.com/mail/u/0/#search/messageid/${id}`;
+
+        let originalDocBody = `
+          ================================
+          ThreadId: ${threadId}
+          MessageId: ${id}
+          Date: ${friendlyDateTimeString1} (Uploaded ${moment().format(
+          FORMAT_DATE_TIME1
+        )})
+          ${gmailLink}
+          From: ${from}
+          To: ${toEmailAddresses}
+          ================================
+          ${body}
+          `.trim();
+
+        if (attachmentLinks.length > 0) {
+          // append the original link section
+          originalDocBody += `
+          ================================
+          Attachments: ${nonImageAttachments.length}
+
+          ${attachmentLinks.join("\n\n")}
+          ================================
+          `;
+        }
+
         await generateDocFile(
           subject,
           {
-            body: `
-              ================================
-              ThreadId: ${threadId}
-              MessageId: ${id}
-              Date: ${friendlyDateTimeString1} (Uploaded ${moment().format(
-              FORMAT_DATE_TIME1
-            )})
-              ${gmailLink}
-              From: ${from}
-              To: ${toEmailAddresses}
-              ================================
-              ${body}
-              `,
+            body: originalDocBody,
             images: imagesAttachments,
           },
           localPath
@@ -392,74 +494,10 @@ async function _processThreadEmail(email: Email) {
         });
       } catch (err) {
         logger.error(
-          `Error - Failed to upload original note - threadId=${threadId} id=${id} subject=${subject} attachmentName=${docFileName} localPath=${localPath} error=${JSON.stringify(
+          `Error - Failed to upload original note - threadId=${threadId} id=${id} attachmentName=${docFileName} localPath=${localPath} error=${JSON.stringify(
             err.stack || err
           )}`
         );
-      }
-
-      // then upload the associated attachments
-      logger.debug(
-        `Start upload attachment job threadId=${threadId} id=${id} subject=${subject} ${nonImageAttachments.length}`
-      );
-      let AttachmentIdx = 0;
-      for (let attachment of nonImageAttachments) {
-        AttachmentIdx++;
-        const attachmentName = _sanitizeFileName(
-          `${docFileName} #${AttachmentIdx} ${attachment.fileName}`
-        );
-
-        logger.debug(
-          `Upload Attachment threadId=${threadId} id=${id} subject=${subject} attachmentName=${attachmentName} ${attachment.mimeType}`
-        );
-
-        try {
-          // upload attachment
-          const attachmentSha = commonUtils.get256Hash(attachment.path);
-
-          const attachmentDriveFileId = await googleApiUtils.uploadFile({
-            name: attachmentName,
-            mimeType: attachment.mimeType,
-            localPath: attachment.path,
-            dateEpochTime: parseInt(date) * 1000,
-            description: `
-            Attachment #${AttachmentIdx}
-
-            Date: ${friendlyDateTimeString1}
-
-            From: ${from}
-
-            Subject: ${subject}
-
-            ThreadId: ${threadId}
-
-            MessageId: ${id}
-
-            Path: ${attachment.path}
-
-            SHA:
-            ${attachmentSha}
-            `.trim(),
-            date: date,
-            starred: starred,
-            parentFolderId: folderIdToUse,
-            appProperties: {
-              sha: attachmentSha,
-              ...googleFileAppProperties,
-            },
-          });
-
-          await DataUtils.bulkUpsertAttachments({
-            path: attachment.path,
-            driveFileId: attachmentDriveFileId,
-          });
-        } catch (err) {
-          logger.error(
-            `Error - Failed upload attachment - threadId=${threadId} id=${id} subject=${subject} attachmentName=${attachmentName} ${
-              attachment.mimeType
-            } path=${attachment.path} error=${JSON.stringify(err.stack || err)}`
-          );
-        }
       }
 
       await DataUtils.bulkUpsertEmails({
@@ -470,15 +508,15 @@ async function _processThreadEmail(email: Email) {
 
       if (docDriveFileId) {
         logger.debug(
-          `Link to google doc threadId=${threadId} id=${id} subject=${subject}:\tdocLink=docs.google.com/document/d/${docDriveFileId} parentFolderName=${parentFolderName} folderIdToUse=drive.google.com/drive/folders/${folderIdToUse}`
+          `Link to google doc threadId=${threadId} id=${id} docLink=docs.google.com/document/d/${docDriveFileId} parentFolderName=${parentFolderName} folderIdToUse=drive.google.com/drive/folders/${folderIdToUse}`
         );
       } else {
         logger.debug(
-          `No Link was created for google doc threadId=${threadId} id=${id} subject=${subject}`
+          `No Link was created for google doc threadId=${threadId} id=${id}`
         );
       }
     } else {
-      logger.debug(`Skipped threadId=${threadId} id=${id} subject=${subject}`);
+      logger.debug(`Skipped threadId=${threadId} id=${id}`);
 
       await DataUtils.bulkUpsertEmails({
         id,
@@ -651,7 +689,7 @@ async function _processThreads(threadId, emails: Email[]) {
       docContentSections.push({
         body: `
         ================================
-        ${friendlyDateTimeString1} ${from}:
+        ${friendlyDateTimeString1} ${email.from}:
         ${email.rawBody || email.body}
       `,
         images,
@@ -672,7 +710,7 @@ async function _processThreads(threadId, emails: Email[]) {
         body: `
         ================================
         Date: ${friendlyDateTimeString1}
-        From: ${from}
+        From: ${email.from}
         To: ${toEmailAddresses}
         MessageId: ${email.id}
         ================================
@@ -726,7 +764,7 @@ async function _processThreads(threadId, emails: Email[]) {
     });
 
     logger.debug(
-      `Link to google doc threadId=${threadId}:\ndocs.google.com/document/d/${docDriveFileId}`
+      `Link to google doc threadId=${threadId} docLink=docs.google.com/document/d/${docDriveFileId} parentFolderId=${folderId}`
     );
 
     // upload attachments
