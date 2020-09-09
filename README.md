@@ -325,3 +325,9 @@ SCARD QUEUE_PARSE_EMAIL
 EXISTS QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID _messageId_
 SCARD QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID
 ```
+
+```
+redis-cli --scan --pattern "QUEUE*"
+
+redis-cli --scan --pattern "QUEUE*" | xargs redis-cli del
+```

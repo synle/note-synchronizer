@@ -1,10 +1,11 @@
 // @ts-nocheck
-import { logger, initLogger } from "./loggers";
-initLogger(Date.now());
-require("dotenv").config();
 import { isMainThread } from "worker_threads";
 import { workerData } from "worker_threads";
 import { parentPort } from "worker_threads";
+
+import { logger, initLogger } from "./loggers";
+initLogger(`Child.${workerData.myThreadName}.${workerData.myThreadId}`);
+require("dotenv").config();
 
 import initDatabase from "./models/modelsFactory";
 
@@ -73,7 +74,7 @@ async function _init() {
     }
   });
 
-  console.debug("Worker started:", workerData);
+  console.debug("Worker started", workerData);
 }
 
 _init();

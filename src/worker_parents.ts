@@ -1,6 +1,8 @@
 // @ts-nocheck
+const action = process.argv[2] || "";
+
 import { logger, initLogger } from "./loggers";
-initLogger(Date.now());
+initLogger(`Parents.${action}`);
 require("dotenv").config();
 import path from "path";
 import { Worker } from "worker_threads";
@@ -25,8 +27,6 @@ let numThreadsToSpawn = 1;
 let timerWorkSchedule;
 let lastWorkIdx, remainingWorkInputs;
 let getNewWorkFunc = () => {};
-
-const action = process.argv[2] || "";
 
 process.title = `Node Note-Sync ${action}`;
 
