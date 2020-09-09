@@ -46,7 +46,7 @@ function _sanitizeSubject(
     }
   }
 
-  return trim(subject, " -_><:.()[]{}");
+  return trim(_sanitizeFileName(subject), " -_><:.()[]{}");
 }
 
 function _sanitizeFileName(string) {
@@ -378,6 +378,8 @@ async function _processThreadEmail(email: Email) {
 
             MessageId: ${id}
 
+            Attachment: ${nonImageAttachments.length}
+
             SHA: ${docSha}
             `.trim(),
           date: date,
@@ -468,7 +470,7 @@ async function _processThreadEmail(email: Email) {
 
       if (docDriveFileId) {
         logger.debug(
-          `Link to google doc threadId=${threadId} id=${id} subject=${subject}:\tdocs.google.com/document/d/${docDriveFileId} parentFolderName=${parentFolderName} folderIdToUse=drive.google.com/drive/folders/${folderIdToUse}`
+          `Link to google doc threadId=${threadId} id=${id} subject=${subject}:\tdocLink=docs.google.com/document/d/${docDriveFileId} parentFolderName=${parentFolderName} folderIdToUse=drive.google.com/drive/folders/${folderIdToUse}`
         );
       } else {
         logger.debug(
