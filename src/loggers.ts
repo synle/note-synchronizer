@@ -9,7 +9,7 @@ const { combine, timestamp, printf } = format;
 
 let loggerTraceId = Date.now() + "";
 export function initLogger(newLoggerTraceId) {
-  loggerTraceId = commonUtils.getMd5Hash(newLoggerTraceId || Date.now());
+  loggerTraceId = newLoggerTraceId || commonUtils.getMd5Hash(Date.now());
 }
 
 export const logger = winston.createLogger({

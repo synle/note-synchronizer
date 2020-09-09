@@ -334,6 +334,9 @@ async function _processThreadEmail(email: Email) {
       const docSha = commonUtils.get256Hash(docFileName);
 
       try {
+        const gmailLink = from.includes("getpocket")
+          ? ""
+          : `Link: mail.google.com/mail/u/0/#search/messageid/${id}`;
         await generateDocFile(
           subject,
           {
@@ -344,7 +347,7 @@ async function _processThreadEmail(email: Email) {
               Date: ${friendlyDateTimeString1} (Uploaded ${moment().format(
               FORMAT_DATE_TIME1
             )})
-              Link: mail.google.com/mail/u/0/#search/messageid/${id}
+              ${gmailLink}
               From: ${from}
               To: ${toEmailAddresses}
               ================================
@@ -410,7 +413,7 @@ async function _processThreadEmail(email: Email) {
 
         try {
           // upload attachment
-          const attachmentSha = commonUtils.get256Hash(attachment.id);
+          const attachmentSha = commonUtils.get256Hash(attachment.path);
 
           const attachmentDriveFileId = await googleApiUtils.uploadFile({
             name: attachmentName,
@@ -431,8 +434,6 @@ async function _processThreadEmail(email: Email) {
             MessageId: ${id}
 
             Path: ${attachment.path}
-
-            AttachmentId: ${attachment.id.substr(0, 50)}
 
             SHA:
             ${attachmentSha}
@@ -649,7 +650,7 @@ async function _processThreads(threadId, emails: Email[]) {
         body: `
         ================================
         ${friendlyDateTimeString1} ${from}:
-        ${email.body || email.rawBody}
+        ${email.rawBody || email.body}
       `,
         images,
       });
@@ -740,7 +741,7 @@ async function _processThreads(threadId, emails: Email[]) {
 
       try {
         // upload attachment
-        const attachmentSha = commonUtils.get256Hash(attachment.id);
+        const attachmentSha = commonUtils.get256Hash(attachment.path);
 
         const attachmentDriveFileId = await googleApiUtils.uploadFile({
           name: attachmentName,

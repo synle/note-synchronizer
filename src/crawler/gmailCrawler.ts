@@ -389,7 +389,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
     );
 
     // no need to wait for this attachments
-    DataUtils.bulkUpsertAttachments(attachmentsToSave).catch((err) => {
+    await DataUtils.bulkUpsertAttachments(attachmentsToSave).catch((err) => {
       logger.error(
         `Bulk create attachment failed, trying to do update instead threadId=${targetThreadId} error=${JSON.stringify(
           err.stack || err
