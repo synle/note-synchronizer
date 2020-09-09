@@ -315,6 +315,14 @@ export async function recoverInProgressThreadJobStatus(oldStatus, newStatus) {
 }
 
 export async function bulkUpsertFolders(folders) {
+  const pipeline = redisInstance.pipeline();
+  for (let folder of [].concat(folders)) {
+    if(folder.driveFileId){
+      pipeline.incr(`FOLDER_USAGE_COUNT.${folder.folderName}`);
+    }
+  }
+  await pipeline.exec();
+
   return Models.Folder.bulkUpsert(folders);
 }
 
