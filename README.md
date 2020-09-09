@@ -304,30 +304,37 @@ FLUSHDB
 ```
 
 ```
-DEL ALL_MESSAGE_IDS;
-DEL ALL_THREAD_IDS;
-DEL QUEUE_FETCH_RAW_CONTENT;
-DEL QUEUE_PARSE_EMAIL;
-DEL QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID;
-DEL QUEUE_SKIPPED_MESSAGE_ID;
-DEL QUEUE_ERROR_MESSAGE_ID;
+redis-cli del ALL_MESSAGE_IDS;
+redis-cli del ALL_THREAD_IDS;
+redis-cli del QUEUE_FETCH_RAW_CONTENT;
+redis-cli del QUEUE_PARSE_EMAIL;
+redis-cli del QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID;
+redis-cli del QUEUE_SKIPPED_MESSAGE_ID;
+redis-cli del QUEUE_ERROR_MESSAGE_ID;
 ```
 
 #### More detailed notes
 
 ```
-EXISTS QUEUE_FETCH_RAW_CONTENT _threadId_
-SCARD QUEUE_FETCH_RAW_CONTENT
+redis-cli exists QUEUE_FETCH_RAW_CONTENT _threadId_
+redis-cli scard QUEUE_FETCH_RAW_CONTENT
 
-EXISTS QUEUE_PARSE_EMAIL _threadId_
-SCARD QUEUE_PARSE_EMAIL
+redis-cli exists QUEUE_PARSE_EMAIL _threadId_
+redis-cli scard QUEUE_PARSE_EMAIL
 
-EXISTS QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID _messageId_
-SCARD QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID
+redis-cli exists QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID _messageId_
+redis-cli scard QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID
+
+redis-cli smembers QUEUE_FETCH_RAW_CONTENT
+redis-cli smembers QUEUE_PARSE_EMAIL
+redis-cli smembers QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID
+redis-cli smembers QUEUE_SKIPPED_MESSAGE_ID
+redis-cli smembers QUEUE_SUCCESS_MESSAGE_ID
 ```
 
 ```
 redis-cli --scan --pattern "QUEUE*"
-
 redis-cli --scan --pattern "QUEUE*" | xargs redis-cli del
+
+redis-cli --scan --pattern "FOLDER_USAGE_COUNT*"
 ```

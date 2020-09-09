@@ -245,7 +245,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
         let rawSubject;
         if (headers.subject) {
-          rawSubject = startCase(headers.subject);
+          rawSubject = startCase(headers.subject.toLowerCase());
         } else {
           rawSubject = `${from} ${id}`;
         }
@@ -685,7 +685,7 @@ export async function _parseGmailAttachment(
 
     return newFilePath;
   } else {
-    logger.debug(`Skipped Downloading attachment: ${newFilePath}`);
+    logger.debug(`Skipped Downloading attachment path=${newFilePath}`);
     return newFilePath; // null indicated that we don't need to download, and ignored this entry entirely
   }
 }

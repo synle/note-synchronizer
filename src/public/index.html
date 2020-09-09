@@ -58,9 +58,42 @@
       flex-grow: 1;
       font-family: "Courier New", Courier, monospace;
       overflow: auto;
+      line-height: 1.5;
     }
     .output-logs > div {
       margin-bottom: 10px;
+      word-break: break-word;
+    }
+
+    .red {
+      color: red;
+    }
+    .green {
+      color: green;
+    }
+    .blue {
+      color: blue;
+    }
+    .purple {
+      color: purple;
+    }
+    .tomato {
+      color: tomato;
+    }
+    .maroon {
+      color: maroon;
+    }
+    .olive {
+      color: olive;
+    }
+    .teal {
+      color: teal;
+    }
+    .fuchsia {
+      color: fuchsia;
+    }
+    .gray {
+      color: gray;
     }
   </style>
   <body>
@@ -212,31 +245,50 @@
           .split("\n")
           .map((msg) => {
             try {
-              msg = msg
+              msg = escape(msg)
                 .replace(
                   /\d\d\/\d\d \d\d:\d\d:\d\d[AP]M \[[A-Za-z]\]/,
                   function (m) {
                     if (m.indexOf("[E]") >= 0) {
-                      return `<b style="color:red">${m}</b>`;
+                      return `<b class="red">${m}</b>`;
                     }
                     if (m.indexOf("[D]") >= 0) {
-                      return `<b style="color:blue">${m}</b>`;
+                      return `<b class="blue">${m}</b>`;
                     }
-                    return `<b style="color:green">${m}</b>`;
+                    return `<b class="green">${m}</b>`;
                   }
                 )
-                .replace(/[a-zA-Z0-9]+=[a-zA-Z0-9_\-/.]+/g, "<b>$&</b>")
+                .replace(/[a-zA-Z0-9]+=[a-zA-Z0-9_\-/.]+/g, function (m) {
+                  const colors = [
+                    "blue",
+                    "green",
+                    "gray",
+                    "purple",
+                    "tomato",
+                    "maroon",
+                    "olive",
+                    "teal",
+                    "fuchsia",
+                  ];
+
+                  const prefix = m.substr(0, m.indexOf("="));
+                  if (!colorMap[prefix]) {
+                    colorMap[prefix] = colors[++colorIdx % colors.length];
+                  }
+                  const colorToUse = colorMap[prefix];
+                  return `<b class="${colorToUse}">${m}</b>`;
+                })
                 .replace(/(error|failed|fail)/gi, function (m) {
-                  return `<b style='color:red'>${m}</b>`;
+                  return `<b class="red">${m}</b>`;
                 })
                 .replace(/(success|succeed|done|finished|finish)/gi, function (
                   m
                 ) {
-                  return `<b style='color:green;'>${m}</b>`;
+                  return `<b class="green">${m}</b>`;
                 })
                 .replace(
                   searchKeyword,
-                  '<b style="background: yellow"><u>$&</u></b>'
+                  '<b style="background:yellow"><u>$&</u></b>'
                 )
                 .trim();
             } catch (e) {
@@ -255,5 +307,17 @@
         } Lines</div>${newContent.join("")}`;
       } catch (err) {}
     });
+
+    function escape(s) {
+      return s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    let colorIdx = 0;
+    let colorMap = {};
   </script>
 </html>

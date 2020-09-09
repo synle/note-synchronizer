@@ -103,6 +103,7 @@ export function generateFolderName(string) {
       "live.com",
       "outlook.com",
       "icloud.com",
+      ".edu",
     ].some((popularEmail) => string.includes(popularEmail.toLowerCase()))
   ) {
     // common email domain, then should use their full name
