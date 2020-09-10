@@ -730,9 +730,16 @@ export async function fetchRawContentsByThreadId(threadIds) {
     try {
       let threadMessages = await DataUtils.getRawContentsByThreadId(threadId);
 
+      if (process.env.FORCE_REFETCH_THREADS !== 'true'){
+        if(threadMessages && threadMessages.length > 0){
+          logger.debug(`Skipped Fetching raw content for threadId=${threadId} forcedRefetch=true`);
+          continue;
+        }
+      }
+
       // if not found from db, then fetch its raw content
       logger.debug(
-        `fetch Gmail API to get raw content for threadId=${threadId}`
+        `Start Fetching raw content for threadId=${threadId} forcedRefetch=true`
       );
 
       const { messages } = await googleApiUtils.getEmailContentByThreadId(
@@ -757,7 +764,9 @@ export async function fetchRawContentsByThreadId(threadIds) {
         }
 
         const headers: Headers = _getHeaders(message.payload.headers || []);
-        const from = _parseEmailAddress(headers.from) || headers.from;
+        const from = headers.from.includes("profiles.google.com")
+          ? headers.from.substr(0, headers.from.indexOf('<')).trim()
+          : _parseEmailAddress(headers.from) || headers.from;
         const to = _parseEmailAddressList(headers.to);
         const bcc = _parseEmailAddressList(headers.bcc);
         const rawSubject = (headers.subject || `${from} ${id}`).trim();

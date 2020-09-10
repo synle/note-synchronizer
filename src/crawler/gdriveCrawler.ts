@@ -692,7 +692,7 @@ async function _processThreads(threadId, emails: Email[]) {
         body: `
         ================================
         ${friendlyDateTimeString1} ${email.from}:
-        ${email.body || email.rawBody}
+        ${email.rawBody}
       `,
         images,
       });
