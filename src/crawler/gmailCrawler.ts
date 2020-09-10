@@ -120,7 +120,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
     // start processing
     for (let message of threadMessages) {
-      const { id, threadId, labelIds } = message;
+      const { id, threadId, labelIds, snippet } = message;
 
       try {
         let rawBodyPlain = "";
@@ -256,14 +256,13 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
         let subject = rawSubject;
 
         // stripped down body (remove signatures and clean up the dom)
-        let strippedDownBody;
         if (rawBodyPlain){
           rawBody =  rawBodyPlain;
-          strippedDownBody = rawBody;
         } else {
           rawBody = tryParseBody(rawBodyHtml);
-          strippedDownBody = rawBody;
         }
+        rawBody = (rawBody || snippet || '').trim();
+        let strippedDownBody = rawBody;
 
         // trim the signatures
         for (let signature of mySignatureTokens) {
@@ -339,8 +338,8 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           id,
           threadId,
           status: THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE,
-          body: body || null,
-          rawBody: rawBodyHtml || null,
+          body: body || snippet || null,
+          rawBody: rawBodyHtml || snippet || null,
           subject: truncate(subject, {
             length: 250,
           }),
