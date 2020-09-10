@@ -654,7 +654,8 @@ async function _processThreads(threadId, emails: Email[]) {
 
     if (!folderId) {
       // create the parent folder
-      const folderName = commonUtils.generateFolderName(email.from);
+      const folderName = isChat ? '_chats'
+        : commonUtils.generateFolderName(email.from);
       folderId = await googleApiUtils.createDriveFolder({
         name: folderName,
         description: `Chats & Emails from ${folderName}`,
@@ -690,7 +691,7 @@ async function _processThreads(threadId, emails: Email[]) {
         body: `
         ================================
         ${friendlyDateTimeString1} ${email.from}:
-        ${email.rawBody || email.body}
+        ${email.body || email.rawBody}
       `,
         images,
       });

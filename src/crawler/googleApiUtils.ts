@@ -81,11 +81,15 @@ export async function createNoteDestinationFolder() {
     },
   });
 
-  logger.warn(`createNoteDestinationFolder folder: ${noteDestFolderId}`);
+  logger.warn(`createNoteDestinationFolder folderId=${noteDestFolderId} noteFolderName=${noteFolderName}`);
 
   // generate the bucket for all of my emails
   let promises = [];
   const folderNames = await DataUtils.getAllParentFolders();
+
+  logger.warn(
+    `createNoteDestinationFolder create child folders totalChildFolders=${folderNames.length}`
+  );
   for (const parentFolderName of folderNames) {
     const starred = parentFolderName.indexOf("_") === 0;
 
