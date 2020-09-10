@@ -508,7 +508,7 @@ async function _processThreadEmail(email: Email) {
 
       if (docDriveFileId) {
         logger.debug(
-          `Link to google doc threadId=${threadId} id=${id} docLink=docs.google.com/document/d/${docDriveFileId} parentFolderName=${parentFolderName} folderIdToUse=drive.google.com/drive/folders/${folderIdToUse}`
+          `Link to google doc threadId=${threadId} id=${id} attachmentLinks=${attachmentLinks.length} docLink=docs.google.com/document/d/${docDriveFileId} parentFolderName=${parentFolderName} folderIdToUse=drive.google.com/drive/folders/${folderIdToUse}`
         );
       } else {
         logger.debug(
@@ -654,7 +654,8 @@ async function _processThreads(threadId, emails: Email[]) {
 
     if (!folderId) {
       // create the parent folder
-      const folderName = isChat ? '_chats'
+      const folderName = isChat
+        ? "_chats"
         : commonUtils.generateFolderName(email.from);
       folderId = await googleApiUtils.createDriveFolder({
         name: folderName,

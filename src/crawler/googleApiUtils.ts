@@ -81,7 +81,9 @@ export async function createNoteDestinationFolder() {
     },
   });
 
-  logger.warn(`createNoteDestinationFolder folderId=${noteDestFolderId} noteFolderName=${noteFolderName}`);
+  logger.warn(
+    `createNoteDestinationFolder folderId=${noteDestFolderId} noteFolderName=${noteFolderName}`
+  );
 
   // generate the bucket for all of my emails
   let promises = [];
