@@ -272,6 +272,7 @@
           method: "post",
           body: JSON.stringify({
             search: searchKeyword,
+            limit: 100000
           }),
         }).then((res) => res.json());
 
