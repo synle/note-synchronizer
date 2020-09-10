@@ -58,6 +58,10 @@ export interface Email {
   date: number;
   status: string;
   Attachments: Attachment[];
+  isEmailSentByMe: boolean;
+  isChat: boolean;
+  isEmail: boolean;
+  starred: boolean;
 }
 
 export interface Attachment {

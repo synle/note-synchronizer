@@ -735,7 +735,7 @@ export async function uploadFile({
     foundFileId ? "Update" : "Create",
     `parent=${parentFolderId}`,
     name,
-    foundFileId || ""
+    `fileId=${foundFileId || ""}`
   );
 
   if (foundFileId) {

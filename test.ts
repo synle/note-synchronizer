@@ -109,9 +109,9 @@ async function _doWork2() {
 async function _doWork3() {
   await _init();
 
-  const messageId = "1076a77ef5631883";
+  const messageId = "17198550f061f1ce";
   const email = await DataUtils.getEmailByMessageId(messageId);
-  console.log(email.id, email.threadId);
+  // console.log(JSON.stringify(email, null, 2));
 }
 
 async function _doWork4() {
@@ -153,4 +153,6 @@ async function _doWork7() {
 // _doWork6();
 //_doWork3();
 //_doWork4();
-_doWork7();
+//_doWork7();
+
+_doWork3();
