@@ -256,8 +256,14 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
         let subject = rawSubject;
 
         // stripped down body (remove signatures and clean up the dom)
-        rawBody = rawBodyPlain || rawBodyHtml;
-        let strippedDownBody = tryParseBody(rawBody); // attempt at using one of the parser;
+        let strippedDownBody;
+        if (rawBodyPlain){
+          rawBody =  rawBodyPlain;
+          strippedDownBody = rawBody;
+        } else {
+          rawBody = tryParseBody(rawBodyHtml);
+          strippedDownBody = rawBody;
+        }
 
         // trim the signatures
         for (let signature of mySignatureTokens) {
@@ -284,7 +290,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
             subject = `${rawSubject} ${websiteRes.subject}`;
             body = tryParseBody(
               `
-              <div>${rawBody}</div>
+              <div>${rawBodyPlain}</div>
               <div>================================</div>
               <div>${websiteRes.subject}</div>
               <div>${urlToCrawl}</div>
@@ -314,7 +320,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
             subject = `${rawSubject} ${websiteRes.subject}`;
             body = tryParseBody(
               `
-              <div>${rawBody}</div>
+              <div>${rawBodyPlain}</div>
               <div>================================</div>
               <div>${websiteRes.subject}</div>
               <div>${urlToCrawl}</div>
@@ -334,7 +340,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           threadId,
           status: THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE,
           body: body || null,
-          rawBody: rawBody || null,
+          rawBody: rawBodyHtml || null,
           subject: truncate(subject, {
             length: 250,
           }),
@@ -540,9 +546,9 @@ async function _pollNewEmailThreads(q = "") {
  */
 export function _cleanHtml(string) {
   return string
-    .replace(/<\/[ ]*div>/gi, "</div><br />\n")
-    .replace(/<\/[ ]*section>/gi, "</section><br />\n")
-    .replace(/<\/[ ]*header>/gi, "</header><br />\n")
+    .replace(/<\/[ ]*div>/gi, "</div><br />")
+    .replace(/<\/[ ]*section>/gi, "</section><br />")
+    .replace(/<\/[ ]*header>/gi, "</header><br />")
     .replace(/<br[ /]*>/gi, "\n")
     .replace(
       /<style( type="[a-zA-Z/+]+")?>[a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/ŤŮ>?&~+µ]+<\/style>/gi,
@@ -563,7 +569,7 @@ function _prettifyHtml(bodyHtml) {
  * parse gmail email body
  * @param bodyData
  */
-function _parseGmailMessage(bodyData) {
+export function parseGmailMessage(bodyData) {
   return Base64.decode((bodyData || "").replace(/-/g, "+").replace(/_/g, "/"))
     .trim()
     .replace(/[\r\n]/g, "\n");
@@ -746,7 +752,7 @@ export async function fetchRawContentsByThreadId(threadIds) {
         if (parts && parts.length > 0) {
           for (let part of parts) {
             if (part.body.data) {
-              part.body.data = _parseGmailMessage(part.body.data);
+              part.body.data = parseGmailMessage(part.body.data);
             }
           }
         }

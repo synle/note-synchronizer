@@ -147,6 +147,23 @@
     </form>
     <form
       class="form"
+      id="form-fetch-body"
+      onsubmit="fetchRawContent(event); return false"
+    >
+      <label>Fetch Raw Content</label>
+      <input
+        id="input-id-to-fetch"
+        placeholder="Message 14c808b65179c814"
+        value="14c808b65179c814"
+      />
+      <textarea
+        id="output-raw"
+        class="output-logs"
+        placeholder="Raw HTML"
+      ></textarea>
+    </form>
+    <form
+      class="form"
       id="form-sync-to-drive"
       onsubmit="syncToDrive(event); return false"
     >
@@ -226,6 +243,20 @@
         } catch (err) {}
       }
     });
+
+    const fetchRawContent = _wrapWork(async function fetchRawContent(targetEl) {
+      const inputId = targetEl.querySelector("#input-id-to-fetch").value.trim();
+      targetEl.querySelector("#output-raw").value = "";
+      if (inputId.length >= 16 && inputId.length < 20) {
+        try {
+          const result = await fetch(
+            `/api/message/fetch/threadId/${inputId}`
+          ).then((res) => res.json());
+          targetEl.querySelector("#output-raw").value = JSON.stringify(result, null, 2);
+        } catch (err) {}
+      }
+    });
+
 
     const searchLogs = _wrapWork(async function searchLogs(targetEl) {
       const searchKeyword = targetEl
