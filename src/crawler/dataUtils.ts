@@ -28,13 +28,16 @@ export async function restartAllWork() {
 
   // delete all the queue
   console.debug("Start Cleaning Up Redis");
-  await redisInstance.del(REDIS_KEY.ALL_THREAD_IDS);
   await redisInstance.del(REDIS_KEY.ALL_MESSAGE_IDS);
+  await redisInstance.del(REDIS_KEY.ALL_THREAD_IDS);
   await redisInstance.del(REDIS_KEY.QUEUE_FETCH_RAW_CONTENT);
   await redisInstance.del(REDIS_KEY.QUEUE_PARSE_EMAIL);
   await redisInstance.del(REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID);
   await redisInstance.del(REDIS_KEY.QUEUE_SKIPPED_MESSAGE_ID);
-  await redisInstance.del(REDIS_KEY.QUEUE_SUCCESS_MESSAGE_ID);
+  await redisInstance.del(REDIS_KEY.QUEUE_ERROR_UPLOAD_MESSAGE_ID);
+  await redisInstance.del(REDIS_KEY.QUEUE_ERROR_FETCH_AND_PARSE_THREAD_ID);
+  await redisInstance.del(REDIS_KEY.QUEUE_SUCCESS_FETCH_AND_PARSE_THREAD_ID);
+  await redisInstance.del(REDIS_KEY.QUEUE_SUCCESS_UPLOAD_MESSAGE_ID);
   console.debug("Done Cleaning Up Redis");
 
   // move all the thread id into the allThreadIds set
@@ -57,29 +60,6 @@ export async function restartAllWork() {
   console.debug(
     "Done Cloning all threadIds into REDIS",
     REDIS_KEY.ALL_THREAD_IDS
-  );
-
-  // move all the message id into the allMessageIds set
-  console.debug(
-    "Start Cloning all messageIds into REDIS",
-    REDIS_KEY.ALL_MESSAGE_IDS
-  );
-  res = await Models.Email.findAll({
-    attributes: ["id"],
-    raw: true,
-  });
-  const allMessageIds = res.map((message) => message.id);
-  try {
-    for (const messageId of allMessageIds) {
-      pipeline.sadd(REDIS_KEY.ALL_MESSAGE_IDS, messageId);
-      // pipeline.sadd(REDIS_KEY.PARSE_EMAIL, messageId); // no need to do this
-      // pipeline.sadd(REDIS_KEY.UPLOAD_EMAILS_BY_MESSAGE_ID, messageId);
-    }
-    await pipeline.exec();
-  } catch (err) {}
-  console.debug(
-    "Done Cloning all messageIds into REDIS",
-    REDIS_KEY.ALL_MESSAGE_IDS
   );
 }
 
@@ -193,8 +173,8 @@ export async function bulkUpsertEmails(emails: Email[]) {
     if (status) {
       pipeline.srem(REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID, id);
       pipeline.srem(REDIS_KEY.QUEUE_SKIPPED_MESSAGE_ID, id);
-      pipeline.srem(REDIS_KEY.QUEUE_ERROR_MESSAGE_ID, id);
-      pipeline.srem(REDIS_KEY.QUEUE_SUCCESS_MESSAGE_ID, id);
+      pipeline.srem(REDIS_KEY.QUEUE_ERROR_UPLOAD_MESSAGE_ID, id);
+      pipeline.srem(REDIS_KEY.QUEUE_SUCCESS_UPLOAD_MESSAGE_ID, id);
 
       switch (status) {
         case THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE:
@@ -204,10 +184,10 @@ export async function bulkUpsertEmails(emails: Email[]) {
           pipeline.sadd(REDIS_KEY.QUEUE_SKIPPED_MESSAGE_ID, id);
           break;
         case THREAD_JOB_STATUS_ENUM.ERROR_GENERIC:
-          pipeline.sadd(REDIS_KEY.QUEUE_ERROR_MESSAGE_ID, id);
+          pipeline.sadd(REDIS_KEY.QUEUE_ERROR_UPLOAD_MESSAGE_ID, id);
           break;
         case THREAD_JOB_STATUS_ENUM.SUCCESS:
-          pipeline.sadd(REDIS_KEY.QUEUE_SUCCESS_MESSAGE_ID, id);
+          pipeline.sadd(REDIS_KEY.QUEUE_SUCCESS_UPLOAD_MESSAGE_ID, id);
           break;
       }
 
@@ -276,6 +256,8 @@ export async function bulkUpsertThreadJobStatuses(threads) {
     if (status) {
       pipeline.srem(REDIS_KEY.QUEUE_FETCH_RAW_CONTENT, id);
       pipeline.srem(REDIS_KEY.QUEUE_PARSE_EMAIL, id);
+      pipeline.srem(REDIS_KEY.QUEUE_SUCCESS_FETCH_AND_PARSE_THREAD_ID, id);
+      pipeline.srem(REDIS_KEY.QUEUE_ERROR_FETCH_AND_PARSE_THREAD_ID, id);
 
       switch (status) {
         case THREAD_JOB_STATUS_ENUM.PENDING_CRAWL:
@@ -283,6 +265,13 @@ export async function bulkUpsertThreadJobStatuses(threads) {
           break;
         case THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL:
           pipeline.sadd(REDIS_KEY.QUEUE_PARSE_EMAIL, id);
+          break;
+        case THREAD_JOB_STATUS_ENUM.SUCCESS:
+          pipeline.sadd(REDIS_KEY.QUEUE_SUCCESS_FETCH_AND_PARSE_THREAD_ID, id);
+          break;
+        case THREAD_JOB_STATUS_ENUM.ERROR_CRAWL:
+        case THREAD_JOB_STATUS_ENUM.ERROR_TIMEOUT:
+          pipeline.sadd(REDIS_KEY.QUEUE_ERROR_FETCH_AND_PARSE_THREAD_ID, id);
           break;
       }
     }
