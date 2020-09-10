@@ -15,7 +15,11 @@ import {
 import Redis from "ioredis";
 
 const redisInstance = new Redis({
-  connectTimeout: 30000,
+  connectTimeout: 900000,
+  maxRetriesPerRequest: 100,
+  reconnectOnError(err) {
+    return true;
+  },
 });
 
 export async function restartAllWork() {
