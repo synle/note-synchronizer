@@ -256,12 +256,12 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
         let subject = rawSubject;
 
         // stripped down body (remove signatures and clean up the dom)
-        if (rawBodyPlain){
-          rawBody =  rawBodyPlain;
+        if (rawBodyPlain) {
+          rawBody = rawBodyPlain;
         } else {
           rawBody = tryParseBody(rawBodyHtml);
         }
-        rawBody = (rawBody || snippet || '').trim();
+        rawBody = (rawBody || snippet || "").trim();
         let strippedDownBody = rawBody;
 
         // trim the signatures
@@ -725,14 +725,17 @@ export async function fetchRawContentsByThreadId(threadIds) {
   threadIds = [].concat(threadIds || []);
 
   logger.debug(`fetchRawContentsByThreadId firstThreadId=${threadIds[0]}`);
+  let totalMessages = 0;
 
   for (let threadId of threadIds) {
     try {
       let threadMessages = await DataUtils.getRawContentsByThreadId(threadId);
 
-      if (process.env.FORCE_REFETCH_THREADS !== 'true'){
-        if(threadMessages && threadMessages.length > 0){
-          logger.debug(`Skipped Fetching raw content for threadId=${threadId} forcedRefetch=true`);
+      if (process.env.FORCE_REFETCH_THREADS !== "true") {
+        if (threadMessages && threadMessages.length > 0) {
+          logger.debug(
+            `Skipped Fetching raw content for threadId=${threadId} forcedRefetch=true`
+          );
           continue;
         }
       }
@@ -745,6 +748,8 @@ export async function fetchRawContentsByThreadId(threadIds) {
       const { messages } = await googleApiUtils.getEmailContentByThreadId(
         threadId
       );
+
+      totalMessages += messages.length;
 
       // TODO:
       // get emails from the google drafts api
@@ -765,7 +770,7 @@ export async function fetchRawContentsByThreadId(threadIds) {
 
         const headers: Headers = _getHeaders(message.payload.headers || []);
         const from = headers.from.includes("profiles.google.com")
-          ? headers.from.substr(0, headers.from.indexOf('<')).trim()
+          ? headers.from.substr(0, headers.from.indexOf("<")).trim()
           : _parseEmailAddress(headers.from) || headers.from;
         const to = _parseEmailAddressList(headers.to);
         const bcc = _parseEmailAddressList(headers.bcc);
@@ -830,6 +835,8 @@ export async function fetchRawContentsByThreadId(threadIds) {
   }
 
   logger.debug(`DONE fetchRawContentsByThreadId firstThreadId=${threadIds[0]}`);
+
+  return totalMessages;
 }
 
 /**

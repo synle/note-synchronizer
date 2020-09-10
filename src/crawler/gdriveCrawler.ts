@@ -522,9 +522,9 @@ async function _processThreadEmail(email: Email) {
         id,
         status: THREAD_JOB_STATUS_ENUM.SKIPPED,
       });
-
-      return; // skip this
     }
+
+    return docDriveFileId;
   } catch (err) {
     logger.error(
       `Failed to upload emails with threadId=${email.threadId} messageId=${
@@ -543,7 +543,7 @@ export async function uploadEmailMsgToGoogleDrive(messageId) {
   await _init();
   const email = await DataUtils.getEmailByMessageId(messageId);
   if (email) {
-    await _processThreadEmail(email);
+    return _processThreadEmail(email);
   } else {
     logger.error(`Cannot find message with messageId=${messageId}`);
   }

@@ -190,7 +190,7 @@ server.get("/api/message/fetch/threadId/:threadId", async function (
 
 server.post("/api/logs", async function (req, res, next) {
   try {
-    const {search, limit} = JSON.parse(req.body);
+    const { search, limit } = JSON.parse(req.body);
     const cmd = `cat logs/log_combined.data | grep -i "${search}" | tail -${limit}`;
     exec(cmd, { maxBuffer: 512 * 1024 * 1024 }, (error, stdout, stderr) => {
       if (error) {
