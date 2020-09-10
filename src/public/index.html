@@ -65,6 +65,9 @@
       word-break: break-word;
     }
 
+    .lightgray {
+      color: #666;
+    }
     .red {
       color: red;
     }
@@ -253,10 +256,14 @@
                       return `<b class="red">${m}</b>`;
                     }
                     if (m.indexOf("[D]") >= 0) {
-                      return `<b class="blue">${m}</b>`;
+                      return `<b class="lightgray">${m}</b>`;
                     }
                     return `<b class="green">${m}</b>`;
                   }
+                )
+                .replace(
+                  /[_a-zA-Z0-9./-]+.(com|org|edu|net)[_a-zA-Z0-9./-]+/gi,
+                  '<b><a href="http://$&" target="_blank">$&</a></b>'
                 )
                 .replace(/[a-zA-Z0-9]+=[a-zA-Z0-9_\-/.]+/g, function (m) {
                   const colors = [
