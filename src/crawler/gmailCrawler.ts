@@ -540,6 +540,7 @@ async function _pollNewEmailThreads(q = "") {
  */
 export function _cleanHtml(string) {
   return string
+    .replace(/<br[ /]*>/gi, "\n")
     .replace(
       /<style( type="[a-zA-Z/+]+")?>[a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/ŤŮ>?&~+µ]+<\/style>/gi,
       ""
