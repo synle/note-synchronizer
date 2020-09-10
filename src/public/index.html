@@ -252,11 +252,14 @@
           const result = await fetch(
             `/api/message/fetch/threadId/${inputId}`
           ).then((res) => res.json());
-          targetEl.querySelector("#output-raw").value = JSON.stringify(result, null, 2);
+          targetEl.querySelector("#output-raw").value = JSON.stringify(
+            result,
+            null,
+            2
+          );
         } catch (err) {}
       }
     });
-
 
     const searchLogs = _wrapWork(async function searchLogs(targetEl) {
       const searchKeyword = targetEl
@@ -272,7 +275,7 @@
           method: "post",
           body: JSON.stringify({
             search: searchKeyword,
-            limit: 100000
+            limit: 100000,
           }),
         }).then((res) => res.json());
 
@@ -326,7 +329,7 @@
                   return `<b class="green">${m}</b>`;
                 })
                 .replace(
-                  searchKeyword,
+                  new RegExp(searchKeyword, 'gi'),
                   '<b style="background:yellow"><u>$&</u></b>'
                 )
                 .trim();

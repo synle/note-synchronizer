@@ -26,6 +26,10 @@ export async function restartAllWork() {
   let res;
   const pipeline = redisInstance.pipeline();
 
+  const previousSuccessMessageId = await redisInstance.smembers(
+    REDIS_KEY.QUEUE_SUCCESS_UPLOAD_MESSAGE_ID
+  );
+
   // delete all the queue
   console.debug("Start Cleaning Up Redis");
   await redisInstance.del(REDIS_KEY.ALL_MESSAGE_IDS);
@@ -60,6 +64,19 @@ export async function restartAllWork() {
   console.debug(
     "Done Cloning all threadIds into REDIS",
     REDIS_KEY.ALL_THREAD_IDS
+  );
+
+  // clone previous success message id
+  try {
+    for (const messageId of previousSuccessMessageId) {
+      pipeline.sadd(REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID, messageId); // no need to change this
+    }
+    await pipeline.exec();
+  } catch (err) {}
+  console.debug(
+    "Done Cloning all previous success messageId into REDIS",
+    previousSuccessMessageId.length,
+    REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID
   );
 }
 

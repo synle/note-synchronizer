@@ -43,7 +43,8 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
         "Worker Thread Done",
         myThreadName,
         `action=${data.action}`,
-        `id=${data.id}`
+        `id=${data.id}`,
+        `extra=${data.extra}`
       );
     } else {
       console.error("Worker Thread Failed", myThreadName, data.error, data);
@@ -196,7 +197,7 @@ async function _enqueueWorkWithRemainingInputs() {
         worker.status = WORKER_STATUS_ENUM.BUSY;
 
         logger.debug(
-          `Distribute work for command=${action} worker=${worker.id} lastWorkIdx=${lastWorkIdx} id=${id}
+          `Distribute work for command=${action} worker=${worker.id} lastWorkIdx=${lastWorkIdx} totalWorks=${remainingWorkInputs.length} id=${id}
           )}`
         );
 

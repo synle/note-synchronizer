@@ -26,14 +26,16 @@ async function _init() {
 
   parentPort.on("message", async (data: WorkActionRequest) => {
     try {
+      let extra = "";
       switch (data.action) {
         case WORK_ACTION_ENUM.FETCH_RAW_CONTENT:
           if (!data.id) {
             throw `${data.action} requires threadId found threadId=${data.id}`;
           }
-          await gmailCrawler.fetchRawContentsByThreadId(data.id);
+          extra = await gmailCrawler.fetchRawContentsByThreadId(data.id);
           parentPort.postMessage({
             success: true,
+            extra,
             ...data,
           });
           break;
@@ -41,9 +43,10 @@ async function _init() {
           if (!data.id) {
             throw `${data.action} requires threadId found threadId=${data.id}`;
           }
-          await gmailCrawler.processMessagesByThreadId(data.id);
+          extra = await gmailCrawler.processMessagesByThreadId(data.id);
           parentPort.postMessage({
             success: true,
+            extra,
             ...data,
           });
           break;
@@ -51,16 +54,18 @@ async function _init() {
           if (!data.id) {
             throw `${data.action} requires threadId found messageId=${data.id}`;
           }
-          await gdriveCrawler.uploadEmailMsgToGoogleDrive(data.id);
+          extra = await gdriveCrawler.uploadEmailMsgToGoogleDrive(data.id);
           parentPort.postMessage({
             success: true,
+            extra,
             ...data,
           });
           break;
         case WORK_ACTION_ENUM.UPLOAD_LOGS:
-          await gdriveCrawler.uploadLogsToDrive();
+          extra = await gdriveCrawler.uploadLogsToDrive();
           parentPort.postMessage({
             success: true,
+            extra,
             ...data,
           });
           break;
