@@ -85,7 +85,7 @@ function _setupWorkers(inputThreadToSpawn) {
   numThreadsToSpawn = Math.min(inputThreadToSpawn, 40);
 
   logger.debug(
-    `Starting work: command=${action} maxWorkers=${numThreadsToSpawn}`
+    `Starting work: action=${action} maxWorkers=${numThreadsToSpawn}`
   );
 
   while (numThreadsToSpawn > 0) {
@@ -172,18 +172,20 @@ async function _enqueueWorkWithRemainingInputs() {
   remainingWorkInputs = remainingWorkInputs || [];
 
   if (remainingWorkInputs.length === 0) {
-    // logger.debug(
-    //   `Finding work to do command=${action} workers=${workers.length}`
-    // );
     clearTimeout(timerWorkSchedule);
     remainingWorkInputs = await getNewWorkFunc();
     lastWorkIdx = 0;
+    if (remainingWorkInputs.length > 0) {
+      logger.debug(
+        `Found New works action=${action} totalWorks=${remainingWorkInputs.length}`
+      );
+    }
   } else if (
     lastWorkIdx < remainingWorkInputs.length &&
     remainingWorkInputs.length > 0
   ) {
     // logger.debug(
-    //   `Distribute works command=${action} workers=${workers.length}`
+    //   `Distribute works action=${action} workers=${workers.length}`
     // );
 
     for (let worker of workers) {
@@ -197,8 +199,7 @@ async function _enqueueWorkWithRemainingInputs() {
         worker.status = WORKER_STATUS_ENUM.BUSY;
 
         logger.debug(
-          `Distribute work for command=${action} worker=${worker.id} lastWorkIdx=${lastWorkIdx} totalWorks=${remainingWorkInputs.length} id=${id}
-          )}`
+          `Distribute work for action=${action} worker=${worker.id} lastWorkIdx=${lastWorkIdx} totalWorks=${remainingWorkInputs.length} id=${id}`
         );
 
         worker.work.postMessage(workActionRequest);
@@ -208,7 +209,7 @@ async function _enqueueWorkWithRemainingInputs() {
       if (lastWorkIdx >= remainingWorkInputs.length) {
         // refresh task list and do again
         logger.debug(
-          `Done work: command=${action} workers=${numThreadsToSpawn} totalWork=${remainingWorkInputs.length}. Restarting with new work`
+          `Done work: action=${action} workers=${numThreadsToSpawn} totalWork=${remainingWorkInputs.length}. Restarting with new work`
         );
 
         remainingWorkInputs = []; // note that this will trigger fetching new work

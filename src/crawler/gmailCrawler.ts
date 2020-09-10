@@ -23,6 +23,7 @@ import {
   THREAD_JOB_STATUS_ENUM,
   GMAIL_ATTACHMENT_PATH,
   MAX_TIME_PER_THREAD,
+  interestedEmails,
 } from "./appConstantsEnums";
 
 import * as CommonUtils from "./commonUtils";
@@ -120,7 +121,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
     // start processing
     for (let message of threadMessages) {
-      const { id, threadId, labelIds, snippet } = message;
+      const { id, threadId, labelIds, snippet, isChat, isEmail } = message;
 
       try {
         let rawBodyPlain = "";
@@ -257,7 +258,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
         // stripped down body (remove signatures and clean up the dom)
         if (rawBodyPlain) {
-          rawBody = rawBodyPlain;
+          rawBody = tryParseBody(rawBodyPlain);
         } else {
           rawBody = tryParseBody(rawBodyHtml);
         }
@@ -274,63 +275,67 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
         let urlToCrawl;
 
-        if (CommonUtils.isStringUrl(subject)) {
-          // if subject is a url
-          urlToCrawl = CommonUtils.extractUrlFromString(subject);
+        if (isEmail) {
+          if (CommonUtils.isStringUrl(subject)) {
+            // if subject is a url
+            urlToCrawl = CommonUtils.extractUrlFromString(subject);
 
-          try {
-            logger.debug(`Crawl subject with url: id=${id} url=${urlToCrawl}`);
-            const websiteRes = await CommonUtils.crawlUrl(urlToCrawl);
+            try {
+              logger.debug(
+                `Crawl subject with url: id=${id} url=${urlToCrawl}`
+              );
+              const websiteRes = await CommonUtils.crawlUrl(urlToCrawl);
 
-            logger.debug(
-              `Done CrawlUrl threadId=${threadId} id=${id} url=${urlToCrawl} res=${websiteRes.subject}`
-            );
+              logger.debug(
+                `Done CrawlUrl threadId=${threadId} id=${id} url=${urlToCrawl} res=${websiteRes.subject}`
+              );
 
-            subject = `${rawSubject} ${websiteRes.subject}`;
-            body = tryParseBody(
-              `
+              subject = `${rawSubject} ${websiteRes.subject}`;
+              body = tryParseBody(
+                `
               <div>${rawBodyPlain}</div>
               <div>================================</div>
               <div>${websiteRes.subject}</div>
               <div>${urlToCrawl}</div>
             `
-            );
-          } catch (err) {
-            logger.debug(
-              `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
-            );
-            body = strippedDownBody;
-          }
-        } else if (CommonUtils.isStringUrl(body)) {
-          // if body is a url
-          urlToCrawl = CommonUtils.extractUrlFromString(
-            _parseBodyWithHtml(body)
-          );
-
-          try {
-            // crawl the URL for title
-            logger.debug(`Crawl body with url: id=${id} url=${urlToCrawl}`);
-            const websiteRes = await CommonUtils.crawlUrl(urlToCrawl);
-
-            logger.debug(
-              `Done CrawlUrl threadId=${threadId} id=${id} url=${urlToCrawl} res=${websiteRes.subject}`
+              );
+            } catch (err) {
+              logger.debug(
+                `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
+              );
+              body = strippedDownBody;
+            }
+          } else if (CommonUtils.isStringUrl(body)) {
+            // if body is a url
+            urlToCrawl = CommonUtils.extractUrlFromString(
+              _parseBodyWithHtml(body)
             );
 
-            subject = `${rawSubject} ${websiteRes.subject}`;
-            body = tryParseBody(
-              `
+            try {
+              // crawl the URL for title
+              logger.debug(`Crawl body with url: id=${id} url=${urlToCrawl}`);
+              const websiteRes = await CommonUtils.crawlUrl(urlToCrawl);
+
+              logger.debug(
+                `Done CrawlUrl threadId=${threadId} id=${id} url=${urlToCrawl} res=${websiteRes.subject}`
+              );
+
+              subject = `${rawSubject} ${websiteRes.subject}`;
+              body = tryParseBody(
+                `
               <div>${rawBodyPlain}</div>
               <div>================================</div>
               <div>${websiteRes.subject}</div>
               <div>${urlToCrawl}</div>
             `,
-              `id=${id} url=${urlToCrawl}`
-            );
-          } catch (err) {
-            logger.debug(
-              `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
-            );
-            body = strippedDownBody;
+                `id=${id} url=${urlToCrawl}`
+              );
+            } catch (err) {
+              logger.debug(
+                `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
+              );
+              body = strippedDownBody;
+            }
           }
         }
 
@@ -577,15 +582,7 @@ export function parseGmailMessage(bodyData) {
 export function _parseBodyWithText(html) {
   let body = html || "";
   try {
-    return body
-      .replace("\r", "\n")
-      .split(/[ ]/)
-      .filter((r) => !!r)
-      .join(" ")
-      .split("\n")
-      .filter((r) => !!r)
-      .join("\n")
-      .trim();
+    return body.trim();
   } catch (e) {
     return body;
   }
@@ -611,15 +608,15 @@ export function _parseBodyWithHtml(html) {
     }
 
     // clean up all the whitespaces
-    const blocks = dom.window.document.querySelectorAll(
-      "div,p,section,span,header,footer"
-    );
-    for (const block of blocks) {
-      block.textContent = block.textContent
-        .replace("\r", "\n")
-        .split("\n")
-        .join(" ");
-    }
+    // const blocks = dom.window.document.querySelectorAll(
+    //   "div,p,section,span,header,footer"
+    // );
+    // for (const block of blocks) {
+    //   block.textContent = block.textContent
+    //     .replace("\r", "\n")
+    //     .split("\n")
+    //     .join(" ");
+    // }
 
     const textContent = trim(dom.window.document.body.textContent);
 
@@ -638,14 +635,7 @@ export function _parseBodyWithHtml(html) {
       }
     }
 
-    return textContent
-      .replace("\r", "\n")
-      .replace("\n\n", "__TWO_SPACES__")
-      .split("\n")
-      .map((s) => trim(s))
-      .filter((s) => !!s)
-      .join("\n")
-      .replace("__TWO_SPACES__", "\n\n");
+    return textContent;
   } catch (err) {
     logger.debug(
       `_parseBodyWithHtml failed error=${JSON.stringify(err.stack || err)}`
@@ -656,8 +646,15 @@ export function _parseBodyWithHtml(html) {
 export function tryParseBody(rawBody) {
   rawBody = (rawBody || "").trim();
   return (
-    _parseBodyWithHtml(rawBody) || _parseBodyWithText(rawBody) || rawBody || ""
-  );
+    _parseBodyWithHtml(rawBody) ||
+    _parseBodyWithText(rawBody) ||
+    rawBody ||
+    ""
+  )
+    .split("\n")
+    .map((r) => r.trim())
+    .filter((r) => !!r)
+    .join("\n");
 }
 
 export function parsePageTitle(html) {
@@ -776,19 +773,42 @@ export async function fetchRawContentsByThreadId(threadIds) {
         const bcc = _parseEmailAddressList(headers.bcc);
         const rawSubject = (headers.subject || `${from} ${id}`).trim();
 
+        let isChat = false;
+        let isEmail = true;
+        const labelIds = message.labelIds || [];
+        if (labelIds.some((labelId) => labelId.includes("CHAT"))) {
+          isChat = true;
+          isEmail = false;
+        }
+
+        const starred = labelIds.some((labelId) => labelId.includes("STARRED"));
+
+        const isEmailSentByMe = interestedEmails.some(
+          (myEmail) => from.toLowerCase() === myEmail.toLowerCase()
+        );
+
         const emailMessageToSave = {
           id: id,
           threadId: threadId,
-          labelIds: (message.labelIds || []).join(",") || null,
+          labelIds: labelIds.join(","),
           rawSubject: truncate(rawSubject, {
             length: 250,
           }),
           from,
           to: to.join(",") || null,
           bcc: bcc.join(",") || null,
-          rawApiResponse: JSON.stringify(message),
+          rawApiResponse: JSON.stringify({
+            ...message,
+            isChat,
+            isEmail,
+            isEmailSentByMe,
+          }),
           date: Math.round((message.internalDate || Date.now()) / 1000),
           status: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
+          isChat,
+          isEmail,
+          isEmailSentByMe,
+          starred,
         };
 
         // generate the record for folder id for future use

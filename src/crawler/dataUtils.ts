@@ -26,9 +26,14 @@ export async function restartAllWork() {
   let res;
   const pipeline = redisInstance.pipeline();
 
-  const previousSuccessMessageId = await redisInstance.smembers(
-    REDIS_KEY.QUEUE_SUCCESS_UPLOAD_MESSAGE_ID
-  );
+  const previousSuccessMessageId = [
+    ...(await redisInstance.smembers(
+      REDIS_KEY.QUEUE_SUCCESS_UPLOAD_MESSAGE_ID
+    )),
+    ...(await redisInstance.smembers(
+      REDIS_KEY.QUEUE_ERROR_FETCH_AND_PARSE_THREAD_ID
+    )),
+  ];
 
   // delete all the queue
   console.debug("Start Cleaning Up Redis");
@@ -112,19 +117,6 @@ export async function bulkUpsertAttachments(attachments) {
 // emails
 export async function getEmailsByThreadId(threadId): Email[] {
   return await Models.Email.findAll({
-    /* attributes: [
-      "id",
-      "threadId",
-      "from",
-      "bcc",
-      "to",
-      "subject",
-      "rawSubject",
-      "body",
-      "rawBody",
-      "date",
-      "labelIds",
-    ], */
     where: {
       threadId,
     },
@@ -135,19 +127,6 @@ export async function getEmailsByThreadId(threadId): Email[] {
 
 export async function getEmailByMessageId(messageId): Email {
   const res = await Models.Email.findAll({
-    attributes: [
-      "id",
-      "threadId",
-      "from",
-      "bcc",
-      "to",
-      "subject",
-      "rawSubject",
-      "body",
-      "rawBody",
-      "date",
-      "labelIds",
-    ],
     where: {
       id: messageId,
     },

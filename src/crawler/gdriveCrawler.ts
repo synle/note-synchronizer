@@ -85,11 +85,10 @@ export async function generateDocFile(subject, sections, newFileName) {
     let images = section.images || [];
 
     body = body
+      .replace("\r", "\n")
       .replace("\t", " ")
-      .replace(" >>", "\n>>")
-      .replace("    ", "\n")
       .split("\n")
-      .map((r) => r.trim())
+      .map((r) => (r || "").trim())
       .filter((r) => !!r);
     for (let content of body) {
       children.push(
@@ -107,7 +106,7 @@ export async function generateDocFile(subject, sections, newFileName) {
     if (images.length > 0) {
       children.push(
         new Paragraph({
-          text: `${images.length} Images`,
+          text: `================================\n${images.length} Images`,
           spacing: {
             before: 250,
             after: 250,
@@ -127,9 +126,9 @@ export async function generateDocFile(subject, sections, newFileName) {
           new Paragraph({
             text: `${attachment.fileName}`,
             bold: true,
-            heading: HeadingLevel.HEADING_4,
+            heading: HeadingLevel.HEADING_3,
             spacing: {
-              before: 250,
+              before: 400,
             },
             border: {
               bottom: {
@@ -179,7 +178,22 @@ async function _init() {
 }
 
 async function _processThreadEmail(email: Email) {
-  let { threadId, id, from, bcc, to, subject, date, labelIds } = email;
+  let {
+    threadId,
+    id,
+    from,
+    bcc,
+    to,
+    subject,
+    rawSubject,
+    date,
+    labelIds,
+    isChat,
+    isEmail,
+    isEmailSentByMe,
+    starred,
+  } = email;
+
   logger.debug(
     `_processThreadEmail threadId=${threadId} id=${id} subject=${subject}`
   );
@@ -215,10 +229,6 @@ async function _processThreadEmail(email: Email) {
 
     const toEmailAddresses = toEmailList.join(", ");
 
-    const isEmailSentByMe = interestedEmails.some(
-      (myEmail) => from.toLowerCase() === myEmail.toLowerCase()
-    );
-
     const isEmailSentByMeToMe =
       isEmailSentByMe &&
       interestedEmails.some((myEmail) =>
@@ -226,8 +236,6 @@ async function _processThreadEmail(email: Email) {
           (toEmail) => toEmail.toLowerCase() === myEmail.toLowerCase()
         )
       );
-
-    const starred = labelIdsList.some((labelId) => labelId.includes("STARRED"));
 
     const hasSomeAttachments =
       nonImageAttachments.length > 0 ||
@@ -241,14 +249,6 @@ async function _processThreadEmail(email: Email) {
     const friendlyDateTimeString2 = moment(parseInt(date) * 1000).format(
       FORMAT_DATE_TIME2
     );
-
-    let isChat = false;
-    let isEmail = true;
-
-    if (labelIdsList.some((labelId) => labelId.includes("CHAT"))) {
-      isChat = true;
-      isEmail = false;
-    }
 
     subject = _sanitizeSubject(
       subject,
@@ -452,7 +452,7 @@ async function _processThreadEmail(email: Email) {
         }
 
         await generateDocFile(
-          subject,
+          rawSubject,
           {
             body: originalDocBody,
             images: imagesAttachments,
@@ -508,7 +508,7 @@ async function _processThreadEmail(email: Email) {
 
       if (docDriveFileId) {
         logger.debug(
-          `Link to google doc threadId=${threadId} id=${id} attachmentLinks=${attachmentLinks.length} docLink=docs.google.com/document/d/${docDriveFileId} parentFolderName=${parentFolderName} folderIdToUse=drive.google.com/drive/folders/${folderIdToUse}`
+          `Link to google doc threadId=${threadId} id=${id} attachmentLinks=${attachmentLinks.length} docLink=docs.google.com/document/d/${docDriveFileId} parentFolderName=${parentFolderName} parentFolderLink=drive.google.com/drive/folders/${folderIdToUse}`
         );
       } else {
         logger.debug(
@@ -591,9 +591,7 @@ async function _processThreads(threadId, emails: Email[]) {
       .filter((r) => !!r);
     const toEmailAddresses = toEmailList.join(", ");
 
-    isEmailSentByMe =
-      isEmailSentByMe ||
-      interestedEmails.some((myEmail) => email.from.includes(myEmail));
+    isEmailSentByMe = isEmailSentByMe || email.isEmailSentByMe;
 
     isEmailSentByMeToMe =
       isEmailSentByMeToMe ||
@@ -620,13 +618,8 @@ async function _processThreads(threadId, emails: Email[]) {
 
     const labelIdsList = (email.labelIds || "").split(",");
 
-    let isChat = false;
-    let isEmail = true;
-
-    if (labelIdsList.some((labelId) => labelId.includes("CHAT"))) {
-      isChat = true;
-      isEmail = false;
-    }
+    const isChat = email.isChat;
+    const isEmail = email.isEmail;
 
     let subject = email.subject;
     let to = email.to;
@@ -646,9 +639,7 @@ async function _processThreads(threadId, emails: Email[]) {
       from = email.from;
     }
 
-    if (isEmailSentByMe) {
-      starred = true;
-    }
+    starred = starred || email.starred;
 
     date = email.date;
 
@@ -692,7 +683,7 @@ async function _processThreads(threadId, emails: Email[]) {
         body: `
         ================================
         ${friendlyDateTimeString1} ${email.from}:
-        ${email.rawBody}
+        ${email.rawBody || ""}
       `,
         images,
       });
@@ -766,7 +757,7 @@ async function _processThreads(threadId, emails: Email[]) {
     });
 
     logger.debug(
-      `Link to google doc threadId=${threadId} docLink=docs.google.com/document/d/${docDriveFileId} parentFolderId=${folderId}`
+      `Link to google doc threadId=${threadId} docLink=docs.google.com/document/d/${docDriveFileId}  parentFolderLink=drive.google.com/drive/folders/${folderId}`
     );
 
     // upload attachments

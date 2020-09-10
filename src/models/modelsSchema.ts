@@ -122,6 +122,34 @@ export class Email extends Model {
   @attribute(Email, { type: "MEDIUMTEXT", allowNull: false })
   rawApiResponse!: string;
 
+  @attribute(Email, {
+    type: DataTypes.TINYINT(1),
+    allowNull: false,
+    defaultValue: 0,
+  })
+  isEmailSentByMe!: boolean;
+
+  @attribute(Email, {
+    type: DataTypes.TINYINT(1),
+    allowNull: false,
+    defaultValue: 0,
+  })
+  isChat!: boolean;
+
+  @attribute(Email, {
+    type: DataTypes.TINYINT(1),
+    allowNull: false,
+    defaultValue: 0,
+  })
+  isEmail!: boolean;
+
+  @attribute(Email, {
+    type: DataTypes.TINYINT(1),
+    allowNull: false,
+    defaultValue: 0,
+  })
+  starred!: boolean;
+
   // @attribute(Email, { type: DataTypes.TEXT })
   // headers!: string;
 }
