@@ -111,7 +111,8 @@ async function _doWork3() {
 
   const messageId = "17198550f061f1ce";
   const email = await DataUtils.getEmailByMessageId(messageId);
-  // console.log(JSON.stringify(email, null, 2));
+  console.log(JSON.stringify(email, null, 2));
+  process.exit();
 }
 
 async function _doWork4() {
