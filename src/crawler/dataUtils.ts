@@ -101,9 +101,9 @@ export async function getAttachmentsByMessageId(messageId) {
 export async function getAttachmentsByThreadId(threadId) {
   return Models.Attachment.getAll({
     where: {
-      messageId: threadId,
-      inline: {
-        [Op.eq]: 0, // only use attachments from non-inline attachments
+      threadId,
+      size: {
+        [Op.gt]: 0,
       },
     },
     raw: true,

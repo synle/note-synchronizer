@@ -291,10 +291,6 @@ async function _processThreads(threadId, emails: Email[]) {
       FORMAT_DATE_TIME2
     );
 
-    if (!docSubject) {
-      docSubject = email.subject;
-    }
-
     if (!dateStart) {
       dateStart = friendlyDateTimeString1;
     }
@@ -305,13 +301,6 @@ async function _processThreads(threadId, emails: Email[]) {
 
     let subject = email.subject;
     let to = email.to;
-    subject = _sanitizeSubject(
-      subject,
-      to,
-      friendlyDateTimeString2,
-      isChat,
-      isEmail
-    );
 
     if (!from) {
       from = email.from;
@@ -344,7 +333,17 @@ async function _processThreads(threadId, emails: Email[]) {
     // concatenate body
     if (isChat) {
       if (!docFileName && !email.isEmailSentByMe) {
-        docFileName = subject;
+        docFileName = _sanitizeSubject(
+          subject,
+          from,
+          dateStart,
+          isChat,
+          isEmail
+        );
+
+        if (!docSubject) {
+          docSubject = email.subject;
+        }
       }
 
       docContentSections.push({
@@ -359,7 +358,17 @@ async function _processThreads(threadId, emails: Email[]) {
       });
     } else {
       if (!docFileName) {
-        docFileName = subject;
+        docFileName = _sanitizeSubject(
+          subject,
+          to,
+          friendlyDateTimeString2,
+          isChat,
+          isEmail
+        );
+      }
+
+      if (!docSubject) {
+        docSubject = email.subject;
       }
 
       const gmailLink = email.from.includes("getpocket")
@@ -407,12 +416,13 @@ async function _processThreads(threadId, emails: Email[]) {
     logger.debug(`Doing Sync to Google Drive threadId=${threadId}`);
 
     // create the parent folder
+    const isSpecialFolder = folderName.indexOf("_") === 0;
     folderId = await googleApiUtils.createDriveFolder({
       name: folderName,
       description: `Chats & Emails from ${folderName}`,
       parentFolderId: noteDestinationFolderId,
-      starred: isEmailSentByMe,
-      folderColorRgb: isEmailSentByMe ? "#FF0000" : "#0000FF",
+      starred: isSpecialFolder,
+      folderColorRgb: isSpecialFolder ? "#FF0000" : "#0000FF",
       appProperties: {
         fromDomain: folderName,
       },
