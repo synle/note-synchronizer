@@ -54,7 +54,7 @@ export async function restartAllWork() {
     "Start Cloning all threadIds into REDIS",
     REDIS_KEY.ALL_THREAD_IDS
   );
-  res = await Models.Thread.findAll({
+  res = await Models.Thread.getAll({
     attributes: ["threadId"],
     raw: true,
   });
@@ -87,7 +87,7 @@ export async function restartAllWork() {
 
 // attachments
 export async function getAttachmentsByMessageId(messageId) {
-  return Models.Attachment.findAll({
+  return Models.Attachment.getAll({
     where: {
       messageId,
       inline: {
@@ -99,7 +99,7 @@ export async function getAttachmentsByMessageId(messageId) {
 }
 
 export async function getAttachmentsByThreadId(threadId) {
-  return Models.Attachment.findAll({
+  return Models.Attachment.getAll({
     where: {
       messageId: threadId,
       inline: {
@@ -116,7 +116,7 @@ export async function bulkUpsertAttachments(attachments) {
 
 // emails
 export async function getEmailsByThreadId(threadId): Email[] {
-  return await Models.Email.findAll({
+  return await Models.Email.getAll({
     where: {
       threadId,
     },
@@ -126,25 +126,19 @@ export async function getEmailsByThreadId(threadId): Email[] {
 }
 
 export async function getEmailByMessageId(messageId): Email {
-  const res = await Models.Email.findAll({
+  return Models.Email.getOne({
     where: {
       id: messageId,
     },
     raw: true,
   });
-
-  if (res.length === 1) {
-    return res[0];
-  }
-
-  return null;
 }
 
 // raw content
 export async function getRawContentsByThreadId(
   threadId
 ): Promise<GmailMessageResponse[]> {
-  const res = await Models.Email.findAll({
+  const res = await Models.Email.getAll({
     attributes: ["rawApiResponse"],
     where: {
       threadId,
@@ -316,7 +310,7 @@ export async function bulkUpsertFolders(folders) {
 }
 
 export async function getAllParentFolders() {
-  const res = await Models.Folder.findAll({
+  const res = await Models.Folder.getAll({
     attributes: ["folderName"],
     raw: true,
     order: ["folderName"],

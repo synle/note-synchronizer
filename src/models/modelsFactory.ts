@@ -132,5 +132,25 @@ export default async () => {
       }
       return Promise.all(promises);
     };
+
+    Models[modelName].getAll = async (...inputs) => {
+      const transform = Models[modelName].transform;
+
+      if(transform){
+        const items = await Models[modelName].findAll(...inputs);
+        return items.map(transform)
+      }
+      return Models[modelName].findAll(...inputs);
+    }
+
+    Models[modelName].getOne = async (...inputs) => {
+      const items = await Models[modelName].getAll(...inputs);
+
+      if (items.length === 1) {
+        return items[0];
+      }
+
+      return null;
+    };
   });
 };
