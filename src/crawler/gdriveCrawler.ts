@@ -90,7 +90,7 @@ export async function generateDocFile(subject, sections, newFileName) {
       .replace("\r", "\n")
       .replace("\t", " ")
       .split("\n")
-      .map((r) => (r || "").trim())
+      .map((r) => trim(r || "", "-_:.*,<>|").trim())
       .filter((r) => !!r);
     for (let content of body) {
       children.push(
@@ -332,7 +332,18 @@ async function _processThreads(threadId, emails: Email[]) {
 
     // concatenate body
     if (isChat) {
-      if (!docFileName && !email.isEmailSentByMe) {
+      if (!docFileName) {
+        docFileName = _sanitizeSubject(
+          subject,
+          from,
+          friendlyDateTimeString2,
+          isChat,
+          isEmail
+        );
+        docSubject = email.subject;
+      }
+
+      if (!email.isEmailSentByMe) {
         docFileName = _sanitizeSubject(
           subject,
           from,
@@ -341,9 +352,7 @@ async function _processThreads(threadId, emails: Email[]) {
           isEmail
         );
 
-        if (!docSubject) {
-          docSubject = email.subject;
-        }
+        docSubject = email.subject;
       }
 
       docContentSections.push({
