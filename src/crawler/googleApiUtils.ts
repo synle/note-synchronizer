@@ -114,6 +114,8 @@ export async function createNoteDestinationFolder() {
     }
   }
 
+  await Promise.allSettled(promises);
+
   return noteDestFolderId;
 }
 

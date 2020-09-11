@@ -117,6 +117,24 @@ export async function bulkUpsertAttachments(attachments) {
 // emails
 export async function getEmailsByThreadId(threadId): Email[] {
   return await Models.Email.getAll({
+    attributes: [
+      "id",
+      "threadId",
+      "driveFileId",
+      "from",
+      "to",
+      "bcc",
+      "subject",
+      "rawSubject",
+      "body",
+      "rawBody",
+      "date",
+      "labelIds",
+      "isEmailSentByMe",
+      "isChat",
+      "isEmail",
+      "starred",
+    ],
     where: {
       threadId,
     },

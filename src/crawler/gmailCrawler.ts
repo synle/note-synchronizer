@@ -140,30 +140,29 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
             const lowerCaseFileName = fileName.toLowerCase();
             if (
-              lowerCaseFileName.includes(".java") ||
-              lowerCaseFileName.includes(".log") ||
-              lowerCaseFileName.includes(".c") ||
-              lowerCaseFileName.includes(".cpp") ||
-              lowerCaseFileName.includes(".cs") ||
-              lowerCaseFileName.includes(".js") ||
-              lowerCaseFileName.includes(".json") ||
-              lowerCaseFileName.includes(".xml") ||
-              lowerCaseFileName.includes(".yml") ||
-              lowerCaseFileName.includes(".yaml") ||
+              lowerCaseFileName.endsWith(".java") ||
+              lowerCaseFileName.endsWith(".log") ||
+              lowerCaseFileName.endsWith(".cpp") ||
+              lowerCaseFileName.endsWith(".cs") ||
+              lowerCaseFileName.endsWith(".js") ||
+              lowerCaseFileName.endsWith(".json") ||
+              lowerCaseFileName.endsWith(".xml") ||
+              lowerCaseFileName.endsWith(".yml") ||
+              lowerCaseFileName.endsWith(".yaml") ||
               false
             ) {
               mimeType = MIME_TYPE_ENUM.TEXT_PLAIN;
-            } else if (lowerCaseFileName.includes(".doc")) {
+            } else if (lowerCaseFileName.endsWith(".doc")) {
               mimeType = MIME_TYPE_ENUM.APP_MS_DOC;
-            } else if (lowerCaseFileName.includes(".docx")) {
+            } else if (lowerCaseFileName.endsWith(".docx")) {
               mimeType = MIME_TYPE_ENUM.APP_MS_DOCX;
-            } else if (lowerCaseFileName.includes(".csv")) {
+            } else if (lowerCaseFileName.endsWith(".csv")) {
               mimeType = MIME_TYPE_ENUM.TEXT_CSV;
-            } else if (lowerCaseFileName.includes(".xls")) {
+            } else if (lowerCaseFileName.endsWith(".xls")) {
               mimeType = MIME_TYPE_ENUM.APP_MS_XLS;
-            } else if (lowerCaseFileName.includes(".xlsx")) {
+            } else if (lowerCaseFileName.endsWith(".xlsx")) {
               mimeType = MIME_TYPE_ENUM.APP_MS_XLSX;
-            } else if (lowerCaseFileName.includes(".pdf")) {
+            } else if (lowerCaseFileName.endsWith(".pdf")) {
               mimeType = MIME_TYPE_ENUM.APP_PDF;
             } else if (lowerCaseFileName.includes(".gif")) {
               mimeType = MIME_TYPE_ENUM.IMAGE_GIF;
@@ -310,8 +309,10 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
         // stripped down body (remove signatures and clean up the dom)
         if (rawBodyPlain) {
+          logger.debug(`Use rawBodyPlain for Body id=${id}`);
           rawBody = tryParseBody(rawBodyPlain);
         } else {
+          logger.debug(`Use rawBodyHtml for Body id=${id}`);
           rawBody = tryParseBody(rawBodyHtml);
         }
         rawBody = (rawBody || snippet || "").trim();
@@ -646,9 +647,9 @@ export function _parseBodyWithHtml(html) {
     }
 
     // replace all the script tags
-    const scripts = dom.window.document.querySelectorAll("script");
-    for (const script of scripts) {
-      script.remove();
+    const itemsToRemove = dom.window.document.querySelectorAll("script,img,style");
+    for (const item of itemsToRemove) {
+      item.remove();
     }
 
     // clean up all the whitespaces
@@ -682,7 +683,7 @@ export function _parseBodyWithHtml(html) {
     return textContent;
   } catch (err) {
     logger.debug(
-      `_parseBodyWithHtml failed error=${JSON.stringify(err.stack || err)}`
+      `_parseBodyWithHtml failed error=${err.stack || JSON.stringify(err)}`
     );
   }
 }
@@ -699,14 +700,16 @@ export function tryParseBody(rawBody) {
     .map((r) => r.trim())
     .filter((r) => !!r)
     .join("\n")
-    .replace(/[-][-][-][-][-]*/gi, "================================\n")
-    .replace(/[\*][\*][\*][\*][\*]*/gi, "================================\n");
+    .replace(/[-][-][-][-][-]*/gi, "\n================================\n")
+    .replace(/[\*][\*][\*][\*][\*]*/gi, "\n================================\n");
 
 
 
   // remove signatures
   for (let signature of mySignatureTokens) {
-    result = result.replace(new RegExp(signature, "gi"), "");
+    try{
+      result = result.replace(new RegExp(signature, "gi"), "");
+    } catch(err){}
   }
 
   return result;

@@ -329,12 +329,20 @@ redis-cli smembers QUEUE_FETCH_RAW_CONTENT
 redis-cli smembers QUEUE_PARSE_EMAIL
 redis-cli smembers QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID
 redis-cli smembers QUEUE_SKIPPED_MESSAGE_ID
-redis-cli smembers QUEUE_SUCCESS_MESSAGE_ID
+redis-cli smembers QUEUE_SUCCESS_UPLOAD_MESSAGE_ID
+```
+
+```
+redis-cli scard QUEUE_ERROR_FETCH_AND_PARSE_THREAD_ID
+redis-cli scard QUEUE_ERROR_UPLOAD_MESSAGE_ID
+
+redis-cli scard QUEUE_SKIPPED_MESSAGE_ID
+redis-cli scard QUEUE_SUCCESS_UPLOAD_MESSAGE_ID
 ```
 
 ```
 redis-cli --scan --pattern "QUEUE*"
 redis-cli --scan --pattern "QUEUE*" | xargs redis-cli del
 
-redis-cli --scan --pattern "FOLDER_USAGE_COUNT*"
+redis-cli --scan --pattern "FOLDER_USAGE_COUNT*" | xargs redis-cli del
 ```

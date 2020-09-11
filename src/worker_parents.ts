@@ -1,5 +1,6 @@
 // @ts-nocheck
 const action = process.argv[2] || "";
+process.title = `Note Sync ${action}`;
 
 import { logger, initLogger } from "./loggers";
 initLogger(`Parents.${action}`);
@@ -40,13 +41,11 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
   worker.on("message", (data: WorkActionResponse) => {
     if (data.success) {
       logger.debug(
-        `Worker Thread Done worker=${myThreadName} action=${data.action} id=${data.id} extra=${data.extra}`
+        `Worker Thread Done action=${data.action} id=${data.id} extra=${data.extra || '<N/A>'}`
       );
     } else {
       logger.error(
-        `Worker Thread Failed worker=${myThreadName} action=${
-          data.action
-        } error=${data.error.stack || data.error} data=${JSON.stringify(data)}`
+        `Worker Thread Failed action=${data.action} error=${data.error.stack || data.error} data=${JSON.stringify(data)}`
       );
     }
 
@@ -109,6 +108,7 @@ async function _init() {
     case WORK_ACTION_ENUM.GENERATE_CONTAINER_FOLDERS:
       await DataUtils.restartAllWork();
       await googleApiUtils.createNoteDestinationFolder();
+      process.exit();
       break;
 
     // job1
