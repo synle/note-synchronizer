@@ -661,23 +661,6 @@ export async function uploadFile({
   ) {
     mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_DOCUMENT;
     keepRevisionForever = true;
-  } else if ([MIME_TYPE_ENUM.APP_OCTLET_STREAM].includes(mimeType)) {
-    if (
-      localPath.includes(".java") ||
-      localPath.includes(".doc") ||
-      localPath.includes(".docx") ||
-      localPath.includes(".log")
-    ) {
-      mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_DOCUMENT;
-      keepRevisionForever = true;
-    } else if (
-      localPath.includes(".xls") ||
-      localPath.includes(".xlsx") ||
-      localPath.includes(".csv")
-    ) {
-      mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_SPREADSHEET;
-      keepRevisionForever = true;
-    }
   } else if (
     [MIME_TYPE_ENUM.APP_MS_PPT, MIME_TYPE_ENUM.APP_MS_PPTX].includes(mimeType)
   ) {

@@ -137,23 +137,39 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               part.filename || `parts.${threadId}.${id}.${partId || ""}`;
             const partHeaderContentId = partHeaders["content-id"];
 
-            if (
-              mimeType === MIME_TYPE_ENUM.APP_OCTLET_STREAM
-            ) {
-              if(partHeaderContentId){
+            if (mimeType === MIME_TYPE_ENUM.APP_OCTLET_STREAM) {
+              if (partHeaderContentId) {
                 if (
                   partHeaderContentId.toLowerCase().includes("uniqueimageid")
                 ) {
-                  logger.debug(
-                    `Remapped Oclet Stream to Image threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType} size=${size}`
-                  );
                   mimeType = MIME_TYPE_ENUM.IMAGE_JPEG;
                 }
               } else {
-                if (fileName.includes('.log')) {
+                if (
+                  fileName.includes(".java") ||
+                  fileName.includes(".log") ||
+                  fileName.includes(".c") ||
+                  fileName.includes(".cpp") ||
+                  fileName.includes(".cs") ||
+                  false
+                ) {
                   mimeType = MIME_TYPE_ENUM.TEXT_PLAIN;
+                } else if (fileName.includes(".doc")) {
+                  mimeType = MIME_TYPE_ENUM.APP_MS_DOC;
+                } else if (fileName.includes(".docx")) {
+                  mimeType = MIME_TYPE_ENUM.APP_MS_DOCX;
+                } else if (fileName.includes(".csv")) {
+                  mimeType = MIME_TYPE_ENUM.TEXT_CSV;
+                } else if (fileName.includes(".xls")) {
+                  mimeType = MIME_TYPE_ENUM.APP_MS_XLS;
+                } else if (fileName.includes(".xlsx")) {
+                  mimeType = MIME_TYPE_ENUM.APP_MS_XLSX;
                 }
               }
+
+              logger.debug(
+                `Remapped Oclet Stream threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType} size=${size}`
+              );
             }
 
             logger.debug(
