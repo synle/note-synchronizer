@@ -304,10 +304,6 @@ async function _processThreads(threadId, emails: Email[]) {
       isEmail
     );
 
-    if (!docFileName) {
-      docFileName = subject;
-    }
-
     if (!from) {
       from = email.from;
     }
@@ -338,18 +334,29 @@ async function _processThreads(threadId, emails: Email[]) {
 
     // concatenate body
     if (isChat) {
+      if (!docFileName && !email.isEmailSentByMe) {
+        docFileName = subject;
+      }
+
       docContentSections.push({
         body: `
         ================================
-        ${friendlyDateTimeString1} ${email.from} (${email.id}):
+        ${
+          email.isEmailSentByMe ? "ME" : email.from
+        } ${friendlyDateTimeString1} (${email.id}):
         ${email.body || email.rawBody}
       `,
         images,
       });
     } else {
+      if (!docFileName) {
+        docFileName = subject;
+      }
+
       const gmailLink = email.from.includes("getpocket")
         ? ""
-        : `Link:\nhttp://mail.google.com/mail/u/0/#search/messageid/${email.id}`;
+        : `Link:
+            http://mail.google.com/mail/u/0/#search/messageid/${email.id}`;
 
       docContentSections.push({
         body: `
@@ -368,7 +375,7 @@ async function _processThreads(threadId, emails: Email[]) {
   }
 
   logger.debug(
-    `Checking to see if we should sync to google drive threadId=${threadId} isEmailSentByMe=${isEmailSentByMe} isEmailSentByMeToMe=${isEmailSentByMeToMe} hasSomeAttachments=${hasSomeAttachments}(${allNonImageAttachments.length}) starred=${starred} hasIgnoredWordTokens=${hasIgnoredWordTokens}`
+    `Checking to see if we should sync to google drive threadId=${threadId} isEmailSentByMe=${isEmailSentByMe} isEmailSentByMeToMe=${isEmailSentByMeToMe} hasSomeAttachments=${hasSomeAttachments} nonImagesAttachments=${allNonImageAttachments.length} allImageAttachments=${allImageAttachments.length} starred=${starred} hasIgnoredWordTokens=${hasIgnoredWordTokens}`
   );
 
   let shouldUpload = false;
