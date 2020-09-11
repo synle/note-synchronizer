@@ -136,6 +136,45 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
             const fileName =
               part.filename || `parts.${threadId}.${id}.${partId || ""}`;
             const partHeaderContentId = partHeaders["content-id"];
+            const oldMimeTime = mimeType;
+
+            const lowerCaseFileName = fileName.toLowerCase();
+            if (
+              lowerCaseFileName.includes(".java") ||
+              lowerCaseFileName.includes(".log") ||
+              lowerCaseFileName.includes(".c") ||
+              lowerCaseFileName.includes(".cpp") ||
+              lowerCaseFileName.includes(".cs") ||
+              lowerCaseFileName.includes(".js") ||
+              lowerCaseFileName.includes(".json") ||
+              lowerCaseFileName.includes(".xml") ||
+              lowerCaseFileName.includes(".yml") ||
+              lowerCaseFileName.includes(".yaml") ||
+              false
+            ) {
+              mimeType = MIME_TYPE_ENUM.TEXT_PLAIN;
+            } else if (lowerCaseFileName.includes(".doc")) {
+              mimeType = MIME_TYPE_ENUM.APP_MS_DOC;
+            } else if (lowerCaseFileName.includes(".docx")) {
+              mimeType = MIME_TYPE_ENUM.APP_MS_DOCX;
+            } else if (lowerCaseFileName.includes(".csv")) {
+              mimeType = MIME_TYPE_ENUM.TEXT_CSV;
+            } else if (lowerCaseFileName.includes(".xls")) {
+              mimeType = MIME_TYPE_ENUM.APP_MS_XLS;
+            } else if (lowerCaseFileName.includes(".xlsx")) {
+              mimeType = MIME_TYPE_ENUM.APP_MS_XLSX;
+            } else if (lowerCaseFileName.includes(".pdf")) {
+              mimeType = MIME_TYPE_ENUM.APP_PDF;
+            } else if (lowerCaseFileName.includes(".gif")) {
+              mimeType = MIME_TYPE_ENUM.IMAGE_GIF;
+            } else if (lowerCaseFileName.includes(".png")) {
+              mimeType = MIME_TYPE_ENUM.IMAGE_PNG;
+            } else if (
+              lowerCaseFileName.includes(".jpg") ||
+              lowerCaseFileName.includes(".jpeg")
+            ) {
+              mimeType = MIME_TYPE_ENUM.IMAGE_JPG;
+            }
 
             if (mimeType === MIME_TYPE_ENUM.APP_OCTLET_STREAM) {
               if (partHeaderContentId) {
@@ -144,33 +183,12 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                 ) {
                   mimeType = MIME_TYPE_ENUM.IMAGE_JPEG;
                 }
-              } else {
-                if (
-                  fileName.includes(".java") ||
-                  fileName.includes(".log") ||
-                  fileName.includes(".c") ||
-                  fileName.includes(".cpp") ||
-                  fileName.includes(".cs") ||
-                  false
-                ) {
-                  mimeType = MIME_TYPE_ENUM.TEXT_PLAIN;
-                } else if (fileName.includes(".doc")) {
-                  mimeType = MIME_TYPE_ENUM.APP_MS_DOC;
-                } else if (fileName.includes(".docx")) {
-                  mimeType = MIME_TYPE_ENUM.APP_MS_DOCX;
-                } else if (fileName.includes(".csv")) {
-                  mimeType = MIME_TYPE_ENUM.TEXT_CSV;
-                } else if (fileName.includes(".xls")) {
-                  mimeType = MIME_TYPE_ENUM.APP_MS_XLS;
-                } else if (fileName.includes(".xlsx")) {
-                  mimeType = MIME_TYPE_ENUM.APP_MS_XLSX;
-                }
               }
-
-              logger.debug(
-                `Remapped Oclet Stream threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType} size=${size}`
-              );
             }
+
+            logger.debug(
+              `Remapped Oclet Stream threadId=${threadId} id=${id} partId=${partId} oldMimeTime=${oldMimeTime} newMimeType=${mimeType} size=${size}`
+            );
 
             logger.debug(
               `Parsing Part of Message: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType} size=${size}`
