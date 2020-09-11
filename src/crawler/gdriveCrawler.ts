@@ -131,7 +131,7 @@ export async function generateDocFile(subject, sections, newFileName) {
       for (const attachment of images) {
         const attachmentImageSize = getImageSize(attachment.path);
         let ratio = attachmentImageSize.height / attachmentImageSize.width;
-        if(ratio <= 0){
+        if (ratio <= 0) {
           ratio = 1;
         }
 
@@ -186,7 +186,7 @@ export function _getNonImagesAttachments(
   attachments: Attachment[]
 ): Attachment[] {
   return attachments.filter((attachment) => {
-    return !attachment.mimeType.includes("image");
+    return !attachment.mimeType.includes("image") && attachment.size > 0;
   });
 }
 
@@ -207,7 +207,7 @@ export async function uploadEmailMsgToGoogleDrive(messageId) {
     // make sure that we only process if this is the last email message
     if (email.id === emails[emails.length - 1].id) {
       logger.debug(
-        `Start uploadEmailMsgToGoogleDrivethreadId=${threadId} id=${messageId}`
+        `Start uploadEmailMsgToGoogleDrive threadId=${threadId} id=${messageId}`
       );
       return uploadEmailThreadToGoogleDrive(threadId);
     } else {
