@@ -177,385 +177,32 @@ async function _init() {
   }
 }
 
-async function _processThreadEmail(email: Email) {
-  let {
-    threadId,
-    id,
-    from,
-    bcc,
-    to,
-    subject,
-    rawSubject,
-    date,
-    labelIds,
-    isChat,
-    isEmail,
-    isEmailSentByMe,
-    starred,
-  } = email;
-
-  logger.debug(
-    `_processThreadEmail threadId=${threadId} id=${id} subject=${subject}`
-  );
-
-  let docDriveFileId;
-  let parentFolderName;
-  let folderIdToUse;
-
-  try {
-    await DataUtils.bulkUpsertEmails({
-      id,
-      status: THREAD_JOB_STATUS_ENUM.IN_PROGRESS,
-    });
-
-    const Attachments = await DataUtils.getAttachmentsByMessageId(id);
-
-    const toEmailList = (bcc || "")
-      .split(",")
-      .concat((to || "").split(","))
-      .map((r) => r.trim())
-      .filter((r) => !!r);
-
-    const nonImageAttachments: Attachment[] = _getNonImagesAttachments(
-      Attachments
-    );
-    const imagesAttachments: Attachment[] = _getImageAttachments(Attachments);
-
-    const labelIdsList = (labelIds || "").split(",");
-
-    const rawBody = (email.rawBody || "").trim();
-
-    const body = email.body || rawBody;
-
-    const toEmailAddresses = toEmailList.join(", ");
-
-    const isEmailSentByMeToMe =
-      isEmailSentByMe &&
-      interestedEmails.some((myEmail) =>
-        toEmailList.some(
-          (toEmail) => toEmail.toLowerCase() === myEmail.toLowerCase()
-        )
-      );
-
-    const hasSomeAttachments =
-      nonImageAttachments.length > 0 ||
-      imagesAttachments.filter((attachment) => attachment.size >= 10000)
-        .length > 0;
-
-    const friendlyDateTimeString1 = moment(parseInt(date) * 1000).format(
-      FORMAT_DATE_TIME1
-    );
-
-    const friendlyDateTimeString2 = moment(parseInt(date) * 1000).format(
-      FORMAT_DATE_TIME2
-    );
-
-    subject = _sanitizeSubject(
-      subject,
-      to,
-      friendlyDateTimeString2,
-      isChat,
-      isEmail
-    );
-
-    let docFileName = `${subject}`;
-
-    const googleFileAppProperties = {
-      id,
-      threadId,
-    };
-
-    // ignored if content contains the ignored patterns
-    let hasIgnoredWordTokens = false;
-    if (
-      ignoredWordTokens.some((ignoredToken) =>
-        rawBody.toLowerCase().includes(ignoredToken.toLowerCase())
-      ) ||
-      ignoredWordTokens.some((ignoredToken) =>
-        `${subject}|||${from}`
-          .toLowerCase()
-          .includes(ignoredToken.toLowerCase())
-      )
-    ) {
-      hasIgnoredWordTokens = true;
-    }
-
-    if (isChat) {
-      const emails = await DataUtils.getEmailsByThreadId(email.threadId);
-
-      // make sure that we only process if this is the last email message
-      if (email.id === emails[emails.length - 1].id){
-        logger.debug(`Process chat threadId=${threadId} id=${id}`);
-        await uploadEmailThreadToGoogleDrive(email.threadId);
-      } else {
-        logger.debug(`Skipped Processing chat due to it not being the last messageId threadId=${threadId} id=${id}`);
-      }
-
-      return; // skip this
-    }
-
-    logger.debug(
-      `Checking to see if we should upload this email threadId=${threadId} id=${id} hasIgnoredWordTokens=${hasIgnoredWordTokens} isEmailSentByMe=${isEmailSentByMe} isEmailSentByMeToMe=${isEmailSentByMeToMe} hasSomeAttachments=${hasSomeAttachments} starred=${starred}`
-    );
-
-    if (hasIgnoredWordTokens && !isEmailSentByMeToMe && !starred) {
-      logger.debug(
-        `Skipped due to Ignored Pattern and this is not email sent to myself and not starred threadId=${threadId} id=${id}`
-      );
-
-      await DataUtils.bulkUpsertEmails({
-        id,
-        status: THREAD_JOB_STATUS_ENUM.SKIPPED,
-      });
-
-      return; // skip this
-    }
-
-    if (
-      isEmailSentByMe ||
-      isEmailSentByMeToMe ||
-      hasSomeAttachments ||
-      starred
-    ) {
-      // create the bucket folder
-      parentFolderName = commonUtils.generateFolderName(from);
-      const starredFolder = parentFolderName.indexOf("_") === 0;
-      folderIdToUse = await googleApiUtils.createDriveFolder({
-        name: parentFolderName,
-        description: `Chats & Emails from ${parentFolderName}`,
-        parentFolderId: noteDestinationFolderId,
-        starred: starredFolder,
-        folderColorRgb: starredFolder ? "#FF0000" : "#0000FF",
-        appProperties: {
-          fromDomain: parentFolderName,
-        },
-      });
-
-      // update the folder id into the database
-      await DataUtils.bulkUpsertFolders({
-        folderName: parentFolderName,
-        driveFileId: folderIdToUse,
-      });
-
-      // upload the doc itself
-      // only log email if there're some content
-      const localPath = `${PROCESSED_EMAIL_PREFIX_PATH}/processed.${email.id}.docx`;
-
-      logger.debug(
-        `Start upload original note threadId=${threadId} id=${id} imageFiles=${imagesAttachments.length} nonImageAttachments=${nonImageAttachments.length}`
-      );
-
-      docFileName = _sanitizeFileName(subject);
-
-      let attachmentLinks = [];
-
-      // upload the associated attachments
-      logger.debug(
-        `Start upload attachment job threadId=${threadId} id=${id} ${nonImageAttachments.length}`
-      );
-      let AttachmentIdx = 0;
-      for (let attachment of nonImageAttachments) {
-        AttachmentIdx++;
-        const attachmentName = _sanitizeFileName(
-          `${docFileName} #${AttachmentIdx} ${attachment.fileName}`
-        );
-
-        logger.debug(
-          `Upload Attachment threadId=${threadId} id=${id} attachmentName=${attachmentName} ${attachment.mimeType}`
-        );
-
-        try {
-          // upload attachment
-          const attachmentSha = commonUtils.get256Hash(attachment.path);
-
-          const attachmentDriveFileId = await googleApiUtils.uploadFile({
-            name: attachmentName,
-            mimeType: attachment.mimeType,
-            localPath: attachment.path,
-            dateEpochTime: parseInt(date) * 1000,
-            description: `
-            Attachment #${AttachmentIdx}
-
-            Date: ${friendlyDateTimeString1}
-
-            From: ${from}
-
-            Subject: ${subject}
-
-            ThreadId: ${threadId}
-
-            MessageId: ${id}
-
-            Path: ${attachment.path}
-
-            SHA:
-            ${attachmentSha}
-            `.trim(),
-            date: date,
-            starred: starred,
-            parentFolderId: folderIdToUse,
-            appProperties: {
-              sha: attachmentSha,
-              ...googleFileAppProperties,
-            },
-          });
-
-          // retain the attachment links to be put inside the doc later
-          attachmentLinks.push(
-            `
-          ${attachment.fileName}
-          drive.google.com/file/d/${attachmentDriveFileId}
-          `.trim()
-          );
-
-          logger.debug(
-            `Link to Attachment threadId=${threadId} id=${id} attachmentName=${attachmentName} attachmentLink=drive.google.com/file/d/${attachmentDriveFileId}`
-          );
-
-          await DataUtils.bulkUpsertAttachments({
-            path: attachment.path,
-            driveFileId: attachmentDriveFileId,
-          });
-        } catch (err) {
-          logger.error(
-            `Error - Failed upload attachment - threadId=${threadId} id=${id} attachmentName=${attachmentName} ${
-              attachment.mimeType
-            } path=${attachment.path} error=${JSON.stringify(err.stack || err)}`
-          );
-        }
-      }
-
-      // upload original doc
-      const docSha = commonUtils.get256Hash(localPath);
-      try {
-        const gmailLink = from.includes("getpocket")
-          ? ""
-          : `Link: mail.google.com/mail/u/0/#search/messageid/${id}`;
-
-        let originalDocBody = `
-          ================================
-          ThreadId: ${threadId}
-          MessageId: ${id}
-          Date: ${friendlyDateTimeString1} (Uploaded ${moment().format(
-          FORMAT_DATE_TIME1
-        )})
-          ${gmailLink}
-          From: ${from}
-          To: ${toEmailAddresses}
-          ================================
-          ${body}
-          `.trim();
-
-        if (attachmentLinks.length > 0) {
-          // append the original link section
-          originalDocBody += `
-          ================================
-          Attachments: ${nonImageAttachments.length}
-
-          ${attachmentLinks.join("\n\n")}
-          ================================
-          `;
-        }
-
-        await generateDocFile(
-          rawSubject,
-          {
-            body: originalDocBody,
-            images: imagesAttachments,
-          },
-          localPath
-        );
-
-        logger.debug(`Upload original note file ${docFileName}`);
-
-        // upload original doc
-        docDriveFileId = await googleApiUtils.uploadFile({
-          name: docFileName,
-          mimeType: MIME_TYPE_ENUM.APP_MS_DOCX,
-          dateEpochTime: parseInt(date) * 1000,
-          localPath: localPath,
-          description: `
-            Main Email
-            Date: ${friendlyDateTimeString1}
-
-            From: ${from}
-
-            Subject: ${subject}
-
-            ThreadId: ${threadId}
-
-            MessageId: ${id}
-
-            Attachment: ${nonImageAttachments.length}
-
-            SHA: ${docSha}
-            `.trim(),
-          date: date,
-          starred: starred,
-          parentFolderId: folderIdToUse,
-          appProperties: {
-            sha: docSha,
-            ...googleFileAppProperties,
-          },
-        });
-      } catch (err) {
-        logger.error(
-          `Error - Failed to upload original note - threadId=${threadId} id=${id} attachmentName=${docFileName} localPath=${localPath} error=${JSON.stringify(
-            err.stack || err
-          )}`
-        );
-      }
-
-      await DataUtils.bulkUpsertEmails({
-        id: id,
-        status: THREAD_JOB_STATUS_ENUM.SUCCESS,
-        driveFileId: docDriveFileId,
-      });
-
-      if (docDriveFileId) {
-        logger.debug(
-          `Link to google doc threadId=${threadId} id=${id} attachmentLinks=${attachmentLinks.length} docLink=docs.google.com/document/d/${docDriveFileId} parentFolderName=${parentFolderName} parentFolderLink=drive.google.com/drive/folders/${folderIdToUse}`
-        );
-      } else {
-        logger.debug(
-          `No Link was created for google doc threadId=${threadId} id=${id}`
-        );
-      }
-    } else {
-      logger.debug(`Skipped threadId=${threadId} id=${id}`);
-
-      await DataUtils.bulkUpsertEmails({
-        id,
-        status: THREAD_JOB_STATUS_ENUM.SKIPPED,
-      });
-    }
-
-    return docDriveFileId;
-  } catch (err) {
-    logger.error(
-      `Failed to upload emails with threadId=${email.threadId} messageId=${
-        email.id
-      } error=${JSON.stringify(err.stack || err)}`
-    );
-
-    await DataUtils.bulkUpsertEmails({
-      id: id,
-      status: THREAD_JOB_STATUS_ENUM.ERROR_GENERIC,
-    });
-  }
-}
-
 export async function uploadEmailMsgToGoogleDrive(messageId) {
   await _init();
   const email = await DataUtils.getEmailByMessageId(messageId);
   if (email) {
-    return _processThreadEmail(email);
+    const threadId = email.threadId;
+
+    const emails = await DataUtils.getEmailsByThreadId(threadId);
+
+    // make sure that we only process if this is the last email message
+    if (email.id === emails[emails.length - 1].id) {
+      logger.debug(
+        `Start uploadEmailMsgToGoogleDrivethreadId=${threadId} id=${messageId}`
+      );
+      return uploadEmailThreadToGoogleDrive(threadId);
+    } else {
+      logger.debug(
+        `Skipped uploadEmailMsgToGoogleDrive due to it not being the last messageId threadId=${threadId} id=${messageId}`
+      );
+    }
   } else {
-    logger.error(`Cannot find message with messageId=${messageId}`);
+    logger.error(`Error with uploadEmailMsgToGoogleDrive Cannot find message with messageId=${messageId}`);
   }
 }
 
 async function _processThreads(threadId, emails: Email[]) {
+  let folderName;
   let folderId;
   let docDriveFileId;
   let docFileName;
@@ -651,7 +298,7 @@ async function _processThreads(threadId, emails: Email[]) {
 
     if (!folderId) {
       // create the parent folder
-      const folderName = isChat
+      folderName = isChat
         ? "_chats"
         : commonUtils.generateFolderName(email.from);
       folderId = await googleApiUtils.createDriveFolder({
@@ -725,7 +372,13 @@ async function _processThreads(threadId, emails: Email[]) {
     }
   }
 
+  logger.debug(
+    `Checking to see if we should sync to google drive threadId=${threadId} isEmailSentByMe=${isEmailSentByMe} isEmailSentByMeToMe=${isEmailSentByMeToMe} hasSomeAttachments=${hasSomeAttachments}`
+  );
+
   if (isEmailSentByMe || isEmailSentByMeToMe || hasSomeAttachments) {
+    logger.debug(`Doing Sync to Google Drive threadId=${threadId}`);
+
     emailAddresses = [...new Set(emailAddresses)];
 
     // upload attachments
@@ -855,10 +508,8 @@ async function _processThreads(threadId, emails: Email[]) {
       },
     });
 
-
-
     logger.debug(
-      `Link to google doc threadId=${threadId} docLink=docs.google.com/document/d/${docDriveFileId}  parentFolderLink=drive.google.com/drive/folders/${folderId}`
+      `Link to google doc threadId=${threadId} docLink=docs.google.com/document/d/${docDriveFileId}  parentFolderLink=drive.google.com/drive/folders/${folderId} folderName=${folderName} attachmentLinks=${attachmentLinks.length}`
     );
 
     await DataUtils.bulkUpsertEmails(
@@ -871,6 +522,8 @@ async function _processThreads(threadId, emails: Email[]) {
       })
     );
   } else {
+    logger.debug(`Skipped Sync to Google Drive threadId=${threadId}`);
+
     await DataUtils.bulkUpsertEmails(
       emails.map((email) => {
         return {
@@ -881,13 +534,15 @@ async function _processThreads(threadId, emails: Email[]) {
       })
     );
   }
+
+  return docDriveFileId;
 }
 
 export async function uploadEmailThreadToGoogleDrive(threadId) {
   await _init();
   const emails = await DataUtils.getEmailsByThreadId(threadId);
   if (emails.length > 0) {
-    await _processThreads(threadId, emails);
+    return _processThreads(threadId, emails);
   } else {
     logger.error(`Cannot find message with threadId=${threadId}`);
   }
