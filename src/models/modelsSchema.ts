@@ -153,7 +153,7 @@ export class Email extends Model {
   // @attribute(Email, { type: DataTypes.TEXT })
   // headers!: string;
 
-  static transform(email){
+  static transform(email) {
     email.isEmailSentByMe = !!email.isEmailSentByMe;
     email.isChat = !!email.isChat;
     email.isEmail = !!email.isEmail;

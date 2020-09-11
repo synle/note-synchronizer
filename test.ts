@@ -146,14 +146,28 @@ async function _doWork7() {
   // const threadId = "140885a4be3eaf1a";
   // await gdriveCrawler.uploadEmailThreadToGoogleDrive(threadId);
 
-  await gdriveCrawler.uploadEmailMsgToGoogleDrive("14199ee7acc840f9");
+  // await gdriveCrawler.uploadEmailMsgToGoogleDrive("14199ee7acc840f9");
+  // await gdriveCrawler.uploadEmailMsgToGoogleDrive("13fc52381e59a001");
+  // await gdriveCrawler.uploadEmailMsgToGoogleDrive("13a3ce255c265bad");
+
+
+  // await gmailCrawler.processMessagesByThreadId("17324ffd0c280b31");
+  // await gdriveCrawler.uploadEmailThreadToGoogleDrive("17324ffd0c280b31");
+
+  await gmailCrawler.processMessagesByThreadId("158921855d8011d9");
+  await gdriveCrawler.uploadEmailThreadToGoogleDrive("158921855d8011d9");
 }
 
-//
-//_doWork0();
-// _doWork6();
-//_doWork3();
-//_doWork4();
-//_doWork7();
+async function _start() {
+  //
+  //await _doWork0();
+  // await _doWork6();
+  //await _doWork3();
+  //await _doWork4();
+  //await _doWork7();
 
-_doWork7();
+  await _doWork7();
+  process.exit();
+}
+
+_start();

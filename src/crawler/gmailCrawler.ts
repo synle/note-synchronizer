@@ -136,16 +136,10 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
             const fileName = part.filename;
 
             logger.debug(
-              `Parsing Part of Message: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`
+              `Parsing Part of Message: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType} size=${size}`
             );
 
-            if (size === 0) {
-              // no body or data
-              logger.debug(
-                `Skipped Part: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`
-              );
-              continue;
-            } else if (attachmentId) {
+            if (attachmentId) {
               logger.debug(
                 `Download Message Attachment Async: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType} attachmentId=${attachmentId}`
               );
@@ -182,7 +176,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
             } else {
               // regular file
               logger.debug(
-                `Parsing Message as Raw Content: threadId=${threadId} id=${id} partId=${partId}`
+                `Parsing Message as Raw Content: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`
               );
 
               switch (mimeType) {
@@ -224,12 +218,18 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                   break;
 
                 case MIME_TYPE_ENUM.TEXT_PLAIN:
+                  logger.debug(
+                    `Found rawBodyPlain for id=${id} partId=${partId} `
+                  );
                   rawBodyPlain = data;
                   break;
 
                 case MIME_TYPE_ENUM.TEXT_X_AMP_HTML:
                 case MIME_TYPE_ENUM.TEXT_HTML:
                   rawBodyHtml = data;
+                  logger.debug(
+                    `Found rawBodyHtml for id=${id} partId=${partId} `
+                  );
                   break;
               }
             }
@@ -291,14 +291,13 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               );
 
               subject = `${rawSubject} ${websiteRes.subject}`;
-              body = tryParseBody(
+              body =
                 `
-              <div>${rawBodyPlain}</div>
-              <div>================================</div>
-              <div>${websiteRes.subject}</div>
-              <div>${urlToCrawl}</div>
-            `
-              );
+                  <div>${rawBodyPlain}</div>
+                  <div>================================</div>
+                  <div>${websiteRes.subject}</div>
+                  <div>${urlToCrawl}</div>
+                `
             } catch (err) {
               logger.debug(
                 `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
@@ -321,15 +320,13 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               );
 
               subject = `${rawSubject} ${websiteRes.subject}`;
-              body = tryParseBody(
+              body =
                 `
-              <div>${rawBodyPlain}</div>
-              <div>================================</div>
-              <div>${websiteRes.subject}</div>
-              <div>${urlToCrawl}</div>
-            `,
-                `id=${id} url=${urlToCrawl}`
-              );
+                  <div>${rawBodyPlain}</div>
+                  <div>================================</div>
+                  <div>${websiteRes.subject}</div>
+                  <div>${urlToCrawl}</div>
+                `;
             } catch (err) {
               logger.debug(
                 `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
@@ -339,12 +336,15 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           }
         }
 
+        body = tryParseBody(body || rawBodyPlain || rawBodyHtml || snippet) || '';
+        rawBody = rawBodyHtml || rawBodyPlain || snippet || "";
+
         const messageToSave = {
           id,
           threadId,
           status: THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE,
-          body: body || snippet || null,
-          rawBody: rawBodyHtml || snippet || null,
+          body,
+          rawBody,
           subject: truncate(subject, {
             length: 250,
           }),
@@ -595,8 +595,8 @@ export function _parseBodyWithHtml(html) {
     // replace anchors href with links
     const anchors = dom.window.document.querySelectorAll("a");
     for (const anchor of anchors) {
-      const url = anchors[0].getAttribute("href");
-      if (url.includes("http")) {
+      const url = anchor.getAttribute("href");
+      if (url && url.includes("http")) {
         anchor.innerText = url;
       }
     }
