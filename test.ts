@@ -142,20 +142,19 @@ async function _doWork6() {
 
 async function _doWork7() {
   await _init();
-  // // const threadId = "128205fe247fbde5";
-  // const threadId = "140885a4be3eaf1a";
-  // await gdriveCrawler.uploadEmailThreadToGoogleDrive(threadId);
 
-  // await gdriveCrawler.uploadEmailMsgToGoogleDrive("14199ee7acc840f9");
-  // await gdriveCrawler.uploadEmailMsgToGoogleDrive("13fc52381e59a001");
-  // await gdriveCrawler.uploadEmailMsgToGoogleDrive("13a3ce255c265bad");
+  async function _fetchParseAndSync(threadId) {
+    try {
+      await gmailCrawler.fetchRawContentsByThreadId(threadId);
+      await gmailCrawler.processMessagesByThreadId(threadId);
+      await gdriveCrawler.uploadEmailThreadToGoogleDrive(threadId);
+    } catch (er) {}
+  }
 
-
-  // await gmailCrawler.processMessagesByThreadId("17324ffd0c280b31");
-  // await gdriveCrawler.uploadEmailThreadToGoogleDrive("17324ffd0c280b31");
-
-  await gmailCrawler.processMessagesByThreadId("158921855d8011d9");
-  await gdriveCrawler.uploadEmailThreadToGoogleDrive("158921855d8011d9");
+  await _fetchParseAndSync("14199ee7acc840f9");
+  await _fetchParseAndSync("13fc454319136988");
+  await _fetchParseAndSync("13a3ce255c265bad");
+  await _fetchParseAndSync("17324ffd0c280b31");
 }
 
 async function _start() {

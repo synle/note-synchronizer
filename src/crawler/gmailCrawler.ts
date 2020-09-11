@@ -130,10 +130,24 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
         const parts = googleApiUtils.flattenGmailPayloadParts(message.payload);
         if (parts && parts.length > 0) {
           for (let part of parts) {
-            const { mimeType, partId } = part;
-
+            let { mimeType, partId } = part;
             const { size, attachmentId, data } = part.body;
-            const fileName = part.filename;
+            const partHeaders = _getHeaders(part.headers || []);
+            const fileName =
+              part.filename || `parts.${threadId}.${id}.${partId || ""}`;
+            const partHeaderContentId = partHeaders["content-id"];
+
+            if (
+              mimeType === MIME_TYPE_ENUM.APP_OCTLET_STREAM &&
+              partHeaderContentId
+            ) {
+              if (partHeaderContentId.toLowerCase().includes("uniqueimageid")) {
+                logger.debug(
+                  `Remapped Oclet Stream to Image threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType} size=${size}`
+                );
+                mimeType = MIME_TYPE_ENUM.IMAGE_JPEG;
+              }
+            }
 
             logger.debug(
               `Parsing Part of Message: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType} size=${size}`
@@ -162,7 +176,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                       mimeType: attachment.mimeType,
                       fileName: attachment.fileName,
                       path: attachmentPath,
-                      headers: JSON.stringify(_getHeaders(part.headers || [])),
+                      headers: JSON.stringify(partHeaders),
                       size: fs.statSync(attachmentPath).size,
                       inline: 0,
                     });
@@ -197,21 +211,18 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                     `Storing Inline Attachment: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`
                   );
 
-                  const inlineFileName =
-                    fileName || `parts.${threadId}.${id}.${partId || ""}`;
-
-                  const newFilePath = `${GMAIL_ATTACHMENT_PATH}/${inlineFileName}`;
+                  const newFilePath = `${GMAIL_ATTACHMENT_PATH}/${fileName}`;
 
                   _saveBase64DataToFile(newFilePath, data);
 
                   attachmentsToSave.push({
-                    id: inlineFileName,
+                    id: fileName,
                     threadId,
                     messageId: id,
                     mimeType: mimeType,
-                    fileName: inlineFileName,
+                    fileName: fileName,
                     path: newFilePath,
-                    headers: JSON.stringify(_getHeaders(part.headers || [])),
+                    headers: JSON.stringify(partHeaders),
                     size: fs.statSync(newFilePath).size,
                     inline: 1,
                   });
@@ -291,13 +302,12 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               );
 
               subject = `${rawSubject} ${websiteRes.subject}`;
-              body =
-                `
+              body = `
                   <div>${rawBodyPlain}</div>
                   <div>================================</div>
                   <div>${websiteRes.subject}</div>
                   <div>${urlToCrawl}</div>
-                `
+                `;
             } catch (err) {
               logger.debug(
                 `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
@@ -320,8 +330,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               );
 
               subject = `${rawSubject} ${websiteRes.subject}`;
-              body =
-                `
+              body = `
                   <div>${rawBodyPlain}</div>
                   <div>================================</div>
                   <div>${websiteRes.subject}</div>
@@ -336,7 +345,8 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           }
         }
 
-        body = tryParseBody(body || rawBodyPlain || rawBodyHtml || snippet) || '';
+        body =
+          tryParseBody(body || rawBodyPlain || rawBodyHtml || snippet) || "";
         rawBody = rawBodyHtml || rawBodyPlain || snippet || "";
 
         const messageToSave = {
