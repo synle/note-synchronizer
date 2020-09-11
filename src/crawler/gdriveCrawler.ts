@@ -291,7 +291,6 @@ async function _processThreadEmail(email: Email) {
         logger.debug(`Skipped Processing chat due to it not being the last messageId threadId=${threadId} id=${id}`);
       }
 
-
       return; // skip this
     }
 
@@ -706,6 +705,10 @@ async function _processThreads(threadId, emails: Email[]) {
         });
       }
 
+      const gmailLink = email.from.includes("getpocket")
+        ? ""
+        : `Link:\nhttp://mail.google.com/mail/u/0/#search/messageid/${email.id}`;
+
       docContentSections.push({
         body: `
         ================================
@@ -713,6 +716,7 @@ async function _processThreads(threadId, emails: Email[]) {
         From: ${email.from}
         To: ${toEmailAddresses}
         MessageId: ${email.id}
+        ${gmailLink}
         ================================
         ${email.body || email.rawBody}
       `,
@@ -724,51 +728,9 @@ async function _processThreads(threadId, emails: Email[]) {
   if (isEmailSentByMe || isEmailSentByMeToMe || hasSomeAttachments) {
     emailAddresses = [...new Set(emailAddresses)];
 
-    const docLocalPath = `${PROCESSED_EMAIL_PREFIX_PATH}/processed.threadId.${threadId}.docx`;
-
-    await generateDocFile(docFileName, docContentSections, docLocalPath);
-
-    const docSha = commonUtils.get256Hash(`${threadId}.mainEmail`);
-
-    docDriveFileId = await googleApiUtils.uploadFile({
-      name: docFileName,
-      mimeType: MIME_TYPE_ENUM.APP_MS_DOCX,
-      dateEpochTime: parseInt(date) * 1000,
-      localPath: docLocalPath,
-      description: `
-    Main Email
-    From:
-    ${from}
-
-    Date: ${dateStart} - ${dateEnd}
-
-    Path:
-    ${docLocalPath}
-
-    SHA:
-    ${docSha}
-
-    ThreadId:
-    ${threadId}
-    `
-        .split("\n")
-        .map((r) => r.trim())
-        .join("\n"),
-      date,
-      starred,
-      parentFolderId: folderId,
-      appProperties: {
-        sha: docSha,
-        ...googleFileAppProperties,
-      },
-    });
-
-    logger.debug(
-      `Link to google doc threadId=${threadId} docLink=docs.google.com/document/d/${docDriveFileId}  parentFolderLink=drive.google.com/drive/folders/${folderId}`
-    );
-
     // upload attachments
     let attachmentIdx = 1;
+    let attachmentLinks = [];
     for (let attachment of allNonImageAttachments) {
       attachmentIdx++;
       const attachmentName = _sanitizeFileName(
@@ -780,9 +742,7 @@ async function _processThreads(threadId, emails: Email[]) {
       );
 
       try {
-        // upload attachment
         const attachmentSha = commonUtils.get256Hash(attachment.path);
-
         const attachmentDriveFileId = await googleApiUtils.uploadFile({
           name: attachmentName,
           mimeType: attachment.mimeType,
@@ -819,6 +779,18 @@ async function _processThreads(threadId, emails: Email[]) {
           },
         });
 
+        // retain the attachment links to be put inside the doc later
+        attachmentLinks.push(
+          `
+        ${attachment.fileName}
+        http://drive.google.com/file/d/${attachmentDriveFileId}
+        `.trim()
+        );
+
+        logger.debug(
+          `Link to Attachment threadId=${threadId} attachmentName=${attachmentName} attachmentLink=drive.google.com/file/d/${attachmentDriveFileId}`
+        );
+
         await DataUtils.bulkUpsertAttachments({
           path: attachment.path,
           driveFileId: attachmentDriveFileId,
@@ -831,6 +803,63 @@ async function _processThreads(threadId, emails: Email[]) {
         );
       }
     }
+
+    // then upload original docs
+    const docLocalPath = `${PROCESSED_EMAIL_PREFIX_PATH}/processed.threadId.${threadId}.docx`;
+
+    if (attachmentLinks.length > 0) {
+      // append attachment link
+      docContentSections.push({
+        body: `
+          ================================
+          Attachments: ${nonImageAttachments.length}
+
+          ${attachmentLinks.join("\n\n")}
+          ================================
+        `
+      })
+    }
+
+    await generateDocFile(docFileName, docContentSections, docLocalPath);
+    const docSha = commonUtils.get256Hash(`${threadId}.mainEmail`);
+    docDriveFileId = await googleApiUtils.uploadFile({
+      name: docFileName,
+      mimeType: MIME_TYPE_ENUM.APP_MS_DOCX,
+      dateEpochTime: parseInt(date) * 1000,
+      localPath: docLocalPath,
+      description: `
+    Main Email
+    From:
+    ${from}
+
+    Date: ${dateStart} - ${dateEnd}
+
+    Path:
+    ${docLocalPath}
+
+    SHA:
+    ${docSha}
+
+    ThreadId:
+    ${threadId}
+    `
+        .split("\n")
+        .map((r) => r.trim())
+        .join("\n"),
+      date,
+      starred,
+      parentFolderId: folderId,
+      appProperties: {
+        sha: docSha,
+        ...googleFileAppProperties,
+      },
+    });
+
+
+
+    logger.debug(
+      `Link to google doc threadId=${threadId} docLink=docs.google.com/document/d/${docDriveFileId}  parentFolderLink=drive.google.com/drive/folders/${folderId}`
+    );
 
     await DataUtils.bulkUpsertEmails(
       emails.map((email) => {
