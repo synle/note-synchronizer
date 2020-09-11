@@ -109,6 +109,12 @@
         <option value="true">Search logs (TIME DESC)</option>
         <option value="false">Search logs (TIME ASC)</option>
       </select>
+      <select id="input-logs-auto-update" value="true">
+        <option value="0">Manual</option>
+        <option value="3000">Every 3s</option>
+        <option value="5000">Every 5s</option>
+        <option value="10000">Every 10s</option>
+      </select>
       <input
         id="input-search"
         placeholder="Keyword to Search"
@@ -262,93 +268,107 @@
     });
 
     const searchLogs = _wrapWork(async function searchLogs(targetEl) {
+      clearInterval(intervalRefreshLog);
+
       const searchKeyword = targetEl
         .querySelector("#input-search")
         .value.trim();
       const sortLogsAsc =
         targetEl.querySelector("#input-logs-sort").value === "true";
 
+      const autoUpdateLogs = targetEl.querySelector("#input-logs-auto-update").value;
+
       targetEl.querySelector("#output-logs").innerText = "";
+      if (autoUpdateLogs > 0) {
+        intervalRefreshLog = setInterval(_updateLogs, autoUpdateLogs);
+        _updateLogs();
+      } else {
+        _updateLogs();
+      }
 
-      try {
-        const result = await fetch(`/api/logs`, {
-          method: "post",
-          body: JSON.stringify({
-            search: searchKeyword,
-            limit: 100000,
-          }),
-        }).then((res) => res.json());
+      async function _updateLogs() {
+        try {
+          const result = await fetch(`/api/logs`, {
+            method: "post",
+            body: JSON.stringify({
+              search: searchKeyword,
+              limit: 100000,
+            }),
+          }).then((res) => res.json());
 
-        let newContent = (result.msg || ">> Not found")
-          .split("\n")
-          .map((msg) => {
-            try {
-              msg = escape(msg)
-                .replace(
-                  /\d\d\/\d\d \d\d:\d\d:\d\d[AP]M \[[A-Za-z]\]/,
-                  function (m) {
-                    if (m.indexOf("[E]") >= 0) {
-                      return `<b class="red">${m}</b>`;
+          let newContent = (result.msg || ">> Not found")
+            .split("\n")
+            .map((msg) => {
+              try {
+                msg = escape(msg)
+                  .replace(
+                    /\d\d\/\d\d \d\d:\d\d:\d\d[AP]M \[[A-Za-z]\]/,
+                    function (m) {
+                      if (m.indexOf("[E]") >= 0) {
+                        return `<b class="red">${m}</b>`;
+                      }
+                      if (m.indexOf("[D]") >= 0) {
+                        return `<b class="lightgray">${m}</b>`;
+                      }
+                      return `<b class="green">${m}</b>`;
                     }
-                    if (m.indexOf("[D]") >= 0) {
-                      return `<b class="lightgray">${m}</b>`;
+                  )
+                  .replace(
+                    /[_a-zA-Z0-9./-]+.(com|org|edu|net)[_a-zA-Z0-9./-]+/gi,
+                    '<b><a href="http://$&" target="_blank">$&</a></b>'
+                  )
+                  .replace(/[a-zA-Z0-9]+=[a-zA-Z0-9_\-/.]+/g, function (m) {
+                    const colors = [
+                      "blue",
+                      "green",
+                      "gray",
+                      "purple",
+                      "tomato",
+                      "maroon",
+                      "olive",
+                      "teal",
+                      "fuchsia",
+                    ];
+
+                    const prefix = m.substr(0, m.indexOf("="));
+                    if (!colorMap[prefix]) {
+                      colorMap[prefix] = colors[++colorIdx % colors.length];
                     }
-                    return `<b class="green">${m}</b>`;
-                  }
-                )
-                .replace(
-                  /[_a-zA-Z0-9./-]+.(com|org|edu|net)[_a-zA-Z0-9./-]+/gi,
-                  '<b><a href="http://$&" target="_blank">$&</a></b>'
-                )
-                .replace(/[a-zA-Z0-9]+=[a-zA-Z0-9_\-/.]+/g, function (m) {
-                  const colors = [
-                    "blue",
-                    "green",
-                    "gray",
-                    "purple",
-                    "tomato",
-                    "maroon",
-                    "olive",
-                    "teal",
-                    "fuchsia",
-                  ];
+                    const colorToUse = colorMap[prefix];
+                    return `<b class="${colorToUse}">${m}</b>`;
+                  })
+                  .replace(/(error|failed|fail)/gi, function (m) {
+                    return `<b class="red">${m}</b>`;
+                  })
+                  .replace(
+                    /(success|succeed|done|finished|finish)/gi,
+                    function (m) {
+                      return `<b class="green">${m}</b>`;
+                    }
+                  )
+                  .replace(
+                    new RegExp(searchKeyword + " ", "gi"),
+                    '<b style="background:yellow"><u>$&</u></b>'
+                  )
+                  .trim();
+              } catch (e) {
+                console.log(e);
+              }
 
-                  const prefix = m.substr(0, m.indexOf("="));
-                  if (!colorMap[prefix]) {
-                    colorMap[prefix] = colors[++colorIdx % colors.length];
-                  }
-                  const colorToUse = colorMap[prefix];
-                  return `<b class="${colorToUse}">${m}</b>`;
-                })
-                .replace(/(error|failed|fail)/gi, function (m) {
-                  return `<b class="red">${m}</b>`;
-                })
-                .replace(/(success|succeed|done|finished|finish)/gi, function (
-                  m
-                ) {
-                  return `<b class="green">${m}</b>`;
-                })
-                .replace(
-                  new RegExp(searchKeyword + " ", "gi"),
-                  '<b style="background:yellow"><u>$&</u></b>'
-                )
-                .trim();
-            } catch (e) {
-              console.log(e);
-            }
+              return `<div>${msg}</div>`;
+            });
 
-            return `<div>${msg}</div>`;
-          });
+          if (sortLogsAsc) {
+            newContent = newContent.reverse();
+          }
 
-        if (sortLogsAsc) {
-          newContent = newContent.reverse();
-        }
-
-        targetEl.querySelector("#output-logs").innerHTML = `<div>${
-          newContent.length
-        } Lines</div>${newContent.join("")}`;
-      } catch (err) {}
+          targetEl.querySelector("#output-logs").innerHTML = `<div>${
+            newContent.length
+          } Lines</div>${newContent.join("")}`;
+        } catch (err) {}
+      }
     });
+    let intervalRefreshLog;
 
     function escape(s) {
       return s

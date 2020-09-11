@@ -825,7 +825,7 @@ export async function fetchRawContentsByThreadId(threadIds) {
 
         let to;
         to = _parseEmailAddressList(headers.to);
-        if(to.length === 0){
+        if (to.length === 0) {
           to = _parseEmailAddressList(headers["delivered-to"]);
         }
 
