@@ -316,13 +316,6 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
         }
         rawBody = (rawBody || snippet || "").trim();
         let strippedDownBody = rawBody;
-
-        // trim the signatures
-        for (let signature of mySignatureTokens) {
-          strippedDownBody = strippedDownBody.replace(signature, "");
-        }
-        strippedDownBody = strippedDownBody.trim();
-
         let body = strippedDownBody;
 
         let urlToCrawl;
@@ -696,7 +689,7 @@ export function _parseBodyWithHtml(html) {
 
 export function tryParseBody(rawBody) {
   rawBody = (rawBody || "").trim();
-  return (
+  let result = (
     _parseBodyWithHtml(rawBody) ||
     _parseBodyWithText(rawBody) ||
     rawBody ||
@@ -708,6 +701,15 @@ export function tryParseBody(rawBody) {
     .join("\n")
     .replace(/[-][-][-][-][-]*/gi, "================================\n")
     .replace(/[\*][\*][\*][\*][\*]*/gi, "================================\n");
+
+
+
+  // remove signatures
+  for (let signature of mySignatureTokens) {
+    result = result.replace(new RegExp(signature, "gi"), "");
+  }
+
+  return result;
 }
 
 export function parsePageTitle(html) {
