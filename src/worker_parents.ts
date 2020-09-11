@@ -39,15 +39,15 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
   });
   worker.on("message", (data: WorkActionResponse) => {
     if (data.success) {
-      console.debug(
-        "Worker Thread Done",
-        myThreadName,
-        `action=${data.action}`,
-        `id=${data.id}`,
-        `extra=${data.extra}`
+      logger.debug(
+        `Worker Thread Done worker=${myThreadName} action=${data.action} id=${data.id} extra=${data.extra}`
       );
     } else {
-      console.error("Worker Thread Failed", myThreadName, data.error, data);
+      logger.error(
+        `Worker Thread Failed worker=${myThreadName} action=${
+          data.action
+        } error=${data.error.stack || data.error} data=${JSON.stringify(data)}`
+      );
     }
 
     workerGroup[myThreadId].status = WORKER_STATUS_ENUM.FREE;
@@ -85,7 +85,7 @@ function _setupWorkers(inputThreadToSpawn) {
   numThreadsToSpawn = Math.min(inputThreadToSpawn, 40);
 
   logger.debug(
-    `Starting work: action=${action} maxWorkers=${numThreadsToSpawn}`
+    `Starting work action=${action} maxWorkers=${numThreadsToSpawn}`
   );
 
   while (numThreadsToSpawn > 0) {

@@ -136,12 +136,12 @@ export default async () => {
     Models[modelName].getAll = async (...inputs) => {
       const transform = Models[modelName].transform;
 
-      if(transform){
+      if (transform) {
         const items = await Models[modelName].findAll(...inputs);
-        return items.map(transform)
+        return items.map(transform);
       }
       return Models[modelName].findAll(...inputs);
-    }
+    };
 
     Models[modelName].getOne = async (...inputs) => {
       const items = await Models[modelName].getAll(...inputs);
