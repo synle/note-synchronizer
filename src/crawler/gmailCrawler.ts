@@ -687,7 +687,9 @@ export function tryParseBody(rawBody) {
     .split("\n")
     .map((r) => r.trim())
     .filter((r) => !!r)
-    .join("\n");
+    .join("\n")
+    .replace(/[-][-][-][-][-]*/gi, "================================\n")
+    .replace(/[\*][\*][\*][\*][\*]*/gi, "================================\n");
 }
 
 export function parsePageTitle(html) {
@@ -802,7 +804,13 @@ export async function fetchRawContentsByThreadId(threadIds) {
         const from = headers.from.includes("profiles.google.com")
           ? headers.from.substr(0, headers.from.indexOf("<")).trim()
           : _parseEmailAddress(headers.from) || headers.from;
-        const to = _parseEmailAddressList(headers.to);
+
+        let to;
+        to = _parseEmailAddressList(headers.to);
+        if(to.length === 0){
+          to = _parseEmailAddressList(headers["delivered-to"]);
+        }
+
         const bcc = _parseEmailAddressList(headers.bcc);
         const rawSubject = (headers.subject || `${from} ${id}`).trim();
 

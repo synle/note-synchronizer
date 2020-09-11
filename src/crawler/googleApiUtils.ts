@@ -439,8 +439,17 @@ export function updateFileInDrive(fileId, resource, media) {
     driveApiInstance.files.update(
       {
         fileId,
-        media,
         fields: "id",
+        media,
+        requestBody: {
+          name: resource.name,
+          description: resource.description,
+          starred: resource.starred,
+          useContentAsIndexableText: resource.useContentAsIndexableText,
+          enforceSingleParent: resource.enforceSingleParent,
+          keepRevisionForever: resource.keepRevisionForever,
+          appProperties: resource.appProperties,
+        },
       },
       function (err, res) {
         if (err) {
@@ -716,11 +725,11 @@ export async function uploadFile({
   }
 
   console.debug(
-    "Upload file with operation",
-    foundFileId ? "Update" : "Create",
-    `parent=${parentFolderId}`,
-    name,
-    `fileId=${foundFileId || ""}`
+    `Upload file with ${
+      foundFileId ? "UPDATE" : "CREATE"
+    } parent=${parentFolderId} fileName=${name} fileId=${
+      foundFileId || ""
+    } fileGDriveMetadata=${JSON.stringify(fileGDriveMetadata)}`
   );
 
   if (foundFileId) {
