@@ -281,9 +281,16 @@ async function _processThreadEmail(email: Email) {
     }
 
     if (isChat) {
-      logger.debug(`Process chat threadId=${threadId} id=${id}`);
+      const emails = await DataUtils.getEmailsByThreadId(email.threadId);
 
-      await uploadEmailThreadToGoogleDrive(email.threadId);
+      // make sure that we only process if this is the last email message
+      if (email.id === emails[emails.length - 1].id){
+        logger.debug(`Process chat threadId=${threadId} id=${id}`);
+        await uploadEmailThreadToGoogleDrive(email.threadId);
+      } else {
+        logger.debug(`Skipped Processing chat due to it not being the last messageId threadId=${threadId} id=${id}`);
+      }
+
 
       return; // skip this
     }
