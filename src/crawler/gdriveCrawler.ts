@@ -5,6 +5,7 @@ import fs from "fs";
 import moment from "moment";
 import startCase from "lodash/startCase";
 import trim from "lodash/trim";
+import getImageSize from "image-size";
 
 import { Document, Media, Packer, Paragraph, HeadingLevel } from "docx";
 
@@ -24,7 +25,9 @@ import * as commonUtils from "./commonUtils";
 import * as DataUtils from "./dataUtils";
 
 let noteDestinationFolderId;
+
 const MIN_SUBJECT_LENGTH = 10;
+const IMAGE_MAX_WIDTH = 710;
 
 function _sanitizeSubject(
   subject,
@@ -126,11 +129,17 @@ export async function generateDocFile(subject, sections, newFileName) {
       );
 
       for (const attachment of images) {
+        const attachmentImageSize = getImageSize(attachment.path);
+        let ratio = attachmentImageSize.height / attachmentImageSize.width;
+        if(ratio <= 0){
+          ratio = 1;
+        }
+
         const attachmentImage = Media.addImage(
           doc,
           fs.readFileSync(attachment.path),
-          700,
-          800
+          IMAGE_MAX_WIDTH, // width
+          IMAGE_MAX_WIDTH * ratio // height
         );
         children.push(
           new Paragraph({
