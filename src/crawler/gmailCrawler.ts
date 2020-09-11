@@ -138,14 +138,21 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
             const partHeaderContentId = partHeaders["content-id"];
 
             if (
-              mimeType === MIME_TYPE_ENUM.APP_OCTLET_STREAM &&
-              partHeaderContentId
+              mimeType === MIME_TYPE_ENUM.APP_OCTLET_STREAM
             ) {
-              if (partHeaderContentId.toLowerCase().includes("uniqueimageid")) {
-                logger.debug(
-                  `Remapped Oclet Stream to Image threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType} size=${size}`
-                );
-                mimeType = MIME_TYPE_ENUM.IMAGE_JPEG;
+              if(partHeaderContentId){
+                if (
+                  partHeaderContentId.toLowerCase().includes("uniqueimageid")
+                ) {
+                  logger.debug(
+                    `Remapped Oclet Stream to Image threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType} size=${size}`
+                  );
+                  mimeType = MIME_TYPE_ENUM.IMAGE_JPEG;
+                }
+              } else {
+                if (fileName.includes('.log')) {
+                  mimeType = MIME_TYPE_ENUM.TEXT_PLAIN;
+                }
               }
             }
 
