@@ -41,11 +41,15 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
   worker.on("message", (data: WorkActionResponse) => {
     if (data.success) {
       logger.debug(
-        `Worker Thread Done action=${data.action} id=${data.id} extra=${data.extra || '<N/A>'}`
+        `Worker Thread Done action=${data.action} id=${data.id} extra=${
+          data.extra || "<N/A>"
+        }`
       );
     } else {
       logger.error(
-        `Worker Thread Failed action=${data.action} error=${data.error.stack || data.error} data=${JSON.stringify(data)}`
+        `Worker Thread Failed action=${data.action} error=${
+          data.error.stack || data.error
+        } data=${JSON.stringify(data)}`
       );
     }
 

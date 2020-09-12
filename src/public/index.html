@@ -276,7 +276,8 @@
       const sortLogsAsc =
         targetEl.querySelector("#input-logs-sort").value === "true";
 
-      const autoUpdateLogs = targetEl.querySelector("#input-logs-auto-update").value;
+      const autoUpdateLogs = targetEl.querySelector("#input-logs-auto-update")
+        .value;
 
       targetEl.querySelector("#output-logs").innerText = "";
       if (autoUpdateLogs > 0) {

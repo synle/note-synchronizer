@@ -1,6 +1,7 @@
 // @ts-nocheck
 require("dotenv").config();
-
+import { initLogger, logger } from "./src/loggers";
+initLogger(`Test.Ts`);
 globalThis.LOG_LEVEL = "debug";
 
 import initDatabase from "./src/models/modelsFactory";
@@ -28,13 +29,11 @@ async function _init() {
 }
 
 async function _doWork0() {
-  await _init();
   const noteDestinationFolderId = await googleApiUtils.createNoteDestinationFolder();
   console.debug(`NOTE_DESTINATION_FOLDER_ID=${noteDestinationFolderId}`);
 }
 
 async function _doWork1() {
-  await _init();
   const res = await crawlUrl(
     "www.cnet.com/news/iphone-se-these-are-the-best-prepaid-plans-for-apples-399-iphone/"
   );
@@ -42,7 +41,6 @@ async function _doWork1() {
 }
 
 async function _doWork2() {
-  await _init();
 
   // const threadId = '10b81ba511e00280';
   const threadId = "17214ac6b31840a3";
@@ -107,7 +105,6 @@ async function _doWork2() {
 }
 
 async function _doWork3() {
-  await _init();
 
   const messageId = "17198550f061f1ce";
   const email = await DataUtils.getEmailByMessageId(messageId);
@@ -116,7 +113,6 @@ async function _doWork3() {
 }
 
 async function _doWork4() {
-  await _init();
   const data = `<a href="http://www.nytimes.com/2011/02/27/your-money/27fund.html?_r=1&amp;ref=business" >http://www.nytimes.com/2011/02/27/your-money/27fund.html?_r=1&amp;ref=business</a > <div><br /></div> <div>Nam</div>`;
 
   var data2 = gmailCrawler.tryParseBody(data);
@@ -124,7 +120,6 @@ async function _doWork4() {
 }
 
 async function _doWork5() {
-  await _init();
 
   const folderList = await googleApiUtils.searchDrive({
     mimeType: MIME_TYPE_ENUM.APP_GOOGLE_FOLDER,
@@ -136,13 +131,10 @@ async function _doWork5() {
 }
 
 async function _doWork6() {
-  await _init();
   await DataUtils.restartAllWork();
 }
 
 async function _doWork7() {
-  await _init();
-
   async function _fetchParseAndSync(threadId) {
     try {
       await gmailCrawler.fetchRawContentsByThreadId(threadId);
@@ -151,21 +143,76 @@ async function _doWork7() {
     } catch (er) {}
   }
 
-  // await _fetchParseAndSync("14404d899de83c36");
-  // await _fetchParseAndSync("141342c03104e72d");
-  // await _fetchParseAndSync("14199ee7acc840f9");
-  // await _fetchParseAndSync("13fc454319136988");
-  // await _fetchParseAndSync("13a3ce255c265bad");
-  // await _fetchParseAndSync("17324ffd0c280b31");
-  // await _fetchParseAndSync("16bae8875b72b130");
-  // await _fetchParseAndSync("129d4fbc87d13213");
-  // await _fetchParseAndSync("1598525f698fdec9");
-  // await _fetchParseAndSync("1475f62ce0f78dcd");
-  // await _fetchParseAndSync("14404d899de83c36");
-  await _fetchParseAndSync("1167c7a9d3b0a6e0");
+  const threadsToProcess = [
+    // original list
+    "14404d899de83c36",
+    "141342c03104e72d",
+    "14199ee7acc840f9",
+    "13fc454319136988",
+    "13a3ce255c265bad",
+    "17324ffd0c280b31",
+    "16bae8875b72b130",
+    "129d4fbc87d13213",
+    "1598525f698fdec9",
+    "1475f62ce0f78dcd",
+    "14404d899de83c36",
+    "1167c7a9d3b0a6e0",
+    // // new list
+    "123976eec8413f5a",
+    "123c90be52944dfe",
+    "123da37c6d7a585d",
+    "124602bd25ddc420",
+    "124ab8d7591f09af",
+    "124da3360d4db2d0",
+    "1250afc62d08be5e",
+    "12512d4147aab0b2",
+    "1251d8f69a11f7ce",
+    "1252ca817b31097e",
+    "1252ce1ab4e38b28",
+    "1256a281f4740d7d",
+    "127dee48997e4a4f",
+    "134c057c9208dd04",
+    "14261eb158ea05f1",
+    "14c2980a8b2f9921",
+    "1595e30dea677bd6",
+    "15c1f309fc6ac924",
+    "15dd9874c2f7ddb0",
+    "15dd98f7442cb09f",
+    "15dd990e793e4101",
+    "15dd997634ced869",
+    "15f1384c52f61827",
+    "15fab8718f53f8ad",
+    "15fcab405d893716",
+    "161b622e8c917d0d",
+    "161e76ccf2cb4171",
+    "1626dd29a59c5e8f",
+    "1630fa941f2f5807",
+    "1631343f857ccf97",
+    "163aeea0c88d3c3c",
+    "1653e0931ecdc760",
+    "1655f85bda5eddaa",
+    "1659dd08de75e2de",
+    "1659dd16dd4b6b05",
+    "165ddba871cd6709",
+    "1661d698f8ad28b1",
+    "166a41ed81a15ca4",
+    "166c593175c3c4d6",
+    "16805a0c5470429c",
+    "1692717ddefa838b",
+    "169ff14e3441257d",
+    "16ac99f542b78b7d",
+    "16af75c45e3f0c95",
+  ];
+
+  for (const threadId of threadsToProcess) {
+    logger.debug(`Staring processing for threadId=${threadId}`);
+    await _fetchParseAndSync(threadId);
+  }
 }
 
 async function _start() {
+  await _init();
+
   //
   //await _doWork0();
   // await _doWork6();

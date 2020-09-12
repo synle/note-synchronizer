@@ -126,7 +126,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
       try {
         let rawBodyPlain = "";
         let rawBodyHtml = "";
-        let rawBody = "";
+        let rawBodyFormatted = "";
         const parts = googleApiUtils.flattenGmailPayloadParts(message.payload);
         if (parts && parts.length > 0) {
           for (let part of parts) {
@@ -310,17 +310,18 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
         // stripped down body (remove signatures and clean up the dom)
         if (rawBodyPlain) {
           logger.debug(`Use rawBodyPlain for Body id=${id}`);
-          rawBody = tryParseBody(rawBodyPlain);
+          rawBodyFormatted =
+            tryParseBody(rawBodyPlain, MIME_TYPE_ENUM.TEXT_PLAIN) || snippet;
         } else {
           logger.debug(`Use rawBodyHtml for Body id=${id}`);
-          rawBody = tryParseBody(rawBodyHtml);
+          rawBodyFormatted =
+            tryParseBody(rawBodyHtml, MIME_TYPE_ENUM.TEXT_HTML) ||
+            tryParseBody(rawBodyPlain, MIME_TYPE_ENUM.TEXT_PLAIN) ||
+            snippet;
         }
-        rawBody = (rawBody || snippet || "").trim();
-        let strippedDownBody = rawBody;
-        let body = strippedDownBody;
+        let body = rawBodyFormatted;
 
         let urlToCrawl;
-
         if (isEmail) {
           if (CommonUtils.isStringUrl(subject)) {
             // if subject is a url
@@ -347,7 +348,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               logger.debug(
                 `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
               );
-              body = strippedDownBody;
+              body = rawBodyFormatted;
             }
           } else if (CommonUtils.isStringUrl(body)) {
             // if body is a url
@@ -375,21 +376,17 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               logger.debug(
                 `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
               );
-              body = strippedDownBody;
+              body = rawBodyFormatted;
             }
           }
         }
-
-        body =
-          tryParseBody(body || rawBodyPlain || rawBodyHtml || snippet) || "";
-        rawBody = rawBodyHtml || rawBodyPlain || snippet || "";
 
         const messageToSave = {
           id,
           threadId,
           status: THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE,
           body,
-          rawBody,
+          rawBody: rawBodyHtml || rawBodyPlain || snippet || "",
           subject: truncate(subject, {
             length: 250,
           }),
@@ -636,6 +633,7 @@ export function _parseBodyWithText(html) {
 export function _parseBodyWithHtml(html) {
   try {
     const dom = new JSDOM(_cleanHtml(html));
+    logger.debug(`_parseBodyWithHtml content=${html.substr(0, 10).trim()}...`);
 
     // replace anchors href with links
     const anchors = dom.window.document.querySelectorAll("a");
@@ -647,7 +645,9 @@ export function _parseBodyWithHtml(html) {
     }
 
     // replace all the script tags
-    const itemsToRemove = dom.window.document.querySelectorAll("script,img,style");
+    const itemsToRemove = dom.window.document.querySelectorAll(
+      "script,img,style"
+    );
     for (const item of itemsToRemove) {
       item.remove();
     }
@@ -680,22 +680,35 @@ export function _parseBodyWithHtml(html) {
       }
     }
 
+    logger.debug(
+      `_parseBodyWithHtml Done content=${html
+        .substr(0, 10)
+        .trim()}... result=${textContent.substr(0, 10).trim()}...`
+    );
+
     return textContent;
   } catch (err) {
     logger.debug(
-      `_parseBodyWithHtml failed error=${err.stack || JSON.stringify(err)}`
+      `_parseBodyWithHtml failed content=${html
+        .substr(0, 10)
+        .trim()
+        .replace("\n", " ")}... error=${err.stack || JSON.stringify(err)}`
     );
   }
 }
 
-export function tryParseBody(rawBody) {
+export function tryParseBody(rawBody, mimeType = MIME_TYPE_ENUM.TEXT_HTML) {
   rawBody = (rawBody || "").trim();
-  let result = (
-    _parseBodyWithHtml(rawBody) ||
-    _parseBodyWithText(rawBody) ||
-    rawBody ||
-    ""
-  )
+
+  let result;
+  if ((mimeType = MIME_TYPE_ENUM.TEXT_HTML)) {
+    result = _parseBodyWithHtml(rawBody);
+  } else {
+    // parse as plain text
+    result = _parseBodyWithText(rawBody);
+  }
+
+  result = result
     .split("\n")
     .map((r) => r.trim())
     .filter((r) => !!r)
@@ -703,13 +716,11 @@ export function tryParseBody(rawBody) {
     .replace(/[-][-][-][-][-]*/gi, "\n================================\n")
     .replace(/[\*][\*][\*][\*][\*]*/gi, "\n================================\n");
 
-
-
   // remove signatures
   for (let signature of mySignatureTokens) {
-    try{
+    try {
       result = result.replace(new RegExp(signature, "gi"), "");
-    } catch(err){}
+    } catch (err) {}
   }
 
   return result;
