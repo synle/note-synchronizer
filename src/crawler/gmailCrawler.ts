@@ -5,7 +5,7 @@ import { JSDOM } from "jsdom";
 import prettier from "prettier";
 import truncate from "lodash/truncate";
 import trim from "lodash/trim";
-import startCase from "lodash/startCase";
+import capitalize from "lodash/capitalize";
 
 import {
   Email,
@@ -121,7 +121,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
     // start processing
     for (let message of threadMessages) {
-      const { id, threadId, labelIds, snippet, isChat, isEmail } = message;
+      const { id, threadId, from, labelIds, snippet, isChat, isEmail } = message;
 
       try {
         let rawBodyPlain = "";
@@ -289,19 +289,17 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
         const headers: Headers = _getHeaders(message.payload.headers || []);
 
-        const from = _parseEmailAddress(headers.from) || headers.from;
-
-        const to = _parseEmailAddressList(headers.to);
-
-        const bcc = _parseEmailAddressList(headers.bcc);
-
-        let rawSubject;
-        if (headers.subject) {
-          rawSubject = startCase(headers.subject.toLowerCase());
-        } else {
-          rawSubject = `${from} ${id}`;
+        let rawSubject = headers.subject;
+        if (!rawSubject) {
+          if(isChat){
+            rawSubject = `Chat with ${from} ${id}`;
+          } else if (isEmail) {
+            rawSubject = `Email from ${from} ${id}`;
+          }
         }
-        rawSubject = trim(rawSubject, " -_><:.()[]{}");
+        rawSubject = capitalize(
+          trim(rawSubject, " -_><:.()[]{}").trim()
+        );
 
         // see if we need to handle further fetching from here
         // here we might face body of a url or subject of a url
@@ -339,10 +337,11 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
               subject = `${rawSubject} ${websiteRes.subject}`;
               body = `
-                  <div>${rawBodyPlain}</div>
-                  <div>================================</div>
-                  <div>${websiteRes.subject}</div>
-                  <div>${urlToCrawl}</div>
+                  ${rawBodyPlain}
+                  ================================
+                  URL in Subject:
+                  ${websiteRes.subject}
+                  ${urlToCrawl}
                 `;
             } catch (err) {
               logger.debug(
@@ -367,10 +366,11 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
               subject = `${rawSubject} ${websiteRes.subject}`;
               body = `
-                  <div>${rawBodyPlain}</div>
-                  <div>================================</div>
-                  <div>${websiteRes.subject}</div>
-                  <div>${urlToCrawl}</div>
+                  ${rawBodyPlain}
+                  ================================
+                  URL in Body:
+                  ${websiteRes.subject}
+                  ${urlToCrawl}
                 `;
             } catch (err) {
               logger.debug(
@@ -800,7 +800,7 @@ export async function fetchRawContentsByThreadId(threadIds) {
       if (process.env.FORCE_REFETCH_THREADS !== "true") {
         if (threadMessages && threadMessages.length > 0) {
           logger.debug(
-            `Skipped Fetching raw content for threadId=${threadId} forcedRefetch=true`
+            `Skipped Fetching raw content for threadId=${threadId} forcedRefetch=${process.env.FORCE_REFETCH_THREADS}`
           );
           continue;
         }
@@ -808,7 +808,7 @@ export async function fetchRawContentsByThreadId(threadIds) {
 
       // if not found from db, then fetch its raw content
       logger.debug(
-        `Start Fetching raw content for threadId=${threadId} forcedRefetch=true`
+        `Start Fetching raw content for threadId=${threadId} forcedRefetch=${process.env.FORCE_REFETCH_THREADS}`
       );
 
       const { messages } = await googleApiUtils.getEmailContentByThreadId(

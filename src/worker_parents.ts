@@ -123,7 +123,7 @@ async function _init() {
           gmailCrawler.pollForNewThreadList(
             moment().subtract(1, "months").startOf("month").format("YYYY/MM/DD")
           ),
-        3 * 60 * 60 * 1000
+        12 * 60 * 60 * 1000
       );
       break;
 
