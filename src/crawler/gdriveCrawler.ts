@@ -225,6 +225,7 @@ export async function uploadEmailMsgToGoogleDrive(messageId) {
 async function _processThreads(threadId, emails: Email[]) {
   let folderName;
   let folderId;
+  let docLink;
   let docDriveFileId;
   let docFileName;
   let docContentSections = [];
@@ -587,8 +588,10 @@ async function _processThreads(threadId, emails: Email[]) {
       },
     });
 
+    docLink = `docs.google.com/document/d/${docDriveFileId}`;
+
     logger.debug(
-      `Link to google doc threadId=${threadId} docLink=docs.google.com/document/d/${docDriveFileId}  parentFolderLink=drive.google.com/drive/folders/${folderId} folderName=${folderName} attachmentLinks=${attachmentLinks.length}`
+      `Link to Google Doc Main Content threadId=${threadId} docLink=${docLink} parentFolderLink=drive.google.com/drive/folders/${folderId} folderName=${folderName} attachmentLinks=${attachmentLinks.length} subject=${docFileName}`
     );
 
     await DataUtils.bulkUpsertEmails(
@@ -608,13 +611,13 @@ async function _processThreads(threadId, emails: Email[]) {
         return {
           ...email,
           status: THREAD_JOB_STATUS_ENUM.SKIPPED,
-          driveFileId: docDriveFileId,
+          driveFileId: null,
         };
       })
     );
   }
 
-  return docDriveFileId;
+  return docLink;
 }
 
 export async function uploadEmailThreadToGoogleDrive(threadId) {

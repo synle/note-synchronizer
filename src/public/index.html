@@ -65,6 +65,11 @@
       word-break: break-word;
     }
 
+    flex-row{
+      display: flex;
+      flex-direction: row;
+    }
+
     .lightgray {
       color: #666;
     }
@@ -105,21 +110,41 @@
       id="form-search-logs"
       onsubmit="searchLogs(event); return false"
     >
-      <select id="input-logs-sort" value="true">
-        <option value="true">Search logs (TIME DESC)</option>
-        <option value="false">Search logs (TIME ASC)</option>
-      </select>
-      <select id="input-logs-auto-update" value="true">
-        <option value="0">Manual</option>
-        <option value="3000">Every 3s</option>
-        <option value="5000">Every 5s</option>
-        <option value="10000">Every 10s</option>
-      </select>
-      <input
-        id="input-search"
-        placeholder="Keyword to Search"
-        value="1030313969"
-      />
+      <flex-row>
+        <select id="input-logs-sort" value="true">
+          <option value="true">Search logs (TIME DESC)</option>
+          <option value="false">Search logs (TIME ASC)</option>
+        </select>
+        <select id="input-logs-auto-update" value="true">
+          <option value="0">Manual</option>
+          <option value="3000">Every 3s</option>
+          <option value="5000">Every 5s</option>
+          <option value="10000">Every 10s</option>
+        </select>
+        <input
+          id="input-limit"
+          placeholder="Limit"
+          value="100000"
+          type="number"
+        />
+      </flex-row>
+      <flex-row>
+        <input
+          id="input-search"
+          placeholder="Keyword to Search"
+          value="1030313969"
+          required
+        />
+        <input
+          id="input-trace"
+          placeholder="TraceId"
+          value=""
+        />
+        <input
+          type="submit"
+          value="Search"
+        />
+      </flex-row>
       <div id="output-logs" class="output-logs" placeholder="Logs"></div>
     </form>
     <form
@@ -273,6 +298,15 @@
       const searchKeyword = targetEl
         .querySelector("#input-search")
         .value.trim();
+
+      const trace = targetEl
+        .querySelector("#input-trace")
+        .value.trim();
+
+      const limit = targetEl
+        .querySelector("#input-limit")
+        .value.trim();
+
       const sortLogsAsc =
         targetEl.querySelector("#input-logs-sort").value === "true";
 
@@ -293,7 +327,8 @@
             method: "post",
             body: JSON.stringify({
               search: searchKeyword,
-              limit: 100000,
+              limit,
+              trace,
             }),
           }).then((res) => res.json());
 
