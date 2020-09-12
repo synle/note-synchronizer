@@ -16,7 +16,8 @@ export function isStringUrl(string) {
       (string.match(REGEX_URL) || []).length > 0 &&
       ignoredUrlTokens.every(
         (ignoreUrlToken) => !string.toLowerCase().includes(ignoreUrlToken)
-      )
+      ) &&
+      !string.includes("@")
     );
   } catch (err) {
     logger.error(`isStringUrl failed with err=${err} ${string}`);

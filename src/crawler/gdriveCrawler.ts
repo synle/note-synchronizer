@@ -361,7 +361,7 @@ async function _processThreads(threadId, emails: Email[]) {
         ${
           email.isEmailSentByMe ? "ME" : email.from
         } ${friendlyDateTimeString1} (${email.id}):
-        ${email.body || email.rawBody}
+        ${email.body}
       `,
         images,
       });
@@ -394,7 +394,7 @@ async function _processThreads(threadId, emails: Email[]) {
         MessageId: ${email.id}
         ${gmailLink}
         ================================
-        ${email.body || email.rawBody}
+        ${email.body}
       `,
         images,
       });
