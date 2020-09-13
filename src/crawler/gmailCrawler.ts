@@ -121,7 +121,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
     // start processing
     for (let message of threadMessages) {
-      const { id, threadId, from, labelIds, snippet, isChat, isEmail } = message;
+      const { id, threadId, from, labelIds, snippet, isChat, isEmail, rawSubject } = message;
 
       try {
         let rawBodyPlain = "";
@@ -236,7 +236,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               switch (mimeType) {
                 case MIME_TYPE_ENUM.MULTIPART_ALTERNATIVE:
                 case MIME_TYPE_ENUM.MULTIPART_RELATED:
-                  logger.error(
+                  logger.debug(
                     `Unsupported mimetype threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`
                   );
                   break;
@@ -286,20 +286,6 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
             }
           }
         }
-
-        const headers: Headers = _getHeaders(message.payload.headers || []);
-
-        let rawSubject = headers.subject;
-        if (!rawSubject) {
-          if(isChat){
-            rawSubject = `Chat with ${from} ${id}`;
-          } else if (isEmail) {
-            rawSubject = `Email from ${from} ${id}`;
-          }
-        }
-        rawSubject = capitalize(
-          trim(rawSubject, " -_><:.()[]{}").trim()
-        );
 
         // see if we need to handle further fetching from here
         // here we might face body of a url or subject of a url
@@ -846,7 +832,6 @@ export async function fetchRawContentsByThreadId(threadIds) {
         }
 
         const bcc = _parseEmailAddressList(headers.bcc);
-        const rawSubject = (headers.subject || `${from} ${id}`).trim();
 
         let isChat = false;
         let isEmail = true;
@@ -855,6 +840,16 @@ export async function fetchRawContentsByThreadId(threadIds) {
           isChat = true;
           isEmail = false;
         }
+
+        let rawSubject = headers.subject;
+        if (!rawSubject) {
+          if (isChat) {
+            rawSubject = `Chat with ${from} ${id}`;
+          } else if (isEmail) {
+            rawSubject = `Email from ${from} ${id}`;
+          }
+        }
+        rawSubject = capitalize(trim(rawSubject, " -_><:.()[]{}").trim());
 
         const starred = labelIds.some((labelId) => labelId.includes("STARRED"));
 
@@ -874,9 +869,6 @@ export async function fetchRawContentsByThreadId(threadIds) {
           bcc: bcc.join(",") || null,
           rawApiResponse: JSON.stringify({
             ...message,
-            isChat,
-            isEmail,
-            isEmailSentByMe,
           }),
           date: Math.round((message.internalDate || Date.now()) / 1000),
           status: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
