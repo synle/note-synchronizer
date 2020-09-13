@@ -3,6 +3,7 @@ require("dotenv").config();
 
 import fs from "fs";
 import moment from "moment";
+import upperFirst from "lodash/upperFirst";
 import startCase from "lodash/startCase";
 import trim from "lodash/trim";
 import trimEnd from "lodash/trimEnd";
@@ -163,7 +164,10 @@ export async function generateDocFile(
         );
       } catch (err) {
         // not a url. then just add as raw text
-        pObj.addText(content, { font_face: "Courier News", font_size: 10 });
+        pObj.addText(upperFirst(content), {
+          font_face: "Courier News",
+          font_size: 10,
+        });
       }
     }
 
@@ -235,7 +239,12 @@ export function _getNonImagesAttachments(
   attachments: Attachment[]
 ): Attachment[] {
   return attachments.filter((attachment) => {
-    return !attachment.mimeType.includes("image") && !attachment.mimeType.includes("ics") && attachment.size > 0 && !attachment.inline;
+    return (
+      !attachment.mimeType.includes("image") &&
+      !attachment.mimeType.includes("ics") &&
+      attachment.size > 0 &&
+      !attachment.inline
+    );
   });
 }
 

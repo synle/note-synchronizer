@@ -6,6 +6,7 @@ import prettier from "prettier";
 import truncate from "lodash/truncate";
 import trim from "lodash/trim";
 import capitalize from "lodash/capitalize";
+import upperFirst from "lodash/upperFirst";
 
 import {
   Email,
@@ -24,6 +25,7 @@ import {
   GMAIL_ATTACHMENT_PATH,
   MAX_TIME_PER_THREAD,
   interestedEmails,
+  ignoredSubjectTokens,
 } from "./appConstantsEnums";
 
 import * as CommonUtils from "./commonUtils";
@@ -339,7 +341,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                   URL in Subject:
                   ${websiteRes.subject}
                   ${urlToCrawl}
-                `;
+                `.split("\n").map((r) => r.trim()).join("\n");
             } catch (err) {
               logger.debug(
                 `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
@@ -368,7 +370,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                   URL in Body:
                   ${websiteRes.subject}
                   ${urlToCrawl}
-                `;
+                `.split("\n").map((r) => r.trim()).join("\n");
             } catch (err) {
               logger.debug(
                 `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
@@ -384,9 +386,9 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           status: THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE,
           body,
           rawBody: rawBodyHtml || rawBodyPlain || snippet || "",
-          subject: truncate(subject, {
+          subject: upperFirst(truncate(subject, {
             length: 250,
-          }),
+          })),
           // rawSubject: truncate(rawSubject, {
           //   length: 250,
           // }),
@@ -693,14 +695,16 @@ export function tryParseBody(rawBody, mimeType = MIME_TYPE_ENUM.TEXT_HTML) {
   result = result
     .split("\n")
     .map((r) => r.trim())
+    .map((r) => {
+      return r.replace(/^[=][=][=][=][=]*$/gi, "\n================================\n")
+          .replace(/^[-][-][-][-][-]*$/gi, "\n================================\n")
+          .replace(
+            /^[\*][\*][\*][\*][\*]*$/gi,
+            "\n================================\n"
+          )
+    })
     .filter((r) => !!r)
-    .join("\n")
-    .replace(/^[=][=][=][=][=]*/gi, "\n================================\n")
-    .replace(/^[-][-][-][-][-]*/gi, "\n================================\n")
-    .replace(
-      /^[\*][\*][\*][\*][\*]*/gi,
-      "\n================================\n"
-    );
+    .join("\n");
 
   // attempted to format it as js
   try {
@@ -846,21 +850,31 @@ export async function fetchRawContentsByThreadId(threadIds) {
           isEmail = false;
         }
 
-        let rawSubject = headers.subject;
-        if (!rawSubject) {
-          if (isChat) {
-            rawSubject = `Chat with ${from} ${id}`;
-          } else if (isEmail) {
-            rawSubject = `Email from ${from} ${id}`;
-          }
-        }
-        rawSubject = capitalize(trim(rawSubject, " -_><:.()[]{}").trim());
-
         const starred = labelIds.some((labelId) => labelId.includes("STARRED"));
 
         const isEmailSentByMe = interestedEmails.some(
           (myEmail) => from.toLowerCase() === myEmail.toLowerCase()
         );
+
+
+        let rawSubject = capitalize(headers.subject);
+        if (!rawSubject) {
+          if (isChat) {
+            rawSubject = `Chat with ${from.toUpperCase()} ${id}`;
+          } else if (isEmail) {
+            if (labelIds.some((labelId) => labelId.includes("DRAFT"))) {
+              rawSubject = `Email Draft to ${to || ''} ${id}`;
+            } else {
+              rawSubject = `Email from ${from} ${id}`;
+            }
+          }
+        }
+        // remove subject words token
+        for (let subjectToken of ignoredSubjectTokens) {
+          rawSubject = rawSubject.replace(new RegExp(subjectToken, "gi"), "");
+
+        }
+        rawSubject = upperFirst(trim(rawSubject, ".").trim());
 
         const emailMessageToSave = {
           id: id,
