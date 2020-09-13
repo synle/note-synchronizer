@@ -660,21 +660,6 @@ export function _parseBodyWithHtml(html) {
 
     const textContent = trim(dom.window.document.body.textContent);
 
-    if (
-      (textContent.includes("// ") ||
-        textContent.includes("/* ") ||
-        textContent.includes("var ") ||
-        textContent.includes("const ")) &&
-      textContent.includes("function ")
-    ) {
-      // if this is js snippet, just return it
-      try {
-        return prettier.format(textContent, { parser: "babel" });
-      } catch (err) {
-        return textContent;
-      }
-    }
-
     logger.debug(
       `_parseBodyWithHtml Done content=${html
         .substr(0, 10)
@@ -708,8 +693,17 @@ export function tryParseBody(rawBody, mimeType = MIME_TYPE_ENUM.TEXT_HTML) {
     .map((r) => r.trim())
     .filter((r) => !!r)
     .join("\n")
-    .replace(/[-][-][-][-][-]*/gi, "\n================================\n")
-    .replace(/[\*][\*][\*][\*][\*]*/gi, "\n================================\n");
+    .replace(/^[=][=][=][=][=]*/gi, "\n================================\n")
+    .replace(/^[-][-][-][-][-]*/gi, "\n================================\n")
+    .replace(
+      /^[\*][\*][\*][\*][\*]*/gi,
+      "\n================================\n"
+    );
+
+  // attempted to format it as js
+  try {
+    result = prettier.format(result, { parser: "babel" });
+  } catch (err) {}
 
   // remove signatures
   for (let signature of mySignatureTokens) {
