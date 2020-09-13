@@ -36,6 +36,7 @@ export const FORMAT_DATE_TIME1 = "MM/DD/YY hh:mmA";
 export const FORMAT_DATE_TIME2 = "YY/MM/DD HH:mm";
 
 export enum MIME_TYPE_ENUM {
+  APP_ICS = "application/ics",
   APP_JSON = "application/json",
   APP_GOOGLE_DOCUMENT = "application/vnd.google-apps.document",
   APP_GOOGLE_FOLDER = "application/vnd.google-apps.folder",
