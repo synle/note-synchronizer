@@ -20,7 +20,7 @@ export const logger = winston.createLogger({
     }),
     printf(
       (info) =>
-        `${info.timestamp} [${info.level.substr(0, 1).toUpperCase()}] ${
+        `${info.timestamp} ${info.level.toUpperCase()} ${
           info.message
         }` +
         (info.splat !== undefined

@@ -157,13 +157,19 @@ export async function getRawContentsByThreadId(
   threadId
 ): Promise<GmailMessageResponse[]> {
   const res = await Models.Email.getAll({
-    attributes: ["rawApiResponse"],
     where: {
       threadId,
     },
     raw: true,
   });
-  return res.map((message) => JSON.parse(message.rawApiResponse));
+  return res.map((message) => {
+    const rawApiResponse = JSON.parse(message.rawApiResponse);
+    delete message.rawApiResponse;
+    return {
+      ...message,
+      ...rawApiResponse,
+    };
+  });
 }
 
 export async function bulkUpsertEmails(emails: Email[]) {

@@ -61,7 +61,7 @@
       line-height: 1.5;
     }
     .output-logs > div {
-      margin-bottom: 10px;
+      margin-bottom: 20px;
       word-break: break-word;
     }
 
@@ -338,20 +338,19 @@
               try {
                 msg = escape(msg)
                   .replace(
-                    /\d\d\/\d\d \d\d:\d\d:\d\d[AP]M \[[A-Za-z]\]/,
+                    /\d\d\/\d\d \d\d:\d\d:\d\d[AP]M [A-Za-z]+/,
                     function (m) {
-                      if (m.indexOf("[E]") >= 0) {
-                        return `<b class="red">${m}</b>`;
+                      if (m.indexOf("DEBUG") >= 0) {
+                        return `<span class="blue">${m}</span>`;
+                      } else if (m.indexOf("E") >= 0) {
+                        return `<span class="red">${m}</span>`;
                       }
-                      if (m.indexOf("[D]") >= 0) {
-                        return `<b class="lightgray">${m}</b>`;
-                      }
-                      return `<b class="green">${m}</b>`;
+                      return `<span class="green">${m}</span>`;
                     }
                   )
                   .replace(
                     /[_a-zA-Z0-9./-]+.(com|org|edu|net)[_a-zA-Z0-9./-]+/gi,
-                    '<b><a href="http://$&" target="_blank">$&</a></b>'
+                    '<a href="http://$&" target="_blank">$&</a>'
                   )
                   .replace(/[a-zA-Z0-9]+=[a-zA-Z0-9_\-/.]+/g, function (m) {
                     const colors = [
