@@ -41,15 +41,14 @@ async function _doWork1() {
 }
 
 async function _doWork2() {
-
   // const threadId = '10b81ba511e00280';
-  const threadId = "16ea8b8dddbbdf49";
+  const threadId = "15f37ccd402aa1f4";
 
   const emails = await DataUtils.getEmailsByThreadId(threadId);
 
   const sections = [];
-  const subject = emails[0].subject
-  for (let email of emails){
+  const subject = emails[0].rawSubject;
+  for (let email of emails) {
     const attachments = await DataUtils.getAttachmentsByMessageId(email.id);
     sections.push({
       body: email.body,
@@ -57,11 +56,10 @@ async function _doWork2() {
     });
   }
 
-
   try {
     const fileName = "./www.test.docx";
 
-    await gdriveCrawler.generateDocFile(subject, sections, fileName);
+    await gdriveCrawler.generateDocFile2(subject, sections, fileName);
 
     // // first do a create operation
     // const resp1 = await googleApiUtils.uploadFile({
@@ -102,7 +100,6 @@ async function _doWork2() {
 }
 
 async function _doWork3() {
-
   const messageId = "17198550f061f1ce";
   const email = await DataUtils.getEmailByMessageId(messageId);
   console.log(JSON.stringify(email, null, 2));
@@ -117,7 +114,6 @@ async function _doWork4() {
 }
 
 async function _doWork5() {
-
   const folderList = await googleApiUtils.searchDrive({
     mimeType: MIME_TYPE_ENUM.APP_GOOGLE_FOLDER,
     parentFolderId: process.env.NOTE_DESTINATION_FOLDER_ID,
