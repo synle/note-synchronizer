@@ -5,8 +5,9 @@ import fs from "fs";
 import moment from "moment";
 import startCase from "lodash/startCase";
 import trim from "lodash/trim";
+import trimEnd from "lodash/trimEnd";
 import getImageSize from "image-size";
-const officegen = require("officegen");
+import officegen from "officegen";
 
 import { Email, Attachment } from "../types";
 import * as googleApiUtils from "./googleApiUtils";
@@ -48,7 +49,7 @@ function _sanitizeSubject(
     }
   }
 
-  return trim(_sanitizeFileName(subject), " -_><:.()[]{}");
+  return trimEnd(_sanitizeFileName(subject), ". \n")
 }
 
 function _sanitizeFileName(string) {
@@ -105,9 +106,11 @@ export async function generateDocFile(
     pObj = docx.createP();
     pObj.addText(`Total Attachments: ${attachmentLinks.length}`, {
       bold: true,
+      font_size: 14,
     });
 
     for (let attachment of attachmentLinks) {
+      pObj = docx.createP();
       pObj.addText(attachment.fileName, {
         link: attachment.link,
         color: "0000FF",
@@ -128,11 +131,8 @@ export async function generateDocFile(
     body = body
       .replace("\r", "\n")
       .replace("\t", " ")
-      .replace(
-        `================================\n================================`
-      )
       .split("\n")
-      .map((r) => trim(r || "", "-_:.*,<>|").trim())
+      .map((r) => trimEnd(r || "", ". \n"))
       .filter((r) => !!r);
 
     for (let content of body) {
@@ -152,7 +152,10 @@ export async function generateDocFile(
       pObj.addText(`================================`);
 
       pObj = docx.createP();
-      pObj.addText(`Total Images: ${images.length}`, { bold: true });
+      pObj.addText(`Total Images: ${images.length}`, {
+        bold: true,
+        font_size: 14,
+      });
 
       for (const attachment of images) {
         const attachmentImageSize = getImageSize(attachment.path);
@@ -261,6 +264,7 @@ async function _processThreads(threadId, emails: Email[]) {
   let isEmailSentByMeToMe;
   let hasIgnoredWordTokens = false;
   let docSubject;
+  let labelIdsSet = new Set();
 
   const googleFileAppProperties = {
     threadId,
@@ -323,6 +327,9 @@ async function _processThreads(threadId, emails: Email[]) {
 
     const isChat = email.isChat;
     const isEmail = email.isEmail;
+
+    const labelIds = (email.labelIds || "").split(",") || [];
+    for (let labelId of labelIds) labelIdsSet.add(labelId);
 
     let subject = email.subject;
     let to = email.to;
@@ -407,7 +414,7 @@ async function _processThreads(threadId, emails: Email[]) {
 
       const gmailLink = email.from.includes("getpocket")
         ? ""
-        : `http://mail.google.com/mail/u/0/#search/messageid/${email.id}`;
+        : `https://mail.google.com/mail/#all/${email.id}`;
 
       docContentSections.push({
         body: `
@@ -556,6 +563,7 @@ async function _processThreads(threadId, emails: Email[]) {
           End: ${dateEnd}
           Uploaded: ${moment().format(FORMAT_DATE_TIME1)}
           Total Messages: ${emails.length}
+          Labels: ${Array.from(labelIdsSet).join(", ")}
         `,
       },
     ];
