@@ -20,9 +20,7 @@ export const logger = winston.createLogger({
     }),
     printf(
       (info) =>
-        `${info.timestamp} ${info.level.toUpperCase()} ${
-          info.message
-        }` +
+        `${info.timestamp} ${info.level.toUpperCase()} ${info.message}` +
         (info.splat !== undefined
           ? `${info.splat}`
           : " " + `trace=${loggerTraceId}`)

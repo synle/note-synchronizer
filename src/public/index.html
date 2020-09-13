@@ -65,7 +65,7 @@
       word-break: break-word;
     }
 
-    flex-row{
+    flex-row {
       display: flex;
       flex-direction: row;
     }
@@ -135,15 +135,8 @@
           value="1030313969"
           required
         />
-        <input
-          id="input-trace"
-          placeholder="TraceId"
-          value=""
-        />
-        <input
-          type="submit"
-          value="Search"
-        />
+        <input id="input-trace" placeholder="TraceId" value="" />
+        <input type="submit" value="Search" />
       </flex-row>
       <div id="output-logs" class="output-logs" placeholder="Logs"></div>
     </form>
@@ -299,13 +292,9 @@
         .querySelector("#input-search")
         .value.trim();
 
-      const trace = targetEl
-        .querySelector("#input-trace")
-        .value.trim();
+      const trace = targetEl.querySelector("#input-trace").value.trim();
 
-      const limit = targetEl
-        .querySelector("#input-limit")
-        .value.trim();
+      const limit = targetEl.querySelector("#input-limit").value.trim();
 
       const sortLogsAsc =
         targetEl.querySelector("#input-logs-sort").value === "true";

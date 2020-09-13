@@ -15,7 +15,8 @@ export function isStringUrl(string) {
     return (
       (string.match(REGEX_URL) || []).length > 0 &&
       ignoredUrlTokens.every(
-        (ignoreUrlToken) => !string.toLowerCase().includes(ignoreUrlToken.toLowerCase())
+        (ignoreUrlToken) =>
+          !string.toLowerCase().includes(ignoreUrlToken.toLowerCase())
       )
     );
   } catch (err) {

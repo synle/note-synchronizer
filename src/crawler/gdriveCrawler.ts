@@ -6,8 +6,7 @@ import moment from "moment";
 import startCase from "lodash/startCase";
 import trim from "lodash/trim";
 import getImageSize from "image-size";
-
-import { Document, Media, Packer, Paragraph, HeadingLevel } from "docx";
+const officegen = require("officegen");
 
 import { Email, Attachment } from "../types";
 import * as googleApiUtils from "./googleApiUtils";
@@ -27,7 +26,7 @@ import * as DataUtils from "./dataUtils";
 let noteDestinationFolderId;
 
 const MIN_SUBJECT_LENGTH = 10;
-const IMAGE_MAX_WIDTH = 710;
+const IMAGE_MAX_WIDTH = 750;
 
 function _sanitizeSubject(
   subject,
@@ -69,64 +68,91 @@ function _sanitizeFileName(string) {
     .trim();
 }
 
-export async function generateDocFile(subject, sections, newFileName) {
-  const doc = new Document();
-  const children = [];
+export async function generateDocFile(
+  subject,
+  headerSections,
+  bodySections,
+  attachmentLinks,
+  newFileName
+) {
+  // Create an empty Word object:
+  let docx = officegen({
+    type: "docx",
+    pageMargins: {
+      top: 600,
+      right: 440,
+      bottom: 600,
+      left: 440,
+    },
+  });
 
-  children.push(
-    new Paragraph({
-      text: subject,
-      heading: HeadingLevel.HEADING_1,
-      color: "#ff0000",
-    })
-  );
+  // subject
+  let pObj;
+  pObj = docx.createP();
+  pObj.addText(subject, { font_size: 16 });
 
-  sections = [].concat(sections);
-  for (let section of sections) {
+  // headers
+  headerSections = [].concat(headerSections);
+  for (let header of headerSections) {
+    _renderSection(header);
+  }
+
+  // attachmment
+  if (attachmentLinks.length > 0) {
+    pObj = docx.createP();
+    pObj.addText(`================================`);
+
+    pObj = docx.createP();
+    pObj.addText(`Total Attachments: ${attachmentLinks.length}`, {
+      bold: true,
+    });
+
+    for (let attachment of attachmentLinks) {
+      pObj.addText(attachment.fileName, {
+        link: attachment.link,
+        color: "0000FF",
+      });
+    }
+  }
+
+  // body
+  bodySections = [].concat(bodySections);
+  for (let section of bodySections) {
+    _renderSection(section);
+  }
+
+  function _renderSection(section) {
     let body = section.body;
     let images = section.images || [];
 
     body = body
       .replace("\r", "\n")
       .replace("\t", " ")
+      .replace(
+        `================================\n================================`
+      )
       .split("\n")
       .map((r) => trim(r || "", "-_:.*,<>|").trim())
       .filter((r) => !!r);
+
     for (let content of body) {
-      children.push(
-        new Paragraph({
-          text: content,
-          spacing: {
-            before: 250,
-            after: 250,
-          },
-          heading: HeadingLevel.HEADING_3,
-        })
-      );
+      pObj = docx.createP();
+
+      try {
+        const link = content.match(/^http[s]?:\/\/[\w./\-#]+/)[0];
+        pObj.addText(link, { link, color: "0000FF" });
+      } catch (err) {
+        // not a url. then just add as raw text
+        pObj.addText(content);
+      }
     }
 
     if (images.length > 0) {
-      children.push(
-        new Paragraph({
-          text: `================================`,
-          spacing: {
-            before: 250,
-            after: 250,
-          },
-          heading: HeadingLevel.HEADING_3,
-        })
-      );
+      pObj = docx.createP();
+      pObj.addText(`================================`);
 
-      children.push(
-        new Paragraph({
-          text: `Total Images: ${images.length}`,
-          spacing: {
-            before: 250,
-            after: 250,
-          },
-          heading: HeadingLevel.HEADING_3,
-        })
-      );
+      pObj = docx.createP();
+      pObj.addText(`Total Images: ${images.length}`, { bold: true });
 
       for (const attachment of images) {
         const attachmentImageSize = getImageSize(attachment.path);
@@ -135,45 +161,43 @@ export async function generateDocFile(subject, sections, newFileName) {
           ratio = 1;
         }
 
-        const attachmentImage = Media.addImage(
-          doc,
-          fs.readFileSync(attachment.path),
-          IMAGE_MAX_WIDTH, // width
-          IMAGE_MAX_WIDTH * ratio // height
-        );
-        children.push(
-          new Paragraph({
-            text: `${attachment.fileName}`,
-            bold: true,
-            heading: HeadingLevel.HEADING_3,
-            spacing: {
-              before: 400,
-            },
-            border: {
-              bottom: {
-                color: "auto",
-                space: 1,
-                value: "single",
-                size: 6,
-              },
-            },
-          })
-        );
-        children.push(new Paragraph(attachmentImage));
+        pObj = docx.createP();
+        pObj.addText(attachment.fileName);
+
+        pObj = docx.createP();
+        pObj.options.indentLeft = 0;
+        pObj.addImage(attachment.path, {
+          cx: IMAGE_MAX_WIDTH,
+          cy: IMAGE_MAX_WIDTH * ratio,
+          indent: 0,
+        });
       }
     }
   }
 
-  doc.addSection({
-    children,
+  return new Promise((resolve, reject) => {
+    let out = fs.createWriteStream(newFileName);
+
+    // This one catch only the officegen errors:
+    docx.on("error", function (err) {
+      console.log("Failed to generate Doc", newFileName, err);
+      reject(err);
+    });
+
+    // Catch fs errors:
+    out.on("error", function (err) {
+      console.log("Failed to create Doc", newFileName, err);
+      reject(err);
+    });
+
+    // End event after creating the PowerPoint file:
+    out.on("close", function () {
+      resolve(newFileName);
+    });
+
+    // This async method is working like a pipe - it'll generate the pptx data and put it into the output stream:
+    docx.generate(out);
   });
-
-  const buffer = await Packer.toBuffer(doc);
-  fs.writeFileSync(newFileName, buffer);
-
-  logger.debug(`generateDocFile Success file=${newFileName}`);
-
-  return newFileName;
 }
 
 export function _getImageAttachments(attachments: Attachment[]): Attachment[] {
@@ -383,8 +407,7 @@ async function _processThreads(threadId, emails: Email[]) {
 
       const gmailLink = email.from.includes("getpocket")
         ? ""
-        : `Link:
-            http://mail.google.com/mail/u/0/#search/messageid/${email.id}`;
+        : `http://mail.google.com/mail/u/0/#search/messageid/${email.id}`;
 
       docContentSections.push({
         body: `
@@ -498,12 +521,10 @@ async function _processThreads(threadId, emails: Email[]) {
         });
 
         // retain the attachment links to be put inside the doc later
-        attachmentLinks.push(
-          `
-        ${attachment.fileName}
-        http://drive.google.com/file/d/${attachmentDriveFileId}
-        `.trim()
-        );
+        attachmentLinks.push({
+          fileName: attachment.fileName,
+          link: `http://drive.google.com/file/d/${attachmentDriveFileId}`,
+        });
 
         logger.debug(
           `Link to Attachment threadId=${threadId} attachmentName=${attachmentName} attachmentLink=drive.google.com/file/d/${attachmentDriveFileId}`
@@ -525,22 +546,8 @@ async function _processThreads(threadId, emails: Email[]) {
     // then upload original docs
     const docLocalPath = `${PROCESSED_EMAIL_PREFIX_PATH}/processed.threadId.${threadId}.docx`;
 
-    // append attachment link
-    if (attachmentLinks.length > 0) {
-      docContentSections = [
-        {
-          body: `
-          ================================
-          Total Attachments: ${attachmentLinks.length}
-
-          ${attachmentLinks.join("\n\n")}
-        `,
-        },
-      ].concat(docContentSections);
-    }
-
     // this is the initial section of the email
-    docContentSections = [
+    const docHeaderSection = [
       {
         body: `
           ================================
@@ -551,9 +558,15 @@ async function _processThreads(threadId, emails: Email[]) {
           Total Messages: ${emails.length}
         `,
       },
-    ].concat(docContentSections);
+    ];
 
-    await generateDocFile(docSubject, docContentSections, docLocalPath);
+    await generateDocFile(
+      docSubject,
+      docHeaderSection,
+      docContentSections,
+      attachmentLinks,
+      docLocalPath
+    );
     const docSha = commonUtils.get256Hash(`${threadId}.mainEmail`);
     docDriveFileId = await googleApiUtils.uploadFile({
       name: docFileName,

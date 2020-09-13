@@ -121,7 +121,16 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
     // start processing
     for (let message of threadMessages) {
-      const { id, threadId, from, labelIds, snippet, isChat, isEmail, rawSubject } = message;
+      const {
+        id,
+        threadId,
+        from,
+        labelIds,
+        snippet,
+        isChat,
+        isEmail,
+        rawSubject,
+      } = message;
 
       try {
         let rawBodyPlain = "";
