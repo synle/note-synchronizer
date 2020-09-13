@@ -74,14 +74,14 @@ export async function restartAllWork() {
   // clone previous success message id
   try {
     for (const messageId of previousSuccessMessageId) {
-      pipeline.sadd(REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID, messageId); // no need to change this
+      pipeline.sadd(REDIS_KEY.QUEUE_PARSE_EMAIL, messageId); // no need to change this
     }
     await pipeline.exec();
   } catch (err) {}
   console.debug(
     "Done Cloning all previous success messageId into REDIS",
     previousSuccessMessageId.length,
-    REDIS_KEY.QUEUE_UPLOAD_EMAILS_BY_MESSAGE_ID
+    REDIS_KEY.QUEUE_PARSE_EMAIL
   );
 }
 

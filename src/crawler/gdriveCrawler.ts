@@ -90,7 +90,7 @@ export async function generateDocFile(
   // subject
   let pObj;
   pObj = docx.createP();
-  pObj.addText(subject, { font_size: 16 });
+  pObj.addText(subject, { font_size: 16, bold: true });
 
   // headers
   headerSections = [].concat(headerSections);
@@ -100,8 +100,7 @@ export async function generateDocFile(
 
   // attachmment
   if (attachmentLinks.length > 0) {
-    pObj = docx.createP();
-    pObj.addText(`================================`);
+    _renderDivider();
 
     pObj = docx.createP();
     pObj.addText(`Total Attachments: ${attachmentLinks.length}`, {
@@ -114,6 +113,8 @@ export async function generateDocFile(
       pObj.addText(attachment.fileName, {
         link: attachment.link,
         color: "0000FF",
+        font_face: "Courier News",
+        font_size: 10,
       });
     }
   }
@@ -122,6 +123,15 @@ export async function generateDocFile(
   bodySections = [].concat(bodySections);
   for (let section of bodySections) {
     _renderSection(section);
+  }
+
+  function _renderDivider() {
+    pObj = docx.createP();
+    pObj.addText(`================================`, {
+      color: "cccccc",
+      font_face: "Courier News",
+      font_size: 10,
+    });
   }
 
   function _renderSection(section) {
@@ -136,20 +146,29 @@ export async function generateDocFile(
       .filter((r) => !!r);
 
     for (let content of body) {
-      pObj = docx.createP();
+      if (content.includes("================================")) {
+        _renderDivider();
+        continue;
+      }
 
+      pObj = docx.createP();
       try {
         const link = content.match(/^http[s]?:\/\/[\w./\-#]+/)[0];
-        pObj.addText(link, { link, color: "0000FF" });
+        pObj.addText(
+          link
+            .replace("http://", "")
+            .replace("https://", "")
+            .replace("www.", ""),
+          { font_face: "Courier News", link, color: "0000FF", font_size: 10 }
+        );
       } catch (err) {
         // not a url. then just add as raw text
-        pObj.addText(content);
+        pObj.addText(content, { font_face: "Courier News", font_size: 10 });
       }
     }
 
     if (images.length > 0) {
-      pObj = docx.createP();
-      pObj.addText(`================================`);
+      _renderDivider();
 
       pObj = docx.createP();
       pObj.addText(`Total Images: ${images.length}`, {
@@ -165,7 +184,10 @@ export async function generateDocFile(
         }
 
         pObj = docx.createP();
-        pObj.addText(attachment.fileName);
+        pObj.addText(attachment.fileName, {
+          font_face: "Courier News",
+          font_size: 10,
+        });
 
         pObj = docx.createP();
         pObj.options.indentLeft = 0;
@@ -213,7 +235,7 @@ export function _getNonImagesAttachments(
   attachments: Attachment[]
 ): Attachment[] {
   return attachments.filter((attachment) => {
-    return !attachment.mimeType.includes("image") && attachment.size > 0;
+    return !attachment.mimeType.includes("image") && !attachment.mimeType.includes("ics") && attachment.size > 0 && !attachment.inline;
   });
 }
 
@@ -389,12 +411,15 @@ async function _processThreads(threadId, emails: Email[]) {
 
       docContentSections.push({
         body: `
-        ================================
-        ${
-          email.isEmailSentByMe ? "ME" : email.from
-        } ${friendlyDateTimeString1} (${email.id}):
-        ${email.body}
-      `,
+          ================================
+          ${
+            email.isEmailSentByMe ? "ME" : email.from
+          } ${friendlyDateTimeString1} (${email.id}):
+          ${email.body}
+        `
+          .split("\n")
+          .map((r) => r.trim())
+          .join("\n"),
         images,
       });
     } else {
@@ -418,15 +443,20 @@ async function _processThreads(threadId, emails: Email[]) {
 
       docContentSections.push({
         body: `
-        ================================
-        Date: ${friendlyDateTimeString1}
-        From: ${email.from}
-        To: ${toEmailAddresses}
-        MessageId: ${email.id}
-        ${gmailLink}
-        ================================
-        ${email.body}
-      `,
+          ================================
+          Date: ${friendlyDateTimeString1}
+          From: ${email.from}
+          To: ${toEmailAddresses}
+          ${gmailLink}
+          ================================
+        `
+          .split("\n")
+          .map((r) => r.trim())
+          .join("\n"),
+      });
+
+      docContentSections.push({
+        body: email.body,
         images,
       });
     }
@@ -528,10 +558,17 @@ async function _processThreads(threadId, emails: Email[]) {
         });
 
         // retain the attachment links to be put inside the doc later
-        attachmentLinks.push({
-          fileName: attachment.fileName,
-          link: `http://drive.google.com/file/d/${attachmentDriveFileId}`,
-        });
+        if (emails.length > 1) {
+          attachmentLinks.push({
+            fileName: `${attachment.fileName} (${attachment.messageId})`,
+            link: `http://drive.google.com/file/d/${attachmentDriveFileId}`,
+          });
+        } else {
+          attachmentLinks.push({
+            fileName: `${attachment.fileName}`,
+            link: `http://drive.google.com/file/d/${attachmentDriveFileId}`,
+          });
+        }
 
         logger.debug(
           `Link to Attachment threadId=${threadId} attachmentName=${attachmentName} attachmentLink=drive.google.com/file/d/${attachmentDriveFileId}`
@@ -554,19 +591,27 @@ async function _processThreads(threadId, emails: Email[]) {
     const docLocalPath = `${PROCESSED_EMAIL_PREFIX_PATH}/processed.threadId.${threadId}.docx`;
 
     // this is the initial section of the email
-    const docHeaderSection = [
-      {
-        body: `
-          ================================
-          ThreadId: ${threadId}
-          Start: ${dateStart}
-          End: ${dateEnd}
-          Uploaded: ${moment().format(FORMAT_DATE_TIME1)}
-          Total Messages: ${emails.length}
-          Labels: ${Array.from(labelIdsSet).join(", ")}
-        `,
-      },
-    ];
+    const docHeaderSection = [];
+    const gmailFullThreadLink = `https://mail.google.com/mail/#all/${threadId}`;
+    docHeaderSection.push({
+      body: `
+        ================================
+        ThreadId: ${threadId}
+        Date: ${
+          dateStart === dateEnd ? dateStart : dateStart + " to " + dateEnd
+        }
+        Uploaded: ${moment().format(FORMAT_DATE_TIME1)}
+        Total Messages: ${emails.length}
+        Labels: ${Array.from(labelIdsSet)
+          .map((r) => r.trim())
+          .filter((r) => !!r)
+          .join(", ")}
+        ${gmailFullThreadLink}
+      `
+        .split("\n")
+        .map((r) => r.trim())
+        .join("\n"),
+    });
 
     await generateDocFile(
       docSubject,
