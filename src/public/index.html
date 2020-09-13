@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width" />
     <title>Note Synchronizer</title>
+    <script src="https://cdn.jsdelivr.net/npm/hyperlist@1.0.0/dist/hyperlist.min.js"></script>
   </head>
   <style>
     html,
@@ -57,7 +58,7 @@
     .output-logs {
       flex-grow: 1;
       font-family: "Courier New", Courier, monospace;
-      overflow: auto;
+      overflow: hidden;
       line-height: 1.5;
     }
     .output-logs > div {
@@ -379,17 +380,35 @@
                 console.log(e);
               }
 
-              return `<div>${msg}</div>`;
-            });
+              return msg.trim();
+            })
+            .filter(r => !!r);
 
           if (sortLogsAsc) {
             newContent = newContent.reverse();
           }
 
-          targetEl.querySelector("#output-logs").innerHTML = `<div>${
-            newContent.length
-          } Lines</div>${newContent.join("")}`;
-        } catch (err) {}
+          newContent = [`${newContent.length} Lines`].concat(newContent)
+
+          const container = document.createElement('div');
+
+          const list = HyperList.create(container, {
+            width: '100%',
+            height: '100%',
+            itemHeight: 125,
+            total: newContent.length,
+            generate(index) {
+              const el = document.createElement('div');
+              el.innerHTML = newContent[index];
+              return el;
+            },
+          });
+
+          // targetEl.querySelector("#output-logs").innerHTML = '';
+          targetEl.querySelector("#output-logs").appendChild(container);
+        } catch (err) {
+          console.log(err)
+        }
       }
     });
     let intervalRefreshLog;

@@ -338,6 +338,9 @@ redis-cli scard QUEUE_ERROR_UPLOAD_MESSAGE_ID
 
 redis-cli scard QUEUE_SKIPPED_MESSAGE_ID
 redis-cli scard QUEUE_SUCCESS_UPLOAD_MESSAGE_ID
+
+redis-cli scard ALL_MESSAGE_IDS;
+redis-cli scard ALL_THREAD_IDS;
 ```
 
 ```

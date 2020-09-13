@@ -655,6 +655,7 @@ export async function uploadFile({
     keepRevisionForever = true;
   } else if (
     [
+      MIME_TYPE_ENUM.APP_ICS,
       MIME_TYPE_ENUM.APP_XML,
       MIME_TYPE_ENUM.APP_JSON,
       MIME_TYPE_ENUM.APP_RTF,
@@ -668,7 +669,6 @@ export async function uploadFile({
       MIME_TYPE_ENUM.TEXT_JAVA,
       MIME_TYPE_ENUM.TEXT_JAVA_SOURCE,
       MIME_TYPE_ENUM.TEXT_CSHARP,
-      MIME_TYPE_ENUM.APP_ICS,
     ].includes(mimeType)
   ) {
     mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_DOCUMENT;

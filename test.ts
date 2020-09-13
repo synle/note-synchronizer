@@ -206,13 +206,13 @@ async function _doWork7() {
 async function _start() {
   await _init();
 
-  await _doWork2();
-  //await _doWork0();
+  // await _doWork2();
+  // await _doWork0();
   // await _doWork6();
-  //await _doWork3();
-  //await _doWork4();
-  //await _doWork7();
+  // await _doWork3();
+  // await _doWork4();
   // await _doWork7();
+  await _doWork7();
   process.exit();
 }
 
