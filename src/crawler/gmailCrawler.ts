@@ -177,6 +177,8 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               mimeType = MIME_TYPE_ENUM.IMAGE_GIF;
             } else if (lowerCaseFileName.includes(".png")) {
               mimeType = MIME_TYPE_ENUM.IMAGE_PNG;
+            } else if (lowerCaseFileName.includes(".ics")) {
+              mimeType = MIME_TYPE_ENUM.APP_ICS;
             } else if (
               lowerCaseFileName.includes(".jpg") ||
               lowerCaseFileName.includes(".jpeg")

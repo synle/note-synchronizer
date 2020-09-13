@@ -49,7 +49,7 @@ function _sanitizeSubject(
     }
   }
 
-  return trimEnd(_sanitizeFileName(subject), ". \n")
+  return trimEnd(_sanitizeFileName(subject), ". \n");
 }
 
 function _sanitizeFileName(string) {
