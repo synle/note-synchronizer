@@ -18,6 +18,11 @@ export const ignoredWordTokens = (process.env.IGNORED_WORD_TOKENS || "")
   .map((r) => (r || "").trim().toLowerCase())
   .filter((r) => !!r);
 
+export const ignoredSubjectTokens = (process.env.IGNORED_SUBJECT_TOKENS || "")
+  .split("|||")
+  .map((r) => (r || "").trim().toLowerCase())
+  .filter((r) => !!r);
+
 export const ignoredUrlTokens = (process.env.IGNORED_URL_TOKENS || "")
   .split("|||")
   .map((r) => (r || "").trim().toLowerCase())

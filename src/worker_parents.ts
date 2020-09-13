@@ -56,7 +56,7 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
     workerGroup[myThreadId].status = WORKER_STATUS_ENUM.FREE;
   });
   worker.on("error", (...err) => {
-    // console.error("Worker Failed with error", myThreadId, error);
+    console.debug(`Worker Died with error. Respawn myThreadName=${myThreadName} myThreadId=${myThreadId}`, error);
     setTimeout(() => {
       workerGroup[myThreadId] = _newWorker(
         myThreadId,
