@@ -6,6 +6,7 @@ import moment from "moment";
 import upperFirst from "lodash/upperFirst";
 import startCase from "lodash/startCase";
 import trim from "lodash/trim";
+import upperFirst from "lodash/upperFirst";
 import trimEnd from "lodash/trimEnd";
 import getImageSize from "image-size";
 import officegen from "officegen";
@@ -54,20 +55,22 @@ function _sanitizeSubject(
 }
 
 function _sanitizeFileName(string) {
-  return string
-    .replace("|", " ")
-    .replace("[", " ")
-    .replace("]", " ")
-    .replace("_", " ")
-    .replace("-", " ")
-    .replace(".", " ")
-    .replace(/re:/gi, "")
-    .replace(/fwd:?/gi, "")
-    .replace(/fw:?/gi, "")
-    .split(" ")
-    .filter((r) => r && r.length > 0)
-    .join(" ")
-    .trim();
+  return upperFirst(
+    string
+      .replace("|", " ")
+      .replace("[", " ")
+      .replace("]", " ")
+      .replace("_", " ")
+      .replace("-", " ")
+      .replace(".", " ")
+      .replace(/re:/gi, "")
+      .replace(/fwd:?/gi, "")
+      .replace(/fw:?/gi, "")
+      .split(" ")
+      .filter((r) => r && r.length > 0)
+      .join(" ")
+      .trim()
+  );
 }
 
 export async function generateDocFile(
@@ -155,7 +158,7 @@ export async function generateDocFile(
       let contentAdded = false;
       pObj = docx.createP();
       try {
-        const link = content.match(/^http[s]?:\/\/[\w./\-#]+/)[0];
+        const link = content.match(/^http[s]?:\/\/[\w./\-#@]+/)[0];
         pObj.addText(
           link
             .replace("http://", "")
@@ -166,11 +169,12 @@ export async function generateDocFile(
         contentAdded = true;
       } catch (err) {}
 
-      if(!contentAdded){
+      if (!contentAdded) {
         try {
-          const isForwardedSection = content.match(/^>[>\w\s\d]*/gi).length >= 1;
-          if(isForwardedSection){
-            pObj.addText('  ' + upperFirst(content), {
+          const isForwardedSection =
+            content.match(/^>[>\w\s\d]*/gi).length >= 1;
+          if (isForwardedSection) {
+            pObj.addText("  " + upperFirst(content), {
               color: "999999",
               font_face: "Courier News",
               font_size: 10,
@@ -180,7 +184,7 @@ export async function generateDocFile(
         } catch (err) {}
       }
 
-      if(!contentAdded){
+      if (!contentAdded) {
         // not a url. then just add as raw text
         pObj.addText(upperFirst(content), {
           font_face: "Courier News",

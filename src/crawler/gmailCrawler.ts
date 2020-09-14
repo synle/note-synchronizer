@@ -341,7 +341,10 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                   URL in Subject:
                   ${websiteRes.subject}
                   ${urlToCrawl}
-                `.split("\n").map((r) => r.trim()).join("\n");
+                `
+                .split("\n")
+                .map((r) => r.trim())
+                .join("\n");
             } catch (err) {
               logger.debug(
                 `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
@@ -357,9 +360,11 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           status: THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE,
           body,
           rawBody: rawBodyHtml || rawBodyPlain || snippet || "",
-          subject: upperFirst(truncate(subject, {
-            length: 250,
-          })),
+          subject: upperFirst(
+            truncate(subject, {
+              length: 250,
+            })
+          ),
           // rawSubject: truncate(rawSubject, {
           //   length: 250,
           // }),
@@ -667,12 +672,13 @@ export function tryParseBody(rawBody, mimeType = MIME_TYPE_ENUM.TEXT_HTML) {
     .split("\n")
     .map((r) => r.trim())
     .map((r) => {
-      return r.replace(/^[=][=][=][=][=]*$/gi, "\n================================\n")
-          .replace(/^[-][-][-][-][-]*$/gi, "\n================================\n")
-          .replace(
-            /^[\*][\*][\*][\*][\*]*$/gi,
-            "\n================================\n"
-          )
+      return r
+        .replace(/^[=][=][=][=][=]*$/gi, "\n================================\n")
+        .replace(/^[-][-][-][-][-]*$/gi, "\n================================\n")
+        .replace(
+          /^[\*][\*][\*][\*][\*]*$/gi,
+          "\n================================\n"
+        );
     })
     .filter((r) => !!r)
     .join("\n");
@@ -827,14 +833,13 @@ export async function fetchRawContentsByThreadId(threadIds) {
           (myEmail) => from.toLowerCase() === myEmail.toLowerCase()
         );
 
-
         let rawSubject = capitalize(headers.subject);
         if (!rawSubject) {
           if (isChat) {
             rawSubject = `Chat with ${from.toUpperCase()} ${id}`;
           } else if (isEmail) {
             if (labelIds.some((labelId) => labelId.includes("DRAFT"))) {
-              rawSubject = `Email Draft to ${to || ''} ${id}`;
+              rawSubject = `Email Draft to ${to || ""} ${id}`;
             } else {
               rawSubject = `Email from ${from} ${id}`;
             }
@@ -843,7 +848,6 @@ export async function fetchRawContentsByThreadId(threadIds) {
         // remove subject words token
         for (let subjectToken of ignoredSubjectTokens) {
           rawSubject = rawSubject.replace(new RegExp(subjectToken, "gi"), "");
-
         }
         rawSubject = upperFirst(trim(rawSubject, ".").trim());
 

@@ -12,7 +12,7 @@ axios.defaults.timeout = 4000;
 export function isStringUrl(string) {
   try {
     string = string || "";
-    if (isEmail(string)){
+    if (isEmail(string)) {
       return false;
     }
     return (
@@ -28,10 +28,10 @@ export function isStringUrl(string) {
 }
 
 function isEmail(email) {
-  try{
+  try {
     const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.  [0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
     return re.test(String(email).toLowerCase());
-  } catch(err){
+  } catch (err) {
     return false;
   }
 }
