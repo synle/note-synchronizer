@@ -136,7 +136,7 @@ async function _doWork7() {
     } catch (er) {}
   }
 
-  const threadsToProcess = [
+  let threadsToProcess = [
     // original list
     "14404d899de83c36",
     "141342c03104e72d",
@@ -195,7 +195,11 @@ async function _doWork7() {
     "169ff14e3441257d",
     "16ac99f542b78b7d",
     "16af75c45e3f0c95",
+    "13e9fc0b05b4631a",
+    "14ea74e274335d1e",// long email thread with lots of attachments
   ];
+
+  threadsToProcess = ["1308f784b0b82f7f"];
 
   for (const threadId of threadsToProcess) {
     logger.debug(`Staring processing for threadId=${threadId}`);
