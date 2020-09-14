@@ -171,7 +171,7 @@ export async function generateDocFile(
           const isForwardedSection = content.match(/^>[>\w\s\d]*/gi).length >= 1;
           if(isForwardedSection){
             pObj.addText('  ' + upperFirst(content), {
-              color: "aaaaaa",
+              color: "999999",
               font_face: "Courier News",
               font_size: 10,
             });

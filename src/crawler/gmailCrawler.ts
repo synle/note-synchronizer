@@ -348,35 +348,6 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
               );
               body = rawBodyFormatted;
             }
-          } else if (CommonUtils.isStringUrl(body)) {
-            // if body is a url
-            urlToCrawl = CommonUtils.extractUrlFromString(
-              _parseBodyWithHtml(body)
-            );
-
-            try {
-              // crawl the URL for title
-              logger.debug(`Crawl body with url: id=${id} url=${urlToCrawl}`);
-              const websiteRes = await CommonUtils.crawlUrl(urlToCrawl);
-
-              logger.debug(
-                `Done CrawlUrl threadId=${threadId} id=${id} url=${urlToCrawl} res=${websiteRes.subject}`
-              );
-
-              subject = `${rawSubject} ${websiteRes.subject}`;
-              body = `
-                  ${rawBodyPlain}
-                  ================================
-                  URL in Body:
-                  ${websiteRes.subject}
-                  ${urlToCrawl}
-                `.split("\n").map((r) => r.trim()).join("\n");
-            } catch (err) {
-              logger.debug(
-                `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
-              );
-              body = rawBodyFormatted;
-            }
           }
         }
 
