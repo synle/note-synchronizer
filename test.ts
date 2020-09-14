@@ -4,6 +4,10 @@ import { initLogger, logger } from "./src/loggers";
 initLogger(`Test.Ts`);
 globalThis.LOG_LEVEL = "debug";
 
+import StreamZip from "node-stream-zip";
+import fs from "fs";
+import path from "path";
+
 import initDatabase from "./src/models/modelsFactory";
 
 import { Op } from "sequelize";
@@ -196,7 +200,7 @@ async function _doWork7() {
     "16ac99f542b78b7d",
     "16af75c45e3f0c95",
     "13e9fc0b05b4631a",
-    "14ea74e274335d1e",// long email thread with lots of attachments
+    "14ea74e274335d1e", // long email thread with lots of attachments
   ];
 
   threadsToProcess = ["1308f784b0b82f7f"];
@@ -204,6 +208,60 @@ async function _doWork7() {
   for (const threadId of threadsToProcess) {
     logger.debug(`Staring processing for threadId=${threadId}`);
     await _fetchParseAndSync(threadId);
+  }
+}
+
+async function _doWork8() {
+  // const zipFileName = './attachments/1308f784b0b82f7f.PE.zip';
+  // const zipFileName = './attachments/1541054c365ec85c.Archive.zip';
+  // const zipFileName = "./attachments/12c2f9a74efc34ea.SyLe.zip";
+  console.log(zipFileName);
+  await _unzip(zipFileName);
+
+  function _unzip(zipFileName) {
+    return new Promise((resolve, reject) => {
+      const zip = new StreamZip({
+        file: zipFileName,
+        storeEntries: true,
+      });
+      zip.on("error", reject);
+      zip.on("ready", () => {
+        const extractedDir = `${zipFileName}_extracted`;
+        try {
+          fs.mkdirSync(extractedDir);
+        } catch (err) {}
+        zip.extract(null, extractedDir, (err, count) => {
+          if (err) {
+            reject(err);
+          } else {
+            console.debug(
+              `Extracted file=${zipFileName} out=${extractedDir} count=${count}`
+            );
+            try {
+              const allFiles = _getAllFiles(extractedDir).filter((fileName) => {
+                return !fileName.includes(".git/");
+              });
+              console.log(allFiles.join("\n"));
+              resolve(extractedDir);
+            } catch (err) {
+              reject(err);
+            }
+          }
+          zip.close();
+        });
+      });
+    });
+  }
+
+  function _getAllFiles(dirPath, arrayOfFiles = []) {
+    fs.readdirSync(dirPath).forEach(function (file) {
+      if (fs.statSync(dirPath + "/" + file).isDirectory()) {
+        arrayOfFiles = _getAllFiles(dirPath + "/" + file, arrayOfFiles);
+      } else {
+        arrayOfFiles.push(path.join(__dirname, dirPath, "/", file));
+      }
+    });
+    return arrayOfFiles;
   }
 }
 
@@ -216,7 +274,7 @@ async function _start() {
   // await _doWork3();
   // await _doWork4();
   // await _doWork7();
-  await _doWork7();
+  await _doWork8();
   process.exit();
 }
 

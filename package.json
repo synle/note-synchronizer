@@ -41,6 +41,7 @@
     "lodash": "^4.17.20",
     "moment": "^2.27.0",
     "mysql2": "^2.1.0",
+    "node-stream-zip": "^1.11.3",
     "officegen": "^0.6.4",
     "restify": "^8.5.1",
     "sequelize-typescript-decorators": "^2.1.7",
