@@ -12,6 +12,9 @@ axios.defaults.timeout = 4000;
 export function isStringUrl(string) {
   try {
     string = string || "";
+    if (isEmail(string)){
+      return false;
+    }
     return (
       (string.match(REGEX_URL) || []).length > 0 &&
       ignoredUrlTokens.every(
@@ -21,6 +24,15 @@ export function isStringUrl(string) {
     );
   } catch (err) {
     logger.error(`isStringUrl failed with err=${err} ${string}`);
+  }
+}
+
+function isEmail(email) {
+  try{
+    const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.  [0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+    return re.test(String(email).toLowerCase());
+  } catch(err){
+    return false;
   }
 }
 
