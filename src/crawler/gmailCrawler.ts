@@ -151,9 +151,9 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
 
             const lowerCaseFileName = fileName.toLowerCase();
             if (
-              lowerCaseFileName.endsWith(".java") ||
+              // lowerCaseFileName.endsWith(".java") ||
               lowerCaseFileName.endsWith(".log") ||
-              lowerCaseFileName.endsWith(".cpp") ||
+              // lowerCaseFileName.endsWith(".cpp") ||
               lowerCaseFileName.endsWith(".cs") ||
               lowerCaseFileName.endsWith(".js") ||
               lowerCaseFileName.endsWith(".json") ||

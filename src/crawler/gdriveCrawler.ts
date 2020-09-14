@@ -6,7 +6,6 @@ import moment from "moment";
 import upperFirst from "lodash/upperFirst";
 import startCase from "lodash/startCase";
 import trim from "lodash/trim";
-import upperFirst from "lodash/upperFirst";
 import trimEnd from "lodash/trimEnd";
 import getImageSize from "image-size";
 import officegen from "officegen";
@@ -28,7 +27,7 @@ import * as DataUtils from "./dataUtils";
 
 let noteDestinationFolderId;
 
-const MIN_SUBJECT_LENGTH = 10;
+const MIN_SUBJECT_LENGTH = 5;
 const IMAGE_MAX_WIDTH = 750;
 
 function _sanitizeSubject(
@@ -41,7 +40,7 @@ function _sanitizeSubject(
   subject = (subject || "").trim();
   if (subject.length <= MIN_SUBJECT_LENGTH) {
     // if subject is too short, let's add the from
-    subject = `${subject} ${to}`;
+    subject = `${subject} ${(to || '').toUpperCase()}`;
   }
   subject = `${friendlyDateTimeString2} ${subject}`;
 
@@ -58,11 +57,8 @@ function _sanitizeFileName(string) {
   return upperFirst(
     string
       .replace("|", " ")
-      .replace("[", " ")
-      .replace("]", " ")
       .replace("_", " ")
       .replace("-", " ")
-      .replace(".", " ")
       .replace(/re:/gi, "")
       .replace(/fwd:?/gi, "")
       .replace(/fw:?/gi, "")
