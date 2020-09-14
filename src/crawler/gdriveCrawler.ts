@@ -81,10 +81,10 @@ export async function generateDocFile(
   let docx = officegen({
     type: "docx",
     pageMargins: {
-      top: 600,
-      right: 440,
-      bottom: 600,
-      left: 440,
+      top: 400,
+      right: 340,
+      bottom: 400,
+      left: 340,
     },
   });
 
@@ -152,6 +152,7 @@ export async function generateDocFile(
         continue;
       }
 
+      let contentAdded = false;
       pObj = docx.createP();
       try {
         const link = content.match(/^http[s]?:\/\/[\w./\-#]+/)[0];
@@ -162,7 +163,24 @@ export async function generateDocFile(
             .replace("www.", ""),
           { font_face: "Courier News", link, color: "0000FF", font_size: 10 }
         );
-      } catch (err) {
+        contentAdded = true;
+      } catch (err) {}
+
+      if(!contentAdded){
+        try {
+          const isForwardedSection = content.match(/^>[>\w\s\d]*/gi).length >= 1;
+          if(isForwardedSection){
+            pObj.addText('  ' + upperFirst(content), {
+              color: "aaaaaa",
+              font_face: "Courier News",
+              font_size: 10,
+            });
+            contentAdded = true;
+          }
+        } catch (err) {}
+      }
+
+      if(!contentAdded){
         // not a url. then just add as raw text
         pObj.addText(upperFirst(content), {
           font_face: "Courier News",
