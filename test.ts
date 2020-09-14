@@ -217,8 +217,9 @@ async function _doWork7() {
   threadsToProcess = "1308f784b0b82f7f";
 
   threadsToProcess = [
-    "12cc9ea930e8176e",
     "11f0542e79269927",
+    "10b81ba511e00280",
+    "12cc9ea930e8176e",
     "10b81ba511e00280",
     "119ce063a0d77489",
     "11e155e60f00436f",
