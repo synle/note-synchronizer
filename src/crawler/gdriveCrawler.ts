@@ -217,9 +217,11 @@ export async function generateDocFile(
 
         pObj = docx.createP();
         pObj.options.indentLeft = 0;
+
+        const widthToUse = Math.min(attachmentImageSize.width, IMAGE_MAX_WIDTH);
         pObj.addImage(attachment.path, {
-          cx: IMAGE_MAX_WIDTH,
-          cy: IMAGE_MAX_WIDTH * ratio,
+          cx: widthToUse,
+          cy: Math.min(widthToUse * ratio, 1000),
           indent: 0,
         });
       }
@@ -264,8 +266,7 @@ export function _getNonImagesAttachments(
     return (
       !attachment.mimeType.includes("image") &&
       !attachment.mimeType.includes("ics") &&
-      attachment.size > 0 &&
-      !attachment.inline
+      attachment.size > 0
     );
   });
 }
@@ -328,11 +329,12 @@ async function _processThreads(threadId, emails: Email[]) {
   const allNonImageAttachments: Attachment[] = _getNonImagesAttachments(
     attachments
   );
-  const allImageAttachments: Attachment[] = _getImageAttachments(attachments);
+  let allImageAttachments: Attachment[] = _getImageAttachments(attachments);
   const hasSomeAttachments =
     allNonImageAttachments.length > 0 ||
     allImageAttachments.filter((attachment) => attachment.size >= 25000)
       .length > 0;
+  const usedImageAttachments = new Set();
 
   // involvedEmails
   let emailAddresses = [];
@@ -364,6 +366,10 @@ async function _processThreads(threadId, emails: Email[]) {
 
     const attachments = await DataUtils.getAttachmentsByMessageId(email.id);
     const images: Attachment[] = _getImageAttachments(attachments);
+
+    for (const image of images) {
+      usedImageAttachments.add(image.path);
+    }
 
     const friendlyDateTimeString1 = moment(parseInt(email.date) * 1000).format(
       FORMAT_DATE_TIME1
@@ -605,10 +611,12 @@ async function _processThreads(threadId, emails: Email[]) {
           `Link to Attachment threadId=${threadId} attachmentName=${attachmentName} attachmentLink=drive.google.com/file/d/${attachmentDriveFileId}`
         );
 
-        await DataUtils.bulkUpsertAttachments({
-          path: attachment.path,
-          driveFileId: attachmentDriveFileId,
-        });
+        if (attachment.unzippedContent !== true) {
+          await DataUtils.bulkUpsertAttachments({
+            path: attachment.path,
+            driveFileId: attachmentDriveFileId,
+          });
+        }
       } catch (err) {
         logger.error(
           `Error - Failed upload attachment - threadId=${threadId} attachmentName=${attachmentName} ${
@@ -643,6 +651,17 @@ async function _processThreads(threadId, emails: Email[]) {
         .map((r) => r.trim())
         .join("\n"),
     });
+
+    // only show the list of images that are not shown earlier already
+    allImageAttachments = allImageAttachments.filter(
+      (image) => !usedImageAttachments.has(image.path)
+    );
+    if (allImageAttachments.length > 0) {
+      docContentSections.push({
+        body: "",
+        images: allImageAttachments,
+      });
+    }
 
     await generateDocFile(
       docSubject,
