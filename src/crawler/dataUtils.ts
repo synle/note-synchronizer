@@ -2,17 +2,24 @@
 // adapter for sql
 import { Op } from "sequelize";
 
+import StreamZip from "node-stream-zip";
+import fs from "fs";
+import path from "path";
+import mimeTypes from "mime-types";
+
 import { Email, GmailMessageResponse } from "../types";
 
 import Models from "../models/modelsSchema";
 
 import {
+  MIME_TYPE_ENUM,
   REDIS_KEY,
   THREAD_JOB_STATUS_ENUM,
   WORK_ACTION_ENUM,
 } from "./appConstantsEnums";
 
 import Redis from "ioredis";
+import { Attachment } from "./../types";
 
 const redisInstance = new Redis({
   connectTimeout: 900000,
@@ -91,15 +98,15 @@ export async function getAttachmentsByMessageId(messageId) {
     where: {
       messageId,
       inline: {
-        [Op.eq]: 0, // only use attachments from non-inline attachments
+        [Op.gt]: 0,
       },
     },
     raw: true,
   });
 }
 
-export async function getAttachmentsByThreadId(threadId) {
-  return Models.Attachment.getAll({
+export async function getAttachmentsByThreadId(threadId): Attachment[] {
+  const attachments: Attachment[] = await Models.Attachment.getAll({
     where: {
       threadId,
       size: {
@@ -108,6 +115,148 @@ export async function getAttachmentsByThreadId(threadId) {
     },
     raw: true,
   });
+
+  // if it's a zip file, then we will try to unzip it and attach images
+  let res: Attachment[] = [];
+  for (const attachment of attachments) {
+    let needToAddThisAttachmentItem = true;
+    if (
+      attachment.mimeType === MIME_TYPE_ENUM.APP_ZIP ||
+      mimeTypes.lookup(path.extname(attachment.path)) === MIME_TYPE_ENUM.APP_ZIP
+    ) {
+      try {
+        let allFiles = await _unzip(attachment.path, `/tmp/${threadId}`);
+
+        console.debug(
+          `Unzipping attachment threadId=${threadId} mimeType=${attachment.mimeType} path=${attachment.path} files=${allFiles.length}`
+        );
+
+        if (allFiles.length > 0) {
+          allFiles = allFiles.map((file) => {
+            return {
+              ...file,
+              messageId: threadId,
+              threadId,
+              inline: false,
+            };
+          });
+
+          const unzippedItemsToUse = allFiles.filter((file) => {
+            switch (file.mimeType) {
+              case MIME_TYPE_ENUM.APP_MS_DOC:
+              case MIME_TYPE_ENUM.APP_MS_DOCX:
+              case MIME_TYPE_ENUM.APP_MS_XLS:
+              case MIME_TYPE_ENUM.APP_MS_XLSX:
+              case MIME_TYPE_ENUM.APP_MS_PPT:
+              case MIME_TYPE_ENUM.APP_MS_PPTX:
+              case MIME_TYPE_ENUM.TEXT_PLAIN:
+              case MIME_TYPE_ENUM.TEXT_XML:
+              case MIME_TYPE_ENUM.IMAGE_GIF:
+              case MIME_TYPE_ENUM.IMAGE_JPEG:
+              case MIME_TYPE_ENUM.IMAGE_JPG:
+              case MIME_TYPE_ENUM.IMAGE_PNG:
+              case MIME_TYPE_ENUM.APP_JSON:
+              case MIME_TYPE_ENUM.TEXT_JAVA:
+              case MIME_TYPE_ENUM.TEXT_JAVA_SOURCE:
+              case MIME_TYPE_ENUM.TEXT_CSHARP:
+                console.debug(
+                  `Appending unzipped attachment for threadId=${threadId} path=${file.path} mimeType=${file.mimeType}`
+                );
+                return true;
+              default:
+                console.debug(
+                  `Skipped unzipped attachment for threadId=${threadId} path=${file.path} mimeType=${file.mimeType}`
+                );
+                return false;
+            }
+          });
+
+          res = res.concat(unzippedItemsToUse);
+
+          if (unzippedItemsToUse.length === allFiles.length) {
+            console.debug(
+              `Skipped the zipped file threadId=${threadId} mimeType=${attachment.mimeType} path=${attachment.path} files=${allFiles.length}`
+            );
+            needToAddThisAttachmentItem = false;
+          } else {
+            console.debug(
+              `Still needs to append the zip file threadId=${threadId} mimeType=${attachment.mimeType} path=${attachment.path} files=${allFiles.length} unzippedItemsAdded=${unzippedItemsToUse.length}`
+            );
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    if (needToAddThisAttachmentItem) {
+      console.debug(
+        `Append attachment Not a zip attachment threadId=${threadId} mimeType=${attachment.mimeType} path=${attachment.path}`
+      );
+      res = res.concat(attachment);
+    }
+  }
+
+  console.debug(
+    `getAttachmentsByThreadId threadId=${threadId} files=${res.length}`
+  );
+
+  return res;
+}
+
+function _unzip(zipFileName, extractedDir) {
+  return new Promise((resolve, reject) => {
+    const zip = new StreamZip({
+      file: zipFileName,
+      storeEntries: true,
+    });
+    zip.on("error", reject);
+    zip.on("ready", () => {
+      try {
+        fs.mkdirSync(extractedDir);
+      } catch (err) {}
+      zip.extract(null, extractedDir, (err, count) => {
+        if (err) {
+          reject(err);
+        } else {
+          console.debug(
+            `Extracted file=${zipFileName} out=${extractedDir} count=${count}`
+          );
+          try {
+            const allFiles = _getAllFiles(extractedDir).filter((fileName) => {
+              return !fileName.includes(".git/");
+            });
+            resolve(
+              allFiles.map((file) => {
+                return {
+                  path: file,
+                  fileName: file,
+                  id: file,
+                  mimeType: mimeTypes.lookup(path.extname(file)),
+                  size: fs.statSync(file).size,
+                  unzippedContent: true,
+                };
+              })
+            );
+          } catch (err) {
+            reject(err);
+          }
+        }
+        zip.close();
+      });
+    });
+  });
+}
+
+function _getAllFiles(dirPath, arrayOfFiles = []) {
+  fs.readdirSync(dirPath).forEach(function (file) {
+    if (fs.statSync(dirPath + "/" + file).isDirectory()) {
+      arrayOfFiles = _getAllFiles(dirPath + "/" + file, arrayOfFiles);
+    } else {
+      arrayOfFiles.push(path.join(dirPath, file));
+    }
+  });
+  return arrayOfFiles;
 }
 
 export async function bulkUpsertAttachments(attachments) {

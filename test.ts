@@ -1,12 +1,13 @@
 // @ts-nocheck
 require("dotenv").config();
 import { initLogger, logger } from "./src/loggers";
-initLogger(`Test.Ts`);
+initLogger(`Test.Ts.${Date.now()}`);
 globalThis.LOG_LEVEL = "debug";
 
 import StreamZip from "node-stream-zip";
 import fs from "fs";
 import path from "path";
+import mimeTypes from "mime-types";
 
 import initDatabase from "./src/models/modelsFactory";
 
@@ -134,10 +135,12 @@ async function _doWork6() {
 async function _doWork7() {
   async function _fetchParseAndSync(threadId) {
     try {
-      await gmailCrawler.fetchRawContentsByThreadId(threadId);
-      await gmailCrawler.processMessagesByThreadId(threadId);
+      /* await gmailCrawler.fetchRawContentsByThreadId(threadId);
+      await gmailCrawler.processMessagesByThreadId(threadId); */
       await gdriveCrawler.uploadEmailThreadToGoogleDrive(threadId);
-    } catch (er) {}
+    } catch (er) {
+      console.log(er);
+    }
   }
 
   let threadsToProcess = [
@@ -200,23 +203,114 @@ async function _doWork7() {
     "16ac99f542b78b7d",
     "16af75c45e3f0c95",
     "13e9fc0b05b4631a",
-    "14ea74e274335d1e", // long email thread with lots of attachments
+    // "14ea74e274335d1e", // long email thread with lots of attachments
   ];
 
-  threadsToProcess = ["1308f784b0b82f7f"];
+  threadsToProcess = "1308f784b0b82f7f";
+  threadsToProcess = [
+    "143c7bc48bb3f184",
+    "16ac96f75343b94c",
+    "12f4be2e3e1c0458",
+    "17035347608bc95a",
+  ];
 
-  for (const threadId of threadsToProcess) {
+  threadsToProcess = "1308f784b0b82f7f";
+
+  threadsToProcess = [
+    "12cc9ea930e8176e",
+    "11f0542e79269927",
+    "10b81ba511e00280",
+    "119ce063a0d77489",
+    "11e155e60f00436f",
+    "11f0542e79269927",
+    "11f8afbf7a21797d",
+    "1208780732443cc6",
+    "120f4e0c3763abea",
+    "1211ec049d0f0d2f",
+    "1223a0c8ffbd8866",
+    "123c90be52944dfe",
+    "123cb552e5ac6719",
+    "123cb82bc7d72086",
+    "123f9e2254a81204",
+    "124602bd25ddc420",
+    "124ab8d7591f09af",
+    "124ab914c3f82256",
+    "12512d4147aab0b2",
+    "125466beb5d3323c",
+    "1255bd5917100175",
+    "12565cab145fdca2",
+    "12569f62e3cea779",
+    "1256a281f4740d7d",
+    "1265ea46c98c9ee7",
+    "126bb1584945d489",
+    "126dfd448adf5ee1",
+    "126ecf837904b62e",
+    "126f374bc1d134c2",
+    "126f6d9b9241b4e2",
+    "12702d55dbb958e0",
+    "1270350979af3de4",
+    "12704b27ef331c5d",
+    "12706abe682747f5",
+    "12727c38e6c7b654",
+    "1276fb32d69a0936",
+    "127dee48997e4a4f",
+    "127ffd2c9b641161",
+    "12847ed86ea3fced",
+    "1286c2fb89116b12",
+    "1286c30b34fb2592",
+    "12b211d748597fdd",
+    "12b641d157dbb5a9",
+    "12b641db66b06d5f",
+    "12b641de33d797f7",
+    "12b75fd98b061f07",
+    "12c2f9a74efc34ea",
+    "12c822d21850a78a",
+    "12cbfbec80283689",
+    "12cc9ea930e8176e",
+    "12deac43299cede7",
+    "12e13928855273ac",
+    "12fa3d6cb52bb1fe",
+    "1308f784b0b82f7f",
+    "132601d6bde22b0e",
+    "133c7dd1b90ac939",
+    "133c7f95a54c3a6c",
+    "138a1a419161e5bc",
+    "13cfd81c3d84865f",
+    "140eebc7bf1ff538",
+    "14298418b286892c",
+    "14475c369d735afa",
+    "14a44a594613a1a3",
+    "14bdc526a684d68d",
+    "14ca528cae406275",
+    "14cb5053cc9814ed",
+    "14d266475dbdabea",
+    "14d68d090827ab02",
+    "14e7dcfa5f3ae4e3",
+    "150e4cea4c61ae48",
+    "15127267dd509854",
+    "1520f57076935ee1",
+    "153e7a59f7b747f6",
+    "1541054994af26af",
+    "15761cae229b5bd6",
+    "15ee4dc54905850a",
+    "162e741bef10f87a",
+    "164aa5c3db88fe04",
+    "16ac23198b6779b1",
+  ];
+
+  for (const threadId of new Set([].concat(threadsToProcess))) {
     logger.debug(`Staring processing for threadId=${threadId}`);
     await _fetchParseAndSync(threadId);
   }
 }
 
 async function _doWork8() {
-  // const zipFileName = './attachments/1308f784b0b82f7f.PE.zip';
+  const zipFileName = "./attachments/1308f784b0b82f7f.PE.zip";
   // const zipFileName = './attachments/1541054c365ec85c.Archive.zip';
   // const zipFileName = "./attachments/12c2f9a74efc34ea.SyLe.zip";
   console.log(zipFileName);
-  await _unzip(zipFileName);
+  const allFiles = await _unzip(zipFileName);
+  console.log(JSON.stringify(allFiles, null, 2));
 
   function _unzip(zipFileName) {
     return new Promise((resolve, reject) => {
@@ -241,8 +335,14 @@ async function _doWork8() {
               const allFiles = _getAllFiles(extractedDir).filter((fileName) => {
                 return !fileName.includes(".git/");
               });
-              console.log(allFiles.join("\n"));
-              resolve(extractedDir);
+              resolve(
+                allFiles.map((file) => {
+                  return {
+                    name: file,
+                    mimetype: mimeTypes.lookup(path.extname(file)),
+                  };
+                })
+              );
             } catch (err) {
               reject(err);
             }
@@ -273,8 +373,8 @@ async function _start() {
   // await _doWork6();
   // await _doWork3();
   // await _doWork4();
-  // await _doWork7();
-  await _doWork8();
+  await _doWork7();
+  //await _doWork8();
   process.exit();
 }
 
