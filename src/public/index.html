@@ -105,6 +105,17 @@
     }
   </style>
   <body>
+    <datalist id="optionsLogTraceId">
+      <option value="FETCH_RAW_CONTENT" />
+      <option value="PARSE_EMAIL" />
+      <option value="UPLOAD_EMAILS_BY_MESSAGE_ID" />
+      <option value="Test.Ts" />
+    </datalist>
+    <datalist id="optionsLogKeywords">
+      <option value="Link To Google" />
+      <option value="Link To Attachment" />
+      <option value="Distribute Work" />
+    </datalist>
     <form
       class="form"
       id="form-search-logs"
@@ -132,10 +143,18 @@
         <input
           id="input-search"
           placeholder="Keyword to Search"
-          value="1030313969"
+          value=""
           required
+          list="optionsLogKeywords"
+          autocomplete="off"
         />
-        <input id="input-trace" placeholder="TraceId" value="" />
+        <input
+          id="input-trace"
+          placeholder="TraceId"
+          value=""
+          list="optionsLogTraceId"
+          autocomplete="off"
+        />
         <input type="submit" value="Search" />
       </flex-row>
       <div id="output-logs" class="output-logs" placeholder="Logs"></div>

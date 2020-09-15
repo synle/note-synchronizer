@@ -46,9 +46,7 @@ export async function restartAllWork() {
     ...(await redisInstance.smembers(
       REDIS_KEY.QUEUE_ERROR_FETCH_AND_PARSE_THREAD_ID
     )),
-    ...(await redisInstance.smembers(
-      REDIS_KEY.QUEUE_SUCCESS_UPLOAD_THREAD_ID
-    )),
+    ...(await redisInstance.smembers(REDIS_KEY.QUEUE_SUCCESS_UPLOAD_THREAD_ID)),
   ]);
 
   // delete all the queue
@@ -134,14 +132,18 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
   // if it's a zip file, then we will try to unzip it and attach images
   let res: Attachment[] = [];
   for (const attachment of attachments) {
+    res = res.concat(attachment);
+
     if (
       attachment.mimeType === MIME_TYPE_ENUM.APP_ZIP ||
       mimeTypes.lookup(path.extname(attachment.path)) === MIME_TYPE_ENUM.APP_ZIP
     ) {
-      res = res.concat(attachment);
-
       try {
-        let allFiles = await _unzip(attachment.path, `/tmp/${threadId}`);
+        let allFiles = await _unzip(
+          attachment.path,
+          attachment.fileName,
+          `/tmp/${threadId}`
+        );
 
         console.debug(
           `Unzipping attachment threadId=${threadId} mimeType=${attachment.mimeType} path=${attachment.path} files=${allFiles.length}`
@@ -172,9 +174,9 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
               case MIME_TYPE_ENUM.IMAGE_JPG:
               case MIME_TYPE_ENUM.IMAGE_PNG:
               case MIME_TYPE_ENUM.APP_JSON:
-              // case MIME_TYPE_ENUM.TEXT_JAVA:
-              // case MIME_TYPE_ENUM.TEXT_JAVA_SOURCE:
-              // case MIME_TYPE_ENUM.TEXT_CSHARP:
+                // case MIME_TYPE_ENUM.TEXT_JAVA:
+                // case MIME_TYPE_ENUM.TEXT_JAVA_SOURCE:
+                // case MIME_TYPE_ENUM.TEXT_CSHARP:
                 console.debug(
                   `Appending unzipped attachment for threadId=${threadId} path=${file.path} mimeType=${file.mimeType}`
                 );
@@ -203,7 +205,7 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
   return res;
 }
 
-function _unzip(zipFileName, extractedDir) {
+function _unzip(zipFileName, shortFileName, extractedDir) {
   return new Promise((resolve, reject) => {
     const zip = new StreamZip({
       file: zipFileName,
@@ -229,7 +231,7 @@ function _unzip(zipFileName, extractedDir) {
               allFiles.map((file) => {
                 return {
                   path: file,
-                  fileName: `${zipFileName} > ${path.basename(file)}`,
+                  fileName: `${shortFileName} > ${path.basename(file)}`,
                   id: file,
                   mimeType: mimeTypes.lookup(path.extname(file)),
                   size: fs.statSync(file).size,
@@ -341,7 +343,6 @@ export async function bulkUpsertEmails(emails: Email[]) {
       pipeline.srem(REDIS_KEY.QUEUE_IN_PROGRESS_MESSAGE_ID, id);
       pipeline.srem(REDIS_KEY.QUEUE_SUCCESS_UPLOAD_THREAD_ID, threadId);
 
-
       switch (status) {
         case THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE:
           pipeline.sadd(REDIS_KEY.QUEUE_UPLOAD_EMAILS_MESSAGE_ID, id);
@@ -369,7 +370,9 @@ export async function bulkUpsertEmails(emails: Email[]) {
 // step 1 fetch raw content
 export async function getAllThreadIdsToFetchRawContents() {
   // use redis
-  const ids = await redisInstance.smembers(REDIS_KEY.QUEUE_FETCH_RAW_CONTENT_THREAD_ID);
+  const ids = await redisInstance.smembers(
+    REDIS_KEY.QUEUE_FETCH_RAW_CONTENT_THREAD_ID
+  );
   const pipeline = redisInstance.pipeline();
   for (let id of ids) {
     pipeline.srem(REDIS_KEY.QUEUE_FETCH_RAW_CONTENT_THREAD_ID, id);
@@ -381,7 +384,9 @@ export async function getAllThreadIdsToFetchRawContents() {
 // step 2 parse email
 export async function getAllThreadIdsToParseEmails() {
   // use redis
-  const ids = await redisInstance.smembers(REDIS_KEY.QUEUE_PARSE_EMAIL_THREAD_ID);
+  const ids = await redisInstance.smembers(
+    REDIS_KEY.QUEUE_PARSE_EMAIL_THREAD_ID
+  );
   const pipeline = redisInstance.pipeline();
   for (let id of ids) {
     pipeline.srem(REDIS_KEY.QUEUE_PARSE_EMAIL_THREAD_ID, id);

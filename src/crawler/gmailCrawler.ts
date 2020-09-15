@@ -671,15 +671,12 @@ export function tryParseBody(rawBody, mimeType = MIME_TYPE_ENUM.TEXT_HTML) {
   result = result
     .split("\n")
     .map((r) => r.trim())
-    .map((r) => {
-      return r
-        .replace(/^[=][=][=][=][=]*$/gi, "\n================================\n")
-        .replace(/^[-][-][-][-][-]*$/gi, "\n================================\n")
-        .replace(
-          /^[\*][\*][\*][\*][\*]*$/gi,
-          "\n================================\n"
-        );
-    })
+    .map((r) =>
+      r.replace(
+        /^[-_=\*][-_=\*][-_=\*][-_=\*][-_=\*]*$/gi,
+        "\n================================\n"
+      )
+    )
     .filter((r) => !!r)
     .join("\n");
 
