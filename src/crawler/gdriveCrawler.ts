@@ -40,7 +40,7 @@ function _sanitizeSubject(
   subject = (subject || "").trim();
   if (subject.length <= MIN_SUBJECT_LENGTH) {
     // if subject is too short, let's add the from
-    subject = `${subject} ${(to || '').toUpperCase()}`;
+    subject = `${subject} ${(to || "").toUpperCase()}`;
   }
   subject = `${friendlyDateTimeString2} ${subject}`;
 
@@ -495,8 +495,12 @@ async function _processThreads(threadId, emails: Email[]) {
     }
   }
 
+  const zippedAttachmentCount = allNonImageAttachments.filter(
+    (r) => r.mimeType === MIME_TYPE_ENUM.APP_ZIP
+  ).length;
+
   logger.debug(
-    `Checking to see if we should sync to google drive threadId=${threadId} isEmailSentByMe=${isEmailSentByMe} isEmailSentByMeToMe=${isEmailSentByMeToMe} hasSomeAttachments=${hasSomeAttachments} nonImagesAttachments=${allNonImageAttachments.length} allImageAttachments=${allImageAttachments.length} starred=${starred} hasIgnoredWordTokens=${hasIgnoredWordTokens}`
+    `Checking to see if we should sync to google drive threadId=${threadId} isEmailSentByMe=${isEmailSentByMe} isEmailSentByMeToMe=${isEmailSentByMeToMe} hasSomeAttachments=${hasSomeAttachments} nonImagesAttachments=${allNonImageAttachments.length} allImageAttachments=${allImageAttachments.length} zippedAttachment=${zippedAttachmentCount} starred=${starred} hasIgnoredWordTokens=${hasIgnoredWordTokens}`
   );
 
   let shouldUpload = false;
@@ -703,7 +707,7 @@ async function _processThreads(threadId, emails: Email[]) {
     docLink = `docs.google.com/document/d/${docDriveFileId}`;
 
     logger.debug(
-      `Link to Google Doc Main Content threadId=${threadId} docLink=${docLink} parentFolderLink=drive.google.com/drive/folders/${folderId} folderName=${folderName} attachmentLinks=${attachmentLinks.length} subject=${docFileName}`
+      `Link to Google Doc Main Content threadId=${threadId} docLink=${docLink} parentFolderLink=drive.google.com/drive/folders/${folderId} folderName=${folderName} attachmentLinks=${attachmentLinks.length} nonImagesAttachments=${allNonImageAttachments.length} allImageAttachments=${allImageAttachments.length} zippedAttachment=${zippedAttachmentCount} subject=${docFileName}`
     );
 
     await DataUtils.bulkUpsertEmails(
