@@ -580,7 +580,7 @@ export function _cleanHtml(string) {
 
 function _prettifyHtml(bodyHtml) {
   try {
-    return prettier.format(bodyHtml, { parser: "html" });
+    return prettier.format(bodyHtml, { parser: "html", tabWidth: 2 });
   } catch (e) {}
 
   return bodyHtml;
@@ -682,7 +682,7 @@ export function tryParseBody(rawBody, mimeType = MIME_TYPE_ENUM.TEXT_HTML) {
 
   // attempted to format it as js
   try {
-    result = prettier.format(result, { parser: "babel" });
+    result = prettier.format(result, { parser: "babel", tabWidth: 2 });
   } catch (err) {}
 
   // remove signatures
