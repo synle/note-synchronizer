@@ -93,8 +93,8 @@ export async function createNoteDestinationFolder() {
 
   // create the attachment folder
   const attachmentDestFolderId = await createDriveFolder({
-    name: '_attachments',
-    description: 'Attachments',
+    name: "_attachments",
+    description: "Attachments",
     parentFolderId: noteDestFolderId,
     starred: true,
     folderColorRgb: "#FFFF00",
@@ -465,7 +465,7 @@ export function updateFileInDrive(fileId, resource, media) {
         fileId,
         fields: "id",
         media,
-        addParents: resource.parents.join(','),
+        addParents: resource.parents.join(","),
         requestBody: {
           name: resource.name,
           description: resource.description,
@@ -729,7 +729,7 @@ export async function uploadFile({
     fileGDriveMetadata.parents = [process.env.NOTE_DESTINATION_FOLDER_ID];
   }
 
-  const firtParentFolderId = fileGDriveMetadata.parents[0]
+  const firtParentFolderId = fileGDriveMetadata.parents[0];
 
   const media = {
     mimeType,

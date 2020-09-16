@@ -135,12 +135,34 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
     let needToAddThisZipFile = true;
     let zippedFilesToAdd = [];
 
+    console.debug(
+      `Checking to unzip attachment threadId=${threadId} mimeType=${
+        attachment.mimeType
+      } inferredMimeType=${mimeTypes.lookup(
+        path.extname(attachment.path)
+      )} path=${attachment.path}`
+    );
+
     if (
       attachment.mimeType === MIME_TYPE_ENUM.APP_ZIP ||
-      mimeTypes.lookup(path.extname(attachment.path)) === MIME_TYPE_ENUM.APP_ZIP ||
-      attachment.mimeType === MIME_TYPE_ENUM.APP_RAR ||
-      mimeTypes.lookup(path.extname(attachment.path)) === MIME_TYPE_ENUM.APP_RAR
+      mimeTypes.lookup(path.extname(attachment.path)) ===
+        MIME_TYPE_ENUM.APP_ZIP ||
+      // attachment.mimeType === MIME_TYPE_ENUM.APP_RAR ||
+      // mimeTypes.lookup(path.extname(attachment.path)) ===
+      //   MIME_TYPE_ENUM.APP_RAR ||
+      // attachment.mimeType === MIME_TYPE_ENUM.APP_RAR_COMPRESSED ||
+      // mimeTypes.lookup(path.extname(attachment.path)) ===
+      //   MIME_TYPE_ENUM.APP_RAR_COMPRESSED ||
+      false
     ) {
+      console.debug(
+        `Starting unzipping attachment threadId=${threadId} mimeType=${
+          attachment.mimeType
+        } inferredMimeType=${mimeTypes.lookup(
+          path.extname(attachment.path)
+        )} path=${attachment.path}`
+      );
+
       try {
         let allFiles = await _unzip(
           attachment.path,
@@ -198,19 +220,25 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
             }
           });
 
-          if(zippedFilesToAdd.length === allFiles.length){
+          if (zippedFilesToAdd.length === allFiles.length) {
             needToAddThisZipFile = false;
           }
         }
       } catch (err) {
-        console.error(err);
+        console.error(
+          `Failed unzipping attachment threadId=${threadId} mimeType=${
+            attachment.mimeType
+          } inferredMimeType=${mimeTypes.lookup(
+            path.extname(attachment.path)
+          )} path=${attachment.path} err=${err.stack || err}`
+        );
       }
     }
 
     // add this attachment
     res = res.concat(attachment);
 
-    if(zippedFilesToAdd.length > 0){
+    if (zippedFilesToAdd.length > 0) {
       res = res.concat(zippedFilesToAdd);
     }
   }
@@ -245,18 +273,20 @@ function _unzip(zipFileName, shortFileName, extractedDir) {
               return !fileName.includes(".git/");
             });
             resolve(
-              allFiles.filter(file => !file.includes('/.git/')).map((file) => {
-                return {
-                  path: file,
-                  fileName: `${shortFileName} ${file
-                    .replace(extractedDir, "")
-                    .replace("/", "> ")}`,
-                  id: file,
-                  mimeType: mimeTypes.lookup(path.extname(file)),
-                  size: fs.statSync(file).size,
-                  unzippedContent: true,
-                };
-              })
+              allFiles
+                .filter((file) => !file.includes("/.git/"))
+                .map((file) => {
+                  return {
+                    path: file,
+                    fileName: `${shortFileName} ${file
+                      .replace(extractedDir, "")
+                      .replace("/", "> ")}`,
+                    id: file,
+                    mimeType: mimeTypes.lookup(path.extname(file)),
+                    size: fs.statSync(file).size,
+                    unzippedContent: true,
+                  };
+                })
             );
           } catch (err) {
             reject(err);

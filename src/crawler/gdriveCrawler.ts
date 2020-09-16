@@ -110,7 +110,7 @@ export async function generateDocFileForEmail(
     });
 
     for (let attachment of attachmentLinks) {
-      if(attachment.link){
+      if (attachment.link) {
         docx.createP().addText(attachment.fileName, {
           link: attachment.link,
           color: "0000FF",
@@ -148,7 +148,6 @@ export async function generateDocFileForEmail(
     });
     _renderSection(section, true);
     sectionBlock.endBookmark();
-
   }
 
   function _renderDivider() {
@@ -211,7 +210,7 @@ export async function generateDocFileForEmail(
 
       if (!contentAdded) {
         // not a url. then just add as raw text
-        if(isInlineAttachment){
+        if (isInlineAttachment) {
           docx.createP().addText(content, {
             font_face: "Courier News",
             font_size: 9,
@@ -287,13 +286,16 @@ export async function generateDocFileForEmail(
   });
 }
 
-
-export async function generateDocFileFromFile(subject, oldFileName, newFileName) {
-  let body = '';
-  try{
+export async function generateDocFileFromFile(
+  subject,
+  oldFileName,
+  newFileName
+) {
+  let body = "";
+  try {
     body = fs.readFileSync(oldFileName, "UTF-8") || "";
-  } catch(err){
-    body = '<File is Empty>'
+  } catch (err) {
+    body = "<File is Empty>";
   }
 
   // Create an empty Word object:
@@ -627,7 +629,7 @@ async function _processThreads(threadId, emails: Email[]) {
   ).length;
 
   logger.debug(
-    `Checking to see if we should sync to google drive threadId=${threadId} isEmailSentByMe=${isEmailSentByMe} isEmailSentByMeToMe=${isEmailSentByMeToMe} hasSomeAttachments=${hasSomeAttachments} nonImagesAttachments=${allNonImageAttachments.length} allImageAttachments=${allImageAttachments.length} zippedAttachment=${zippedAttachmentCount} starred=${starred} isPocketLink=${isPocketLink} hasIgnoredWordTokens=${hasIgnoredWordTokens}`
+    `Checking to sync to google drive threadId=${threadId} isEmailSentByMe=${isEmailSentByMe} isEmailSentByMeToMe=${isEmailSentByMeToMe} hasSomeAttachments=${hasSomeAttachments} nonImagesAttachments=${allNonImageAttachments.length} allImageAttachments=${allImageAttachments.length} zippedAttachment=${zippedAttachmentCount} starred=${starred} isPocketLink=${isPocketLink} hasIgnoredWordTokens=${hasIgnoredWordTokens}`
   );
 
   let shouldUpload = false;
@@ -640,7 +642,7 @@ async function _processThreads(threadId, emails: Email[]) {
     starred
   ) {
     shouldUpload = true;
-  } else if(isPocketLink){
+  } else if (isPocketLink) {
     shouldUpload = true;
   }
 
@@ -704,9 +706,10 @@ async function _processThreads(threadId, emails: Email[]) {
           case MIME_TYPE_ENUM.APP_PHP:
           case MIME_TYPE_ENUM.TEXT_CSS:
           case MIME_TYPE_ENUM.TEXT_MARKDOWN:
-          let attachmentContent = fs.readFileSync(attachment.path, "UTF-8") || "",
+            let attachmentContent =
+              fs.readFileSync(attachment.path, "UTF-8") || "";
 
-            if(attachment.mimeType === MIME_TYPE_ENUM.APP_JS){
+            if (attachment.mimeType === MIME_TYPE_ENUM.APP_JS) {
               try {
                 attachmentContent = prettier.format(attachmentContent, {
                   parser: "babel",

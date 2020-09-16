@@ -80,6 +80,7 @@ export enum MIME_TYPE_ENUM {
   APP_PHP = "application/x-httpd-php",
   APP_JS = "application/javascript",
   APP_RAR = "application/rar",
+  APP_RAR_COMPRESSED = "application/x-rar-compressed",
 }
 
 export enum WORKER_STATUS_ENUM {
