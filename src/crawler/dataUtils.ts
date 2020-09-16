@@ -132,7 +132,8 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
   // if it's a zip file, then we will try to unzip it and attach images
   let res: Attachment[] = [];
   for (const attachment of attachments) {
-    res = res.concat(attachment);
+    let needToAddThisZipFile = true;
+    let zippedFilesToAdd = [];
 
     if (
       attachment.mimeType === MIME_TYPE_ENUM.APP_ZIP ||
@@ -159,7 +160,7 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
             };
           });
 
-          const unzippedItemsToUse = allFiles.filter((file) => {
+          zippedFilesToAdd = allFiles.filter((file) => {
             switch (file.mimeType) {
               case MIME_TYPE_ENUM.APP_MS_DOC:
               case MIME_TYPE_ENUM.APP_MS_DOCX:
@@ -174,9 +175,15 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
               case MIME_TYPE_ENUM.IMAGE_JPG:
               case MIME_TYPE_ENUM.IMAGE_PNG:
               case MIME_TYPE_ENUM.APP_JSON:
-                // case MIME_TYPE_ENUM.TEXT_JAVA:
-                // case MIME_TYPE_ENUM.TEXT_JAVA_SOURCE:
-                // case MIME_TYPE_ENUM.TEXT_CSHARP:
+              case MIME_TYPE_ENUM.TEXT_JAVA:
+              case MIME_TYPE_ENUM.TEXT_JAVA_SOURCE:
+              case MIME_TYPE_ENUM.TEXT_CSHARP:
+              case MIME_TYPE_ENUM.TEXT_CPP:
+              case MIME_TYPE_ENUM.APP_JS:
+              case MIME_TYPE_ENUM.APP_JSON:
+              case MIME_TYPE_ENUM.APP_PHP:
+              case MIME_TYPE_ENUM.TEXT_CSS:
+              case MIME_TYPE_ENUM.TEXT_MARKDOWN:
                 console.debug(
                   `Appending unzipped attachment for threadId=${threadId} path=${file.path} mimeType=${file.mimeType}`
                 );
@@ -189,12 +196,20 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
             }
           });
 
-          // add the unzipped
-          res = res.concat(unzippedItemsToUse);
+          if(zippedFilesToAdd.length === allFiles.length){
+            needToAddThisZipFile = false;
+          }
         }
       } catch (err) {
         console.error(err);
       }
+    }
+
+    // add this attachment
+    res = res.concat(attachment);
+
+    if(zippedFilesToAdd.length > 0){
+      res = res.concat(zippedFilesToAdd);
     }
   }
 
