@@ -9,6 +9,7 @@ import trim from "lodash/trim";
 import trimEnd from "lodash/trimEnd";
 import getImageSize from "image-size";
 import officegen from "officegen";
+import prettier from "prettier";
 
 import { Email, Attachment } from "../types";
 import * as googleApiUtils from "./googleApiUtils";
@@ -118,6 +119,7 @@ export async function generateDocFileForEmail(
         });
       } else {
         docx.createP().addText(attachment.fileName, {
+          hyperlink: attachment.hyperlink,
           color: "0000FF",
           font_face: "Courier News",
           font_size: 10,
@@ -135,7 +137,18 @@ export async function generateDocFileForEmail(
   // inline attachment
   inlineAttachmentSections = [].concat(inlineAttachmentSections);
   for (let section of inlineAttachmentSections) {
+    _renderDivider();
+    const sectionBlock = docx.createP();
+    sectionBlock.startBookmark(section.fileName);
+    sectionBlock.addText(upperFirst(section.fileName), {
+      font_face: "Courier News",
+      font_size: 10,
+      color: "000000",
+      bold: true,
+    });
     _renderSection(section, true);
+    sectionBlock.endBookmark();
+
   }
 
   function _renderDivider() {
@@ -145,6 +158,7 @@ export async function generateDocFileForEmail(
       font_face: "Courier News",
       font_size: 10,
     });
+    return pObj;
   }
 
   function _renderSection(section, isInlineAttachment = false) {
@@ -200,7 +214,7 @@ export async function generateDocFileForEmail(
         if(isInlineAttachment){
           docx.createP().addText(content, {
             font_face: "Courier News",
-            font_size: 10,
+            font_size: 9,
             color: "0000FF",
           });
         } else {
@@ -685,15 +699,28 @@ async function _processThreads(threadId, emails: Email[]) {
           case MIME_TYPE_ENUM.APP_PHP:
           case MIME_TYPE_ENUM.TEXT_CSS:
           case MIME_TYPE_ENUM.TEXT_MARKDOWN:
+          let attachmentContent = fs.readFileSync(attachment.path, "UTF-8") || "",
+
+            if(attachment.mimeType === MIME_TYPE_ENUM.APP_JS){
+              try {
+                attachmentContent = prettier.format(attachmentContent, {
+                  parser: "babel",
+                  tabWidth: 2,
+                });
+              } catch (e) {}
+            } else if (attachment.mimeType === MIME_TYPE_ENUM.TEXT_CSS) {
+              try {
+                attachmentContent = prettier.format(attachmentContent, {
+                  parser: "css",
+                  tabWidth: 2,
+                });
+              } catch (e) {}
+            }
+
             docInlineAttachmentSections.push({
-              body: `
-================================
-File: ${attachment.fileName} (${attachment.messageId})
-
-${fs.readFileSync(attachment.path, "UTF-8") || ""}
-                `,
+              fileName: `${attachment.fileName} (${attachment.messageId})`,
+              body: attachmentContent,
             });
-
 
             console.debug(
               `Will convert this into a Google Doc file threadId=${threadId} attachmentName=${attachmentName} mimeType=${attachment.mimeType} attachmentPathToUse=${attachmentPathToUse}`
@@ -701,6 +728,7 @@ ${fs.readFileSync(attachment.path, "UTF-8") || ""}
 
             attachmentLinks.push({
               fileName: `${attachment.fileName} (${attachment.messageId})`,
+              hyperlink: `${attachment.fileName} (${attachment.messageId})`,
             });
 
             continue;

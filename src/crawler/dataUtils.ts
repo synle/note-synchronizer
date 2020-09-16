@@ -243,10 +243,12 @@ function _unzip(zipFileName, shortFileName, extractedDir) {
               return !fileName.includes(".git/");
             });
             resolve(
-              allFiles.map((file) => {
+              allFiles.filter(file => !file.includes('/.git/')).map((file) => {
                 return {
                   path: file,
-                  fileName: `${shortFileName} > ${path.basename(file)}`,
+                  fileName: `${shortFileName} ${file
+                    .replace(extractedDir, "")
+                    .replace("/", "> ")}`,
                   id: file,
                   mimeType: mimeTypes.lookup(path.extname(file)),
                   size: fs.statSync(file).size,
