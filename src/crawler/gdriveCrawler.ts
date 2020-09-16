@@ -439,6 +439,7 @@ async function _processThreads(threadId, emails: Email[]) {
   let hasIgnoredWordTokens = false;
   let docSubject;
   let labelIdsSet = new Set();
+  let isPocketLink = false;
 
   const googleFileAppProperties = {
     threadId,
@@ -594,7 +595,9 @@ async function _processThreads(threadId, emails: Email[]) {
         docSubject = email.subject;
       }
 
-      const gmailLink = email.from.includes("getpocket")
+      isPocketLink = isPocketLink || email.from.includes("getpocket");
+
+      const gmailLink = isPocketLink
         ? ""
         : `https://mail.google.com/mail/#all/${email.id}`;
 
@@ -624,7 +627,7 @@ async function _processThreads(threadId, emails: Email[]) {
   ).length;
 
   logger.debug(
-    `Checking to see if we should sync to google drive threadId=${threadId} isEmailSentByMe=${isEmailSentByMe} isEmailSentByMeToMe=${isEmailSentByMeToMe} hasSomeAttachments=${hasSomeAttachments} nonImagesAttachments=${allNonImageAttachments.length} allImageAttachments=${allImageAttachments.length} zippedAttachment=${zippedAttachmentCount} starred=${starred} hasIgnoredWordTokens=${hasIgnoredWordTokens}`
+    `Checking to see if we should sync to google drive threadId=${threadId} isEmailSentByMe=${isEmailSentByMe} isEmailSentByMeToMe=${isEmailSentByMeToMe} hasSomeAttachments=${hasSomeAttachments} nonImagesAttachments=${allNonImageAttachments.length} allImageAttachments=${allImageAttachments.length} zippedAttachment=${zippedAttachmentCount} starred=${starred} isPocketLink=${isPocketLink} hasIgnoredWordTokens=${hasIgnoredWordTokens}`
   );
 
   let shouldUpload = false;
@@ -636,6 +639,8 @@ async function _processThreads(threadId, emails: Email[]) {
     hasSomeAttachments ||
     starred
   ) {
+    shouldUpload = true;
+  } else if(isPocketLink){
     shouldUpload = true;
   }
 
@@ -764,12 +769,14 @@ async function _processThreads(threadId, emails: Email[]) {
             .join("\n"),
           date,
           starred,
-          parentFolderId: folderId,
+          parentFolderId: [
+            folderId,
+            process.env.ATTACHMENT_DESTINATION_FOLDER_ID,
+          ],
           appProperties: {
             sha: attachmentSha,
             ...googleFileAppProperties,
           },
-          attachmentId: attachment.id,
         });
 
         // retain the attachment links to be put inside the doc later
@@ -876,7 +883,9 @@ async function _processThreads(threadId, emails: Email[]) {
         .join("\n"),
       date,
       starred,
-      parentFolderId: folderId,
+      parentFolderId: isPocketLink
+        ? [folderId, process.env.POCKET_DESTINATION_FOLDER_ID]
+        : folderId,
       appProperties: {
         sha: docSha,
         ...googleFileAppProperties,

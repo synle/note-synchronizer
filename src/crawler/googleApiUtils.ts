@@ -81,6 +81,16 @@ export async function createNoteDestinationFolder() {
     },
   });
 
+  const pocketDestFolderId = await createDriveFolder({
+    name: `_Pocket`,
+    description: `_Pocket`,
+    starred: true,
+    folderColorRgb: "#FFFF00",
+    appProperties: {
+      PocketNoteFolder: "1",
+    },
+  });
+
   // create the attachment folder
   const attachmentDestFolderId = await createDriveFolder({
     name: '_attachments',
@@ -94,9 +104,8 @@ export async function createNoteDestinationFolder() {
   });
 
   logger.warn(
-    `createNoteDestinationFolder noteFolderId=${noteDestFolderId} attachmentFolderId=${attachmentDestFolderId}`
+    `createNoteDestinationFolder NOTE_DESTINATION_FOLDER_ID=${noteDestFolderId} ATTACHMENT_DESTINATION_FOLDER_ID=${attachmentDestFolderId} POCKET_DESTINATION_FOLDER_ID=${pocketDestFolderId}`
   );
-
 
   // generate the bucket for all of my emails
   let promises = [];
@@ -655,7 +664,6 @@ export async function uploadFile({
   starred = false,
   parentFolderId,
   appProperties = {},
-  attachmentId,
 }) {
   let mimeTypeToUse = (mimeType || "").toLowerCase();
   let keepRevisionForever = false;
@@ -704,7 +712,6 @@ export async function uploadFile({
     name,
     parents: []
       .concat(parentFolderId || [])
-      .concat(attachmentId ? process.env.ATTACHMENT_DESTINATION_FOLDER_ID || "" : "")
       .filter((p) => !!p & (p.length > 0)),
     mimeType: mimeTypeToUse,
     modifiedTime,
@@ -722,6 +729,8 @@ export async function uploadFile({
     fileGDriveMetadata.parents = [process.env.NOTE_DESTINATION_FOLDER_ID];
   }
 
+  const firtParentFolderId = fileGDriveMetadata.parents[0]
+
   const media = {
     mimeType,
     body: fs.createReadStream(localPath),
@@ -731,7 +740,7 @@ export async function uploadFile({
   if (!foundFileId) {
     const matchedResults = await searchDrive({
       appProperties: appProperties,
-      parentFolderId: parentFolderId,
+      parentFolderId: firtParentFolderId,
     });
 
     logger.debug(
@@ -746,7 +755,7 @@ export async function uploadFile({
   console.debug(
     `Upload file with ${
       foundFileId ? "UPDATE" : "CREATE"
-    } parent=${parentFolderId} fileName=${name} fileId=${
+    } parent=${firtParentFolderId} fileName=${name} fileId=${
       foundFileId || ""
     } fileGDriveMetadata=${JSON.stringify(fileGDriveMetadata)}`
   );
