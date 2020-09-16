@@ -79,6 +79,7 @@ export enum MIME_TYPE_ENUM {
   TEXT_MARKDOWN = "text/markdown",
   APP_PHP = "application/x-httpd-php",
   APP_JS = "application/javascript",
+  APP_RAR = "application/rar",
 }
 
 export enum WORKER_STATUS_ENUM {

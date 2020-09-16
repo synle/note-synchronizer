@@ -137,7 +137,9 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
 
     if (
       attachment.mimeType === MIME_TYPE_ENUM.APP_ZIP ||
-      mimeTypes.lookup(path.extname(attachment.path)) === MIME_TYPE_ENUM.APP_ZIP
+      mimeTypes.lookup(path.extname(attachment.path)) === MIME_TYPE_ENUM.APP_ZIP ||
+      attachment.mimeType === MIME_TYPE_ENUM.APP_RAR ||
+      mimeTypes.lookup(path.extname(attachment.path)) === MIME_TYPE_ENUM.APP_RAR
     ) {
       try {
         let allFiles = await _unzip(
