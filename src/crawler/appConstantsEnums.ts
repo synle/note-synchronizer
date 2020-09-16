@@ -74,6 +74,11 @@ export enum MIME_TYPE_ENUM {
   TEXT_JAVA = "text/x-java",
   TEXT_JAVA_SOURCE = "text/x-java-source",
   TEXT_CSHARP = "text/x-csharp",
+  TEXT_CPP = "text/x-c",
+  TEXT_CSS = "text/css",
+  TEXT_MARKDOWN = "text/markdown",
+  APP_PHP = "application/x-httpd-php",
+  APP_JS = "application/javascript",
 }
 
 export enum WORKER_STATUS_ENUM {
