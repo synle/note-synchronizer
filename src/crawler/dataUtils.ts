@@ -192,6 +192,7 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
               case MIME_TYPE_ENUM.APP_MS_XLSX:
               case MIME_TYPE_ENUM.APP_MS_PPT:
               case MIME_TYPE_ENUM.APP_MS_PPTX:
+              case MIME_TYPE_ENUM.TEXT_CSV:
               case MIME_TYPE_ENUM.TEXT_PLAIN:
               case MIME_TYPE_ENUM.TEXT_XML:
               case MIME_TYPE_ENUM.IMAGE_GIF:
