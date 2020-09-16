@@ -769,6 +769,7 @@ async function _processThreads(threadId, emails: Email[]) {
             sha: attachmentSha,
             ...googleFileAppProperties,
           },
+          attachmentId: attachment.id,
         });
 
         // retain the attachment links to be put inside the doc later

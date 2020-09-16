@@ -81,9 +81,22 @@ export async function createNoteDestinationFolder() {
     },
   });
 
+  // create the attachment folder
+  const attachmentDestFolderId = await createDriveFolder({
+    name: '_attachments',
+    description: 'Attachments',
+    parentFolderId: noteDestFolderId,
+    starred: true,
+    folderColorRgb: "#FFFF00",
+    appProperties: {
+      AttachmentFolder: "1",
+    },
+  });
+
   logger.warn(
-    `createNoteDestinationFolder folderId=${noteDestFolderId} noteFolderName=${noteFolderName}`
+    `createNoteDestinationFolder noteFolderId=${noteDestFolderId} attachmentFolderId=${attachmentDestFolderId}`
   );
+
 
   // generate the bucket for all of my emails
   let promises = [];
@@ -443,6 +456,7 @@ export function updateFileInDrive(fileId, resource, media) {
         fileId,
         fields: "id",
         media,
+        addParents: resource.parents.join(','),
         requestBody: {
           name: resource.name,
           description: resource.description,
@@ -641,6 +655,7 @@ export async function uploadFile({
   starred = false,
   parentFolderId,
   appProperties = {},
+  attachmentId,
 }) {
   let mimeTypeToUse = (mimeType || "").toLowerCase();
   let keepRevisionForever = false;
@@ -689,6 +704,7 @@ export async function uploadFile({
     name,
     parents: []
       .concat(parentFolderId || [])
+      .concat(attachmentId ? process.env.ATTACHMENT_DESTINATION_FOLDER_ID || "" : "")
       .filter((p) => !!p & (p.length > 0)),
     mimeType: mimeTypeToUse,
     modifiedTime,
