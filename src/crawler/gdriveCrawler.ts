@@ -69,10 +69,11 @@ function _sanitizeFileName(string) {
   );
 }
 
-export async function generateDocFile(
+export async function generateDocFileForEmail(
   subject,
   headerSections,
   bodySections,
+  inlineAttachmentSections,
   attachmentLinks,
   newFileName
 ) {
@@ -102,20 +103,26 @@ export async function generateDocFile(
   if (attachmentLinks.length > 0) {
     _renderDivider();
 
-    pObj = docx.createP();
-    pObj.addText(`Total Attachments: ${attachmentLinks.length}`, {
+    docx.createP().addText(`Total Attachments: ${attachmentLinks.length}`, {
       bold: true,
       font_size: 14,
     });
 
     for (let attachment of attachmentLinks) {
-      pObj = docx.createP();
-      pObj.addText(attachment.fileName, {
-        link: attachment.link,
-        color: "0000FF",
-        font_face: "Courier News",
-        font_size: 10,
-      });
+      if(attachment.link){
+        docx.createP().addText(attachment.fileName, {
+          link: attachment.link,
+          color: "0000FF",
+          font_face: "Courier News",
+          font_size: 10,
+        });
+      } else {
+        docx.createP().addText(attachment.fileName, {
+          color: "0000FF",
+          font_face: "Courier News",
+          font_size: 10,
+        });
+      }
     }
   }
 
@@ -123,6 +130,12 @@ export async function generateDocFile(
   bodySections = [].concat(bodySections);
   for (let section of bodySections) {
     _renderSection(section);
+  }
+
+  // inline attachment
+  inlineAttachmentSections = [].concat(inlineAttachmentSections);
+  for (let section of inlineAttachmentSections) {
+    _renderSection(section, true);
   }
 
   function _renderDivider() {
@@ -134,7 +147,7 @@ export async function generateDocFile(
     });
   }
 
-  function _renderSection(section) {
+  function _renderSection(section, isInlineAttachment = false) {
     let body = section.body;
     let images = section.images || [];
 
@@ -142,7 +155,7 @@ export async function generateDocFile(
       .replace("\r", "\n")
       .replace("\t", " ")
       .split("\n")
-      .map((r) => trimEnd(r || "", ". \n"))
+      .map((r) => trimEnd(r || "", ". \n\t\r"))
       .filter((r) => !!r);
 
     for (let content of body) {
@@ -152,16 +165,17 @@ export async function generateDocFile(
       }
 
       let contentAdded = false;
-      pObj = docx.createP();
       try {
         const link = content.match(/^http[s]?:\/\/[\w./\-#@]+/)[0];
-        pObj.addText(
-          link
-            .replace("http://", "")
-            .replace("https://", "")
-            .replace("www.", ""),
-          { font_face: "Courier News", link, color: "0000FF", font_size: 10 }
-        );
+        docx
+          .createP()
+          .addText(
+            link
+              .replace("http://", "")
+              .replace("https://", "")
+              .replace("www.", ""),
+            { font_face: "Courier News", link, color: "0000FF", font_size: 10 }
+          );
         contentAdded = true;
       } catch (err) {}
 
@@ -170,11 +184,12 @@ export async function generateDocFile(
           const isForwardedSection =
             content.match(/^>[>\w\s\d]*/gi).length >= 1;
           if (isForwardedSection) {
-            pObj.addText("  " + upperFirst(content), {
-              color: "999999",
-              font_face: "Courier News",
-              font_size: 10,
-            });
+            // ignore the forwarded section
+            // docx.createP().addText("  " + upperFirst(content), {
+            //   color: "999999",
+            //   font_face: "Courier News",
+            //   font_size: 10,
+            // });
             contentAdded = true;
           }
         } catch (err) {}
@@ -182,10 +197,19 @@ export async function generateDocFile(
 
       if (!contentAdded) {
         // not a url. then just add as raw text
-        pObj.addText(upperFirst(content), {
-          font_face: "Courier News",
-          font_size: 10,
-        });
+        if(isInlineAttachment){
+          docx.createP().addText(content, {
+            font_face: "Courier News",
+            font_size: 10,
+            color: "0000FF",
+          });
+        } else {
+          docx.createP().addText(upperFirst(content), {
+            font_face: "Courier News",
+            font_size: 10,
+            color: "000000",
+          });
+        }
       }
     }
 
@@ -249,6 +273,91 @@ export async function generateDocFile(
   });
 }
 
+
+export async function generateDocFileFromFile(subject, oldFileName, newFileName) {
+  let body = '';
+  try{
+    body = fs.readFileSync(oldFileName, "UTF-8") || "";
+  } catch(err){
+    body = '<File is Empty>'
+  }
+
+  // Create an empty Word object:
+  let docx = officegen({
+    type: "docx",
+    pageMargins: {
+      top: 400,
+      right: 340,
+      bottom: 400,
+      left: 340,
+    },
+  });
+
+  // subject
+  let pObj;
+  pObj = docx.createP();
+  pObj.addText(subject, { font_size: 16, bold: true });
+
+  _renderBody(body);
+
+  function _renderBody(body) {
+    body = body
+      .replace("\r", "\n")
+      .replace("\t", " ")
+      .split("\n")
+      .map((r) => trimEnd(r || "", ". \n\t\r"))
+      .filter((r) => !!r);
+
+    for (let content of body) {
+      let contentAdded = false;
+      try {
+        const link = content.match(/^http[s]?:\/\/[\w./\-#@]+/)[0];
+        pObj = docx.createP();
+        pObj.addText(
+          link
+            .replace("http://", "")
+            .replace("https://", "")
+            .replace("www.", ""),
+          { font_face: "Courier News", link, color: "0000FF", font_size: 10 }
+        );
+        contentAdded = true;
+      } catch (err) {}
+
+      if (!contentAdded) {
+        // not a url. then just add as raw text
+        pObj = docx.createP();
+        pObj.addText(content, {
+          font_face: "Courier News",
+          font_size: 10,
+        });
+      }
+    }
+  }
+
+  return new Promise((resolve, reject) => {
+    let out = fs.createWriteStream(newFileName);
+
+    // This one catch only the officegen errors:
+    docx.on("error", function (err) {
+      console.log("Failed to generate Doc", newFileName, err);
+      reject(err);
+    });
+
+    // Catch fs errors:
+    out.on("error", function (err) {
+      console.log("Failed to create Doc", newFileName, err);
+      reject(err);
+    });
+
+    // End event after creating the PowerPoint file:
+    out.on("close", function () {
+      resolve(newFileName);
+    });
+
+    // This async method is working like a pipe - it'll generate the pptx data and put it into the output stream:
+    docx.generate(out);
+  });
+}
 export function _getImageAttachments(attachments: Attachment[]): Attachment[] {
   return attachments.filter((attachment) => {
     return attachment.mimeType.includes("image");
@@ -306,6 +415,7 @@ async function _processThreads(threadId, emails: Email[]) {
   let docDriveFileId;
   let docFileName;
   let docContentSections = [];
+  let docInlineAttachmentSections = [];
   let starred = false;
   let dateStart;
   let dateEnd;
@@ -546,23 +656,62 @@ async function _processThreads(threadId, emails: Email[]) {
     // upload attachments
     let attachmentIdx = 1;
     let attachmentLinks = [];
+
     for (let attachment of allNonImageAttachments) {
-      const attachmentName = _sanitizeFileName(
+      let attachmentName = _sanitizeFileName(
         `${docFileName} File#${attachmentIdx} ${attachment.fileName}`
       );
       attachmentIdx++;
 
       logger.debug(
-        `Upload Attachment threadId=${threadId} attachmentName=${attachmentName} ${attachment.mimeType}`
+        `Upload Attachment threadId=${threadId} attachmentName=${attachmentName} mimeType=${attachment.mimeType}`
       );
 
       try {
         const attachmentSha = commonUtils.get256Hash(attachment.path);
+
+        let attachmentPathToUse = attachment.path;
+
+        switch (attachment.mimeType) {
+          case MIME_TYPE_ENUM.TEXT_PLAIN:
+          case MIME_TYPE_ENUM.TEXT_XML:
+          case MIME_TYPE_ENUM.APP_JSON:
+          case MIME_TYPE_ENUM.TEXT_JAVA:
+          case MIME_TYPE_ENUM.TEXT_JAVA_SOURCE:
+          case MIME_TYPE_ENUM.TEXT_CSHARP:
+          case MIME_TYPE_ENUM.TEXT_CPP:
+          case MIME_TYPE_ENUM.APP_JS:
+          case MIME_TYPE_ENUM.APP_JSON:
+          case MIME_TYPE_ENUM.APP_PHP:
+          case MIME_TYPE_ENUM.TEXT_CSS:
+          case MIME_TYPE_ENUM.TEXT_MARKDOWN:
+            docInlineAttachmentSections.push({
+              body: `
+================================
+File: ${attachment.fileName} (${attachment.messageId})
+
+${fs.readFileSync(attachment.path, "UTF-8") || ""}
+                `,
+            });
+
+
+            console.debug(
+              `Will convert this into a Google Doc file threadId=${threadId} attachmentName=${attachmentName} mimeType=${attachment.mimeType} attachmentPathToUse=${attachmentPathToUse}`
+            );
+
+            attachmentLinks.push({
+              fileName: `${attachment.fileName} (${attachment.messageId})`,
+            });
+
+            continue;
+            break;
+        }
+
         const attachmentDriveFileId = await googleApiUtils.uploadFile({
           name: attachmentName,
           mimeType: attachment.mimeType,
           dateEpochTime: parseInt(date) * 1000,
-          localPath: attachment.path,
+          localPath: attachmentPathToUse,
           description: `
         Attachment #${attachmentIdx}
         From:
@@ -608,7 +757,7 @@ async function _processThreads(threadId, emails: Email[]) {
         }
 
         logger.debug(
-          `Link to Attachment threadId=${threadId} attachmentName=${attachmentName} attachmentLink=drive.google.com/file/d/${attachmentDriveFileId}`
+          `Link to Attachment threadId=${threadId} attachmentName=${attachmentName} attachmentPathToUse=${attachmentPathToUse} mimeType=${attachment.mimeType} attachmentLink=drive.google.com/file/d/${attachmentDriveFileId}`
         );
 
         if (attachment.unzippedContent !== true) {
@@ -663,10 +812,11 @@ async function _processThreads(threadId, emails: Email[]) {
       });
     }
 
-    await generateDocFile(
+    await generateDocFileForEmail(
       docSubject,
       docHeaderSection,
       docContentSections,
+      docInlineAttachmentSections,
       attachmentLinks,
       docLocalPath
     );

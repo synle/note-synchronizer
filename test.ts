@@ -299,6 +299,8 @@ async function _doWork7() {
     "16ac23198b6779b1",
   ];
 
+  threadsToProcess = "14475c369d735afa";
+
   for (const threadId of new Set([].concat(threadsToProcess))) {
     logger.debug(`Staring processing for threadId=${threadId}`);
     await _fetchParseAndSync(threadId);
