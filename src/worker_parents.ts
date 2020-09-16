@@ -124,7 +124,7 @@ async function _init() {
       setInterval(
         () =>
           gmailCrawler.pollForNewThreadList(
-            moment().subtract(1, "months").startOf("month").format("YYYY/MM/DD")
+            moment().subtract(parseInt(process.env.POLL_DAYS_DELTA), "days").format("YYYY/MM/DD")
           ),
         12 * 60 * 60 * 1000
       );
