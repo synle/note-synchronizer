@@ -130,7 +130,7 @@ export async function createNoteDestinationFolder() {
       })
     );
 
-    if (promises.length === 3) {
+    if (promises.length === 10) {
       await Promise.allSettled(promises);
       promises = [];
     }
@@ -650,16 +650,16 @@ export async function createDriveFolder({
         fileGDriveMetadata.parents = [parentFolderId];
       }
 
-      folderId = createFolderInDrive(fileGDriveMetadata);
+      folderId = await createFolderInDrive(fileGDriveMetadata);
 
       // create the folder itself
       logger.debug(`Create Google Drive Folder name=${name} folderId=${folderId}`);
     } else {
-      logger.debug(
-        `Skipped Create Google Drive Folder name=${name} due to duplicate`
-      );
-
       folderId = matchedResults[0].id;
+
+      logger.debug(
+        `Skipped Create Google Drive Folder due to duplicate name=${name} folderId=${folderId}`
+      );
     }
   } catch (err) {
     _logAndWrapApiError(err, null, "createDriveFolder");

@@ -253,21 +253,23 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
     if(attachment.mimeType === MIME_TYPE_ENUM.APP_PDF){
       const imagesFilePathFromPdf = await convertPdfToImages(attachment.path);
 
-      res = res.concat(
-        imagesFilePathFromPdf.map((file) => {
-          return {
-            path: file,
-            fileName: file,
-            id: file,
-            mimeType: mimeTypes.lookup(path.extname(file)),
-            size: fs.statSync(file).size,
-            unzippedContent: true,
-            messageId: threadId,
-            threadId,
-            inline: false,
-          };
-        })
-      );
+      if(imagesFilePathFromPdf.length <= 20){
+        res = res.concat(
+          imagesFilePathFromPdf.map((file) => {
+            return {
+              path: file,
+              fileName: file,
+              id: file,
+              mimeType: mimeTypes.lookup(path.extname(file)),
+              size: fs.statSync(file).size,
+              unzippedContent: true,
+              messageId: threadId,
+              threadId,
+              inline: false,
+            };
+          })
+        );
+      }
     }
   }
 

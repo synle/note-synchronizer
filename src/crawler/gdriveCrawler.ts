@@ -387,6 +387,12 @@ export function _getImageAttachments(attachments: Attachment[]): Attachment[] {
   });
 }
 
+export function _getPdfAttachments(attachments: Attachment[]): Attachment[] {
+  return attachments.filter((attachment) => {
+    return attachment.mimeType.includes("pdf");
+  });
+}
+
 export function _getNonImagesAttachments(
   attachments: Attachment[]
 ): Attachment[] {
@@ -464,6 +470,7 @@ async function _processThreads(threadId, emails: Email[]) {
     allNonImageAttachments.length > 0 ||
     allImageAttachments.filter((attachment) => attachment.size >= 25000)
       .length > 0;
+  const pdfAttachments = _getPdfAttachments(attachments);
   const usedImageAttachments = new Set();
 
   // involvedEmails
@@ -905,7 +912,7 @@ async function _processThreads(threadId, emails: Email[]) {
     docLink = `docs.google.com/document/d/${docDriveFileId}`;
 
     logger.debug(
-      `Link to Google Doc Main Content threadId=${threadId} docLink=${docLink} parentFolderLink=drive.google.com/drive/folders/${folderId} folderName=${folderName} attachmentLinks=${attachmentLinks.length} nonImagesAttachments=${allNonImageAttachments.length} allImageAttachments=${allImageAttachments.length} zippedAttachment=${zippedAttachmentCount} subject=${docFileName}`
+      `Link to Google Doc Main Content threadId=${threadId} docLink=${docLink} parentFolderLink=drive.google.com/drive/folders/${folderId} folderName=${folderName} attachmentLinks=${attachmentLinks.length} nonImagesAttachments=${allNonImageAttachments.length} allImageAttachments=${allImageAttachments.length} zippedAttachment=${zippedAttachmentCount} pdfAttachments=${pdfAttachments.length} subject=${docFileName}`
     );
 
     await DataUtils.bulkUpsertEmails(
