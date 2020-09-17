@@ -616,14 +616,24 @@ export async function createDriveFolder({
   folderColorRgb = "FFFF00",
   appProperties = {},
 }) {
+  let folderId;
   try {
     const mimeType = MIME_TYPE_ENUM.APP_GOOGLE_FOLDER;
 
+    // search in db to see if we have this folder name
+    const resFolderFromDB = await DataUtils.getFolderByName(name);
+    if (resFolderFromDB && resFolderFromDB.driveFileId) {
+      logger.debug(
+        `Skipped Create Google Found mapping for folder in database name=${name} folderId=${resFolderFromDB.driveFileId}`
+      );
+      return resFolderFromDB.driveFileId;
+    }
+
+    // search from google api
     const matchedResults = await searchDrive({
       name,
       mimeType,
       parentFolderId: parentFolderId,
-      // appProperties,
     });
 
     if (matchedResults.length === 0) {
@@ -640,19 +650,29 @@ export async function createDriveFolder({
         fileGDriveMetadata.parents = [parentFolderId];
       }
 
+      folderId = createFolderInDrive(fileGDriveMetadata);
+
       // create the folder itself
-      logger.debug(`Create Google Drive Folder ${name}`);
-      return createFolderInDrive(fileGDriveMetadata);
+      logger.debug(`Create Google Drive Folder name=${name} folderId=${folderId}`);
     } else {
       logger.debug(
-        `Skipped Create Google Drive Folder ${name} due to duplicate`
+        `Skipped Create Google Drive Folder name=${name} due to duplicate`
       );
-      return matchedResults[0].id;
+
+      folderId = matchedResults[0].id;
     }
   } catch (err) {
     _logAndWrapApiError(err, null, "createDriveFolder");
     return null;
   }
+
+  // now save it into the database
+  await DataUtils.bulkUpsertFolders({
+    folderName: name,
+    driveFileId: folderId || null,
+  });
+
+  return folderId;
 }
 
 export async function uploadFile({
