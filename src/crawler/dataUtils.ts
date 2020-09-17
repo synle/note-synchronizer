@@ -596,11 +596,20 @@ export async function getAllParentFolders() {
     attributes: ["folderName"],
     raw: true,
     order: ["folderName"],
-    where: {
-      driveFileId: {
-        [Op.ne]: null,
-      },
-    },
+    // where: {
+    //   driveFileId: {
+    //     [Op.ne]: null,
+    //   },
+    // },
   });
   return res.map((folder) => folder.folderName);
+}
+
+export async function getFolderByName(folderName){
+  return Models.Folder.getOne({
+    raw: true,
+    where: {
+      folderName,
+    },
+  });
 }
