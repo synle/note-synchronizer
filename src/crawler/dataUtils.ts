@@ -7,6 +7,9 @@ import fs from "fs";
 import path from "path";
 import mimeTypes from "mime-types";
 
+const PDFImage = require("pdf-image").PDFImage;
+
+
 import { Email, GmailMessageResponse } from "../types";
 
 import Models from "../models/modelsSchema";
@@ -209,6 +212,7 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
               case MIME_TYPE_ENUM.APP_PHP:
               case MIME_TYPE_ENUM.TEXT_CSS:
               case MIME_TYPE_ENUM.TEXT_MARKDOWN:
+              case MIME_TYPE_ENUM.APP_PDF:
                 console.debug(
                   `Appending unzipped attachment for threadId=${threadId} path=${file.path} mimeType=${file.mimeType}`
                 );
@@ -243,6 +247,30 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
       res = res.concat(zippedFilesToAdd);
     }
   }
+
+  // now convert images to pdf
+  for(let attachment of res){
+    if(attachment.mimeType === MIME_TYPE_ENUM.APP_PDF){
+      const imagesFilePathFromPdf = await convertPdfToImages(attachment.path);
+
+      res = res.concat(
+        imagesFilePathFromPdf.map((file) => {
+          return {
+            path: file,
+            fileName: file,
+            id: file,
+            mimeType: mimeTypes.lookup(path.extname(file)),
+            size: fs.statSync(file).size,
+            unzippedContent: true,
+            messageId: threadId,
+            threadId,
+            inline: false,
+          };
+        })
+      );
+    }
+  }
+
 
   console.debug(
     `getAttachmentsByThreadId threadId=${threadId} files=${res.length}`
@@ -312,6 +340,21 @@ function _getAllFiles(dirPath, arrayOfFiles = []) {
 
 export async function bulkUpsertAttachments(attachments) {
   return Models.Attachment.bulkUpsert(attachments);
+}
+
+export async function convertPdfToImages(pdfPath) {
+  return new Promise(
+    (resolve, reject) => {
+      const pdfImage = new PDFImage(pdfPath, {
+        convertOptions: {
+          "-resize": "2000x2000",
+          "-quality": "75",
+          "-alpha": "remove",
+        },
+      });
+      pdfImage.convertFile().then(resolve, reject);
+    }
+  );
 }
 
 // emails
