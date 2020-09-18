@@ -349,9 +349,11 @@ export async function convertPdfToImages(pdfPath) {
     (resolve, reject) => {
       const pdfImage = new PDFImage(pdfPath, {
         convertOptions: {
-          "-resize": "2000x2000",
-          "-quality": "75",
+          "-resize": "400%",
+          "-quality": "100",
           "-alpha": "remove",
+          "-trim": null,
+          "-strip": null,
         },
       });
       pdfImage.convertFile().then(resolve, reject);
