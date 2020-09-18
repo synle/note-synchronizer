@@ -653,7 +653,9 @@ export async function createDriveFolder({
       folderId = await createFolderInDrive(fileGDriveMetadata);
 
       // create the folder itself
-      logger.debug(`Create Google Drive Folder name=${name} folderId=${folderId}`);
+      logger.debug(
+        `Create Google Drive Folder name=${name} folderId=${folderId}`
+      );
     } else {
       folderId = matchedResults[0].id;
 
@@ -774,21 +776,23 @@ export async function uploadFile({
 
   let operationUsed;
 
-   if (foundFileId) {
-     operationUsed = "UPDATE";
-     foundFileId = await updateFileInDrive(
-       foundFileId,
-       fileGDriveMetadata,
-       media
-     );
-   } else {
-     operationUsed = 'CREATE';
-     foundFileId = await createFileInDrive(fileGDriveMetadata, media);
-   }
+  if (foundFileId) {
+    operationUsed = "UPDATE";
+    foundFileId = await updateFileInDrive(
+      foundFileId,
+      fileGDriveMetadata,
+      media
+    );
+  } else {
+    operationUsed = "CREATE";
+    foundFileId = await createFileInDrive(fileGDriveMetadata, media);
+  }
 
-   console.debug(
-     `Upload file done operation=${operationUsed} fileId=${foundFileId} parent=${firtParentFolderId} fileName=${name} fileGDriveMetadata=${JSON.stringify(
-       fileGDriveMetadata
-     )}`
-   );
+  console.debug(
+    `Upload file done operation=${operationUsed} fileId=${foundFileId} parent=${firtParentFolderId} fileName=${name} fileGDriveMetadata=${JSON.stringify(
+      fileGDriveMetadata
+    )}`
+  );
+
+  return foundFileId;
 }

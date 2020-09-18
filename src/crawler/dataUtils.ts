@@ -9,7 +9,6 @@ import mimeTypes from "mime-types";
 
 const PDFImage = require("pdf-image").PDFImage;
 
-
 import { Email, GmailMessageResponse } from "../types";
 
 import Models from "../models/modelsSchema";
@@ -249,11 +248,11 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
   }
 
   // now convert images to pdf
-  for(let attachment of res){
-    if(attachment.mimeType === MIME_TYPE_ENUM.APP_PDF){
+  for (let attachment of res) {
+    if (attachment.mimeType === MIME_TYPE_ENUM.APP_PDF) {
       const imagesFilePathFromPdf = await convertPdfToImages(attachment.path);
 
-      if(imagesFilePathFromPdf.length <= 20){
+      if (imagesFilePathFromPdf.length <= 20) {
         res = res.concat(
           imagesFilePathFromPdf.map((file) => {
             return {
@@ -272,7 +271,6 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
       }
     }
   }
-
 
   console.debug(
     `getAttachmentsByThreadId threadId=${threadId} files=${res.length}`
@@ -345,20 +343,18 @@ export async function bulkUpsertAttachments(attachments) {
 }
 
 export async function convertPdfToImages(pdfPath) {
-  return new Promise(
-    (resolve, reject) => {
-      const pdfImage = new PDFImage(pdfPath, {
-        convertOptions: {
-          "-resize": "400%",
-          "-quality": "100",
-          "-alpha": "remove",
-          "-trim": null,
-          "-strip": null,
-        },
-      });
-      pdfImage.convertFile().then(resolve, reject);
-    }
-  );
+  return new Promise((resolve, reject) => {
+    const pdfImage = new PDFImage(pdfPath, {
+      convertOptions: {
+        "-resize": "400%",
+        "-quality": "100",
+        "-alpha": "remove",
+        "-trim": null,
+        "-strip": null,
+      },
+    });
+    pdfImage.convertFile().then(resolve, reject);
+  });
 }
 
 // emails
@@ -609,7 +605,7 @@ export async function getAllParentFolders() {
   return res.map((folder) => folder.folderName);
 }
 
-export async function getFolderByName(folderName){
+export async function getFolderByName(folderName) {
   return Models.Folder.getOne({
     raw: true,
     where: {
