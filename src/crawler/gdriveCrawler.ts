@@ -178,8 +178,8 @@ export async function generateDocFileForEmail(
       }
 
       // console.log(`content ${content.length} : ${content}`)
-      if(content[0] === "*" && content[content.length - 1] === "*"){
-        content = content.substr(1, content.length - 2)
+      if (content[0] === "*" && content[content.length - 1] === "*") {
+        content = content.substr(1, content.length - 2);
       } else {
         content = trim(content, "*");
       }
