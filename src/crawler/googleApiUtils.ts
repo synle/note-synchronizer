@@ -527,7 +527,7 @@ export function searchDrive(
   }
 
   if (parentFolderId) {
-    queries.push(`parents in '${_sanatizeGoogleQuery(parentFolderId)}'`);
+    queries.push(`'${_sanatizeGoogleQuery(parentFolderId)}' IN parents`);
   }
 
   if (mimeType) {
@@ -772,17 +772,23 @@ export async function uploadFile({
     }
   }
 
-  console.debug(
-    `Upload file with ${
-      foundFileId ? "UPDATE" : "CREATE"
-    } parent=${firtParentFolderId} fileName=${name} fileId=${
-      foundFileId || ""
-    } fileGDriveMetadata=${JSON.stringify(fileGDriveMetadata)}`
-  );
+  let operationUsed;
 
-  if (foundFileId) {
-    return updateFileInDrive(foundFileId, fileGDriveMetadata, media);
-  } else {
-    return createFileInDrive(fileGDriveMetadata, media);
-  }
+   if (foundFileId) {
+     operationUsed = "UPDATE";
+     foundFileId = await updateFileInDrive(
+       foundFileId,
+       fileGDriveMetadata,
+       media
+     );
+   } else {
+     operationUsed = 'CREATE';
+     foundFileId = await createFileInDrive(fileGDriveMetadata, media);
+   }
+
+   console.debug(
+     `Upload file done operation=${operationUsed} fileId=${foundFileId} parent=${firtParentFolderId} fileName=${name} fileGDriveMetadata=${JSON.stringify(
+       fileGDriveMetadata
+     )}`
+   );
 }
