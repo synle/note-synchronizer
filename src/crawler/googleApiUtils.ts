@@ -9,6 +9,14 @@ import * as commonUtils from "./commonUtils";
 import * as DataUtils from "./dataUtils";
 import { logger } from "../loggers";
 
+interface IDriveFileMetaData{
+  name: any,
+  mimeType: any,
+  parentFolderId: any,
+  properties?: any,
+  [propName: string]: any;
+}
+
 let gmailApiInstance;
 let driveApiInstance;
 
@@ -438,7 +446,7 @@ export function flattenGmailPayloadParts(initialParts) {
 }
 
 // google drive apis
-export function createFileInDrive(resource, media) {
+export function createFileInDrive(resource: IDriveFileMetaData, media) {
   return new Promise((resolve, reject) => {
     driveApiInstance.files.create(
       {
@@ -458,7 +466,7 @@ export function createFileInDrive(resource, media) {
   });
 }
 
-export function updateFileInDrive(fileId, resource, media) {
+export function updateFileInDrive(fileId, resource: IDriveFileMetaData, media) {
   return new Promise((resolve, reject) => {
     driveApiInstance.files.update(
       {
@@ -473,7 +481,7 @@ export function updateFileInDrive(fileId, resource, media) {
           useContentAsIndexableText: resource.useContentAsIndexableText,
           enforceSingleParent: resource.enforceSingleParent,
           keepRevisionForever: resource.keepRevisionForever,
-          appProperties: resource.appProperties,
+          properties: resource.properties,
         },
       },
       function (err, res) {
@@ -515,7 +523,7 @@ export function createFolderInDrive(resource) {
 }
 
 export function searchDrive(
-  { name, mimeType, parentFolderId, appProperties },
+  { name, mimeType, parentFolderId, properties }: IDriveFileMetaData,
   skippedPaging = true
 ) {
   const queries = [];
@@ -527,19 +535,19 @@ export function searchDrive(
   }
 
   if (parentFolderId) {
-    queries.push(`parents in '${_sanatizeGoogleQuery(parentFolderId)}'`);
+    queries.push(`'${_sanatizeGoogleQuery(parentFolderId)}' IN parents`);
   }
 
   if (mimeType) {
     queries.push(`mimeType='${_sanatizeGoogleQuery(mimeType)}'`);
   }
 
-  if (appProperties) {
-    const propKeys = Object.keys(appProperties);
+  if (properties) {
+    const propKeys = Object.keys(properties);
     for (const propKey of propKeys) {
-      const propValue = appProperties[propKey];
+      const propValue = properties[propKey];
       queries.push(
-        `appProperties has { key='${_sanatizeGoogleQuery(
+        `properties has { key='${_sanatizeGoogleQuery(
           propKey
         )}' and value='${_sanatizeGoogleQuery(propValue)}'}`
       );
@@ -728,7 +736,7 @@ export async function uploadFile({
 
   // refer to this link for more metadata
   // https://developers.google.com/drive/api/v3/reference/files/create
-  const fileGDriveMetadata = {
+  const fileGDriveMetadata: IDriveFileMetaData = {
     name,
     parents: []
       .concat(parentFolderId || [])
@@ -742,6 +750,7 @@ export async function uploadFile({
     useContentAsIndexableText: true,
     enforceSingleParent: true,
     keepRevisionForever,
+    properties: appProperties,
     appProperties,
   };
 
@@ -759,7 +768,7 @@ export async function uploadFile({
   let foundFileId;
   if (!foundFileId) {
     const matchedResults = await searchDrive({
-      appProperties: appProperties,
+      properties: appProperties,
       parentFolderId: firtParentFolderId,
     });
 
@@ -777,12 +786,18 @@ export async function uploadFile({
       foundFileId ? "UPDATE" : "CREATE"
     } parent=${firtParentFolderId} fileName=${name} fileId=${
       foundFileId || ""
-    } fileGDriveMetadata=${JSON.stringify(fileGDriveMetadata)}`
+    }`
   );
 
   if (foundFileId) {
-    return updateFileInDrive(foundFileId, fileGDriveMetadata, media);
+    foundFileId = await updateFileInDrive(foundFileId, fileGDriveMetadata, media);
   } else {
-    return createFileInDrive(fileGDriveMetadata, media);
+    foundFileId = await createFileInDrive(fileGDriveMetadata, media);
   }
+
+  console.debug(
+    `Upload file done fileId=${foundFileId} parent=${firtParentFolderId} fileName=${name} fileGDriveMetadata=${JSON.stringify(fileGDriveMetadata)}`
+  );
+
+  return foundFileId;
 }
