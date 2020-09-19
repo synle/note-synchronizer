@@ -421,6 +421,23 @@ export async function uploadEmailMsgToGoogleDrive(messageId) {
 
     // make sure that we only process if this is the last email message
     if (email.id === emails[emails.length - 1].id) {
+      if (process.env.FORCE_RESYNC_GDRIVE_THREADS !== "true") {
+        // check if we have the data with this id
+        if (email.driveFileId) {
+          // search against google for this id, if there is a matching file, then skip this processing.
+          const fileFromGdrive = await googleApiUtils.getFileByFileId(
+            email.driveFileId
+          );
+
+          if (fileFromGdrive) {
+            logger.debug(
+              `Skipped uploadEmailMsgToGoogleDrive because found the file in GDrive threadId=${threadId} id=${messageId}`
+            );
+
+            return `docs.google.com/document/d/${email.driveFileId}`;
+          }
+        }
+      }
       logger.debug(
         `Start uploadEmailMsgToGoogleDrive threadId=${threadId} id=${messageId}`
       );

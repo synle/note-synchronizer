@@ -40,11 +40,16 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
   });
   worker.on("message", (data: WorkActionResponse) => {
     if (data.success) {
-      logger.debug(
-        `Worker Thread Done action=${data.action} id=${data.id} extra=${
-          data.extra || "<N/A>"
-        }`
-      );
+      if (data.extra){
+        logger.debug(
+          `Worker Thread Done action=${data.action} extra=${data.extra} id=${data.id}`
+        );
+      }
+      else {
+        logger.debug(
+          `Worker Thread Done action=${data.action} id=${data.id}`
+        );
+      }
     } else {
       logger.error(
         `Worker Thread Failed action=${data.action} error=${
