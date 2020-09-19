@@ -376,6 +376,14 @@ async function _doWork8() {
   }
 }
 
+async function _doWork9(){
+  const file = await googleApiUtils.getFileByFileId(
+    "<>"
+  );
+
+  console.log(file)
+}
+
 async function _start() {
   await _init();
 
@@ -384,8 +392,9 @@ async function _start() {
   // await _doWork6();
   // await _doWork3();
   // await _doWork4();
-  await _doWork7();
+  // await _doWork7();
   //await _doWork8();
+  await _doWork9();
   process.exit();
 }
 

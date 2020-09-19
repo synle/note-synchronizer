@@ -62,6 +62,7 @@ export interface Email {
   isChat: boolean;
   isEmail: boolean;
   starred: boolean;
+  driveFileId: string;
 }
 
 export interface Attachment {

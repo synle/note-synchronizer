@@ -608,6 +608,22 @@ function searchFilesByQuery(q, nextPageToken) {
   });
 }
 
+export function getFileByFileId(fileId) {
+  return new Promise((resolve, reject) => {
+    driveApiInstance.files.get(
+      {
+        fileId,
+      },
+      function (err, res) {
+        if (err) {
+          return null;
+        }
+        res.data ? resolve(res.data) : null;
+      }
+    );
+  });
+}
+
 export async function createDriveFolder({
   name,
   description,
