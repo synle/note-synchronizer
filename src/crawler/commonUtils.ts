@@ -135,7 +135,7 @@ export function generateFolderName(string) {
   ];
 
   const res = trim(resParts.join("."), '-.+()"');
-  if(res.length === 0){
+  if (res.length === 0) {
     return string;
   }
   return res;

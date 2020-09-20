@@ -376,12 +376,10 @@ async function _doWork8() {
   }
 }
 
-async function _doWork9(){
-  const file = await googleApiUtils.getFileByFileId(
-    "<>"
-  );
+async function _doWork9() {
+  const file = await googleApiUtils.getFileByFileId("<>");
 
-  console.log(file)
+  console.log(file);
 }
 
 async function _start() {
