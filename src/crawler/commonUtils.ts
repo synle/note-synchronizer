@@ -1,6 +1,7 @@
 // @ts-nocheck
 import crypto from "crypto";
 import axios from "axios";
+import trim from "lodash/trim";
 import { logger } from "../loggers";
 import { parsePageTitle } from "./gmailCrawler";
 import { WebContent } from "../types";
@@ -96,7 +97,7 @@ export function getMd5Hash(string) {
 
 // this get the domain out of the email
 export function generateFolderName(string) {
-  string = string.toLowerCase();
+  string = string.toLowerCase().trim();
 
   if (myEmails.some((myEmail) => string === myEmail.toLowerCase())) {
     // if sent by me, then group things under the same label
@@ -118,10 +119,11 @@ export function generateFolderName(string) {
       "icloud.com",
       ".edu",
       ".gov",
+      ".org",
     ].some((popularEmail) => string.includes(popularEmail.toLowerCase()))
   ) {
     // common email domain, then should use their full name
-    return string.trim();
+    return string;
   }
 
   // break up things after @ and before the last dot
@@ -132,5 +134,9 @@ export function generateFolderName(string) {
     domainParts[domainParts.length - 1],
   ];
 
-  return resParts.join(".").trim();
+  const res = trim(resParts.join("."), '-.+()"');
+  if(res.length === 0){
+    return string;
+  }
+  return res;
 }
