@@ -67,6 +67,7 @@ export interface Email {
 
 export interface Attachment {
   id: string;
+  threadId: string;
   messageId: string;
   mimeType: string;
   fileName: string;
