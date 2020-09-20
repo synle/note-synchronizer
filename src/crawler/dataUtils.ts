@@ -167,9 +167,8 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
 
       try {
         let allFiles = await _unzip(
-          attachment.path,
-          attachment.fileName,
-          `/tmp/${threadId}`
+          attachment,
+          `/tmp/${threadId}`,
         );
 
         console.debug(
@@ -177,15 +176,7 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
         );
 
         if (allFiles.length > 0) {
-          allFiles = allFiles.map((file) => {
-            return {
-              ...file,
-              messageId: threadId,
-              threadId,
-              inline: false,
-            };
-          });
-
+          const zippedPdfFiles = [];
           zippedFilesToAdd = allFiles.filter((file) => {
             switch (file.mimeType) {
               case MIME_TYPE_ENUM.APP_MS_DOC:
@@ -211,11 +202,13 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
               case MIME_TYPE_ENUM.APP_PHP:
               case MIME_TYPE_ENUM.TEXT_CSS:
               case MIME_TYPE_ENUM.TEXT_MARKDOWN:
-              case MIME_TYPE_ENUM.APP_PDF:
                 console.debug(
                   `Appending unzipped attachment for threadId=${threadId} path=${file.path} mimeType=${file.mimeType}`
                 );
                 return true;
+              case MIME_TYPE_ENUM.APP_PDF:
+                zippedPdfFiles.push(file);
+                return false; // don't include pdf files from the zipped file to save spaces
               default:
                 console.debug(
                   `Skipped unzipped attachment for threadId=${threadId} path=${file.path} mimeType=${file.mimeType}`
@@ -223,6 +216,10 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
                 return false;
             }
           });
+
+          for (let attachment of zippedPdfFiles) {
+            await _embedPdfImagesInline(attachment);
+          }
 
           if (zippedFilesToAdd.length === allFiles.length) {
             needToAddThisZipFile = false;
@@ -249,21 +246,26 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
 
   // now convert images to pdf
   for (let attachment of res) {
+    await _embedPdfImagesInline(attachment);
+  }
+
+  async function _embedPdfImagesInline(attachment){
     if (attachment.mimeType === MIME_TYPE_ENUM.APP_PDF) {
       const imagesFilePathFromPdf = await convertPdfToImages(attachment.path);
 
+      let pdfPageNumber = 0;
       if (imagesFilePathFromPdf.length <= 20) {
         res = res.concat(
           imagesFilePathFromPdf.map((file) => {
             return {
               path: file,
-              fileName: file,
+              fileName: `${attachment.fileName} > ${++pdfPageNumber}`,
               id: file,
               mimeType: mimeTypes.lookup(path.extname(file)),
               size: fs.statSync(file).size,
               unzippedContent: true,
-              messageId: threadId,
-              threadId,
+              messageId: attachment.messageId,
+              threadId: attachment.threadId,
               inline: false,
             };
           })
@@ -279,8 +281,11 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
   return res;
 }
 
-function _unzip(zipFileName, shortFileName, extractedDir) {
+function _unzip(attachment: Attachment, extractedDir) {
   return new Promise((resolve, reject) => {
+    const zipFileName = attachment.path;
+    const shortFileName = attachment.fileName;
+
     const zip = new StreamZip({
       file: zipFileName,
       storeEntries: true,
@@ -314,6 +319,9 @@ function _unzip(zipFileName, shortFileName, extractedDir) {
                     mimeType: mimeTypes.lookup(path.extname(file)),
                     size: fs.statSync(file).size,
                     unzippedContent: true,
+                    messageId: attachment.messageId,
+                    threadId: attachment.threadId,
+                    inline: false,
                   };
                 })
             );
