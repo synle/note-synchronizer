@@ -22,6 +22,7 @@ import {
 
 import Redis from "ioredis";
 import { Attachment } from "./../types";
+import { logger } from "src/loggers";
 
 const redisInstance = new Redis({
   connectTimeout: 900000,
@@ -166,10 +167,7 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
       );
 
       try {
-        let allFiles = await _unzip(
-          attachment,
-          `/tmp/${threadId}`,
-        );
+        let allFiles = await _unzip(attachment, `/tmp/${threadId}`);
 
         console.debug(
           `Unzipping attachment threadId=${threadId} mimeType=${attachment.mimeType} path=${attachment.path} files=${allFiles.length}`
@@ -249,7 +247,7 @@ export async function getAttachmentsByThreadId(threadId): Attachment[] {
     await _embedPdfImagesInline(attachment);
   }
 
-  async function _embedPdfImagesInline(attachment){
+  async function _embedPdfImagesInline(attachment) {
     if (attachment.mimeType === MIME_TYPE_ENUM.APP_PDF) {
       const imagesFilePathFromPdf = await convertPdfToImages(attachment.path);
 
@@ -446,7 +444,28 @@ export async function bulkUpsertEmails(emails: Email[]) {
 
       switch (status) {
         case THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE:
-          pipeline.sadd(REDIS_KEY.QUEUE_UPLOAD_EMAILS_MESSAGE_ID, id);
+          try {
+            // only add it if this is the last message in thread
+            const emailsByThisThread = await getEmailsByThreadId(
+              email.threadId
+            );
+
+            const lastMessageId =
+              emailsByThisThread[emailsByThisThread.length - 1].id;
+            if (email.id === lastMessageId) {
+              console.debug(
+                `Add this task to Sync To GDrive Queue messageId=${id} lastMessageId=${lastMessageId}`
+              );
+
+              pipeline.sadd(REDIS_KEY.QUEUE_UPLOAD_EMAILS_MESSAGE_ID, id);
+            } else {
+              console.debug(
+                `Skipped adding this task to Sync To GDrive Queue because it's not the last messageId messageId=${id} lastMessageId=${lastMessageId}`
+              );
+            }
+          } catch (err) {
+            console.error(`Failed adding to sync drive err=${err.stack}`);
+          }
           break;
         case THREAD_JOB_STATUS_ENUM.SKIPPED:
           pipeline.sadd(REDIS_KEY.QUEUE_SKIPPED_MESSAGE_ID, id);

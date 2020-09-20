@@ -643,7 +643,11 @@ export function _parseBodyWithHtml(html) {
     logger.debug(
       `_parseBodyWithHtml Done content=${html
         .substr(0, 10)
-        .trim()}... result=${textContent.substr(0, 10).trim()}...`
+        .trim()
+        .replace("\n", " ")}... result=${textContent
+        .substr(0, 10)
+        .trim()
+        .replace("\n", " ")}...`
     );
 
     return textContent;

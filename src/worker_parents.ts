@@ -40,15 +40,12 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
   });
   worker.on("message", (data: WorkActionResponse) => {
     if (data.success) {
-      if (data.extra){
+      if (data.extra) {
         logger.debug(
           `Worker Thread Done action=${data.action} extra=${data.extra} id=${data.id}`
         );
-      }
-      else {
-        logger.debug(
-          `Worker Thread Done action=${data.action} id=${data.id}`
-        );
+      } else {
+        logger.debug(`Worker Thread Done action=${data.action} id=${data.id}`);
       }
     } else {
       logger.error(
