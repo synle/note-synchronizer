@@ -79,10 +79,11 @@ export async function restartAllWork() {
   });
   const allThreadIds = res.map((thread) => thread.threadId);
   try {
-    for (const threadId of allThreadIds) {
-      pipeline.sadd(REDIS_KEY.ALL_THREAD_IDS, threadId);
-    }
     for (const threadId of previousSuccessThreadIds) {
+      pipeline.sadd(REDIS_KEY.ALL_THREAD_IDS, threadId);
+      pipeline.sadd(REDIS_KEY.QUEUE_FETCH_RAW_CONTENT_THREAD_ID, threadId);
+    }
+    for (const threadId of allThreadIds) {
       pipeline.sadd(REDIS_KEY.ALL_THREAD_IDS, threadId);
       pipeline.sadd(REDIS_KEY.QUEUE_FETCH_RAW_CONTENT_THREAD_ID, threadId);
     }

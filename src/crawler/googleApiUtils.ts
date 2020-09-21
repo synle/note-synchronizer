@@ -449,7 +449,7 @@ export function createFileInDrive(resource, media) {
       function (err, res) {
         if (err) {
           return reject(
-            _logAndWrapApiError(err, res, "createFileInDrive", resource, media)
+            _logAndWrapApiError(err, res, "createFileInDrive", resource)
           );
         }
         resolve(res.data.id);
@@ -484,8 +484,7 @@ export function updateFileInDrive(fileId, resource, media) {
               res,
               "updateFileInDrive",
               fileId,
-              resource,
-              media
+              resource
             )
           );
         }
@@ -758,7 +757,7 @@ export async function uploadFile({
     description,
     starred,
     useContentAsIndexableText: true,
-    enforceSingleParent: true,
+    enforceSingleParent: false,
     keepRevisionForever,
     appProperties,
   };
