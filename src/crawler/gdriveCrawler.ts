@@ -446,11 +446,13 @@ export async function uploadEmailMsgToGoogleDrive(messageId) {
       logger.debug(
         `Skipped uploadEmailMsgToGoogleDrive due to it not being the last messageId threadId=${threadId} id=${messageId}`
       );
+      return 'SKIPPED_NOT_LAST_MESSAGE_ID';
     }
   } else {
     logger.error(
       `Error with uploadEmailMsgToGoogleDrive Cannot find message with messageId=${messageId}`
     );
+    return 'ERROR_MESSAGE_ID_NOT_FOUND';
   }
 }
 
@@ -941,6 +943,8 @@ async function _processThreads(threadId, emails: Email[]) {
         };
       })
     );
+
+    return docLink;
   } else {
     logger.debug(`Skipped Sync to Google Drive threadId=${threadId}`);
 
@@ -953,9 +957,9 @@ async function _processThreads(threadId, emails: Email[]) {
         };
       })
     );
-  }
 
-  return docLink;
+    return 'SKIPPED_SYNC'
+  }
 }
 
 export async function uploadEmailThreadToGoogleDrive(threadId) {
@@ -965,6 +969,7 @@ export async function uploadEmailThreadToGoogleDrive(threadId) {
     return _processThreads(threadId, emails);
   } else {
     logger.error(`Cannot find message with threadId=${threadId}`);
+    return "ERROR_THREAD_ID_NOT_FOUND";
   }
 }
 
