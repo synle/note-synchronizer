@@ -56,7 +56,7 @@
 
     .output-logs {
       flex-grow: 1;
-      font-family: "Courier New", Courier, monospace;
+      font-family: 'Courier New', Courier, monospace;
       overflow: auto;
       line-height: 1.5;
     }
@@ -117,11 +117,7 @@
       <option value="Distribute Work" />
       <option value="Worker Thread Done action=" />
     </datalist>
-    <form
-      class="form"
-      id="form-search-logs"
-      onsubmit="searchLogs(event); return false"
-    >
+    <form class="form" id="form-search-logs" onsubmit="searchLogs(event); return false">
       <flex-row>
         <select id="input-logs-sort" value="true">
           <option value="true">Search logs (TIME DESC)</option>
@@ -133,12 +129,7 @@
           <option value="5000">Every 5s</option>
           <option value="10000">Every 10s</option>
         </select>
-        <input
-          id="input-limit"
-          placeholder="Limit"
-          value="100000"
-          type="number"
-        />
+        <input id="input-limit" placeholder="Limit" value="100000" type="number" />
       </flex-row>
       <flex-row>
         <input
@@ -149,78 +140,36 @@
           list="optionsLogKeywords"
           autocomplete="off"
         />
-        <input
-          id="input-trace"
-          placeholder="TraceId"
-          value=""
-          list="optionsLogTraceId"
-          autocomplete="off"
-        />
+        <input id="input-trace" placeholder="TraceId" value="" list="optionsLogTraceId" autocomplete="off" />
         <input type="submit" value="Search" />
       </flex-row>
       <div id="output-logs" class="output-logs" placeholder="Logs"></div>
     </form>
-    <form
-      class="form"
-      id="form-parse-body"
-      onsubmit="parseBody(event); return false"
-    >
+    <form class="form" id="form-parse-body" onsubmit="parseBody(event); return false">
       <label>Parse Body</label>
       <select id="input-type-to-parse" value="messageId">
         <option value="messageId">messageId</option>
         <option value="threadId">threadId</option>
       </select>
-      <input
-        id="input-id-to-parse"
-        placeholder="Message ID"
-        value="10f4697640f6e6d6"
-      />
+      <input id="input-id-to-parse" placeholder="Message ID" value="10f4697640f6e6d6" />
       <div>
         <a id="output-url" target="_blank"></a>
       </div>
-      <textarea
-        id="output-raw-html"
-        class="output-logs"
-        placeholder="Raw HTML"
-      ></textarea>
-      <textarea
-        id="output-parsed-html"
-        class="output-logs"
-        placeholder="Parsed HTML"
-      ></textarea>
+      <textarea id="output-raw-html" class="output-logs" placeholder="Raw HTML"></textarea>
+      <textarea id="output-parsed-html" class="output-logs" placeholder="Parsed HTML"></textarea>
     </form>
-    <form
-      class="form"
-      id="form-fetch-body"
-      onsubmit="fetchRawContent(event); return false"
-    >
+    <form class="form" id="form-fetch-body" onsubmit="fetchRawContent(event); return false">
       <label>Fetch Raw Content</label>
-      <input
-        id="input-id-to-fetch"
-        placeholder="Message 14c808b65179c814"
-        value="14c808b65179c814"
-      />
-      <textarea
-        id="output-raw"
-        class="output-logs"
-        placeholder="Raw HTML"
-      ></textarea>
+      <input id="input-id-to-fetch" placeholder="Message 14c808b65179c814" value="14c808b65179c814" />
+      <textarea id="output-raw" class="output-logs" placeholder="Raw HTML"></textarea>
     </form>
-    <form
-      class="form"
-      id="form-sync-to-drive"
-      onsubmit="syncToDrive(event); return false"
-    >
+    <form class="form" id="form-sync-to-drive" onsubmit="syncToDrive(event); return false">
       <label>Sync To Google Drive</label>
       <select id="input-type-to-sync" value="messageId">
         <option value="messageId">messageId</option>
         <option value="threadId">threadId</option>
       </select>
-      <input
-        id="input-id-to-sync"
-        placeholder="Message ID"
-        value="10f4697640f6e6d6"
-      />
+      <input id="input-id-to-sync" placeholder="Message ID" value="10f4697640f6e6d6" />
       <div id="output-logs" class="output-logs" placeholder="Logs"></div>
     </form>
   </body>
@@ -233,8 +182,8 @@
           return;
         }
 
-        [...document.querySelectorAll(".form")].forEach((form) => {
-          form.style.display = form !== e.target ? "none" : "";
+        [...document.querySelectorAll('.form')].forEach((form) => {
+          form.style.display = form !== e.target ? 'none' : '';
         });
 
         loading = true;
@@ -244,63 +193,45 @@
     }
 
     const parseBody = _wrapWork(async function parseBody(targetEl) {
-      const inputId = targetEl.querySelector("#input-id-to-parse").value.trim();
-      const inputType = targetEl
-        .querySelector("#input-type-to-parse")
-        .value.trim();
+      const inputId = targetEl.querySelector('#input-id-to-parse').value.trim();
+      const inputType = targetEl.querySelector('#input-type-to-parse').value.trim();
 
-      targetEl.querySelector("#output-raw-html").value = "";
-      targetEl.querySelector("#output-parsed-html").value = "";
-      targetEl.querySelector("#output-url").innerText = "";
+      targetEl.querySelector('#output-raw-html').value = '';
+      targetEl.querySelector('#output-parsed-html').value = '';
+      targetEl.querySelector('#output-url').innerText = '';
 
       if (inputId.length >= 16 && inputId.length < 20) {
         try {
-          const result = await fetch(
-            `/api/message/parse/${inputType}/${inputId}`
-          ).then((res) => res.json());
+          const result = await fetch(`/api/message/parse/${inputType}/${inputId}`).then((res) => res.json());
           if (result.error) {
             return alert(result.error);
           }
-          targetEl.querySelector("#output-raw-html").value = result.raw;
-          targetEl.querySelector("#output-parsed-html").value =
-            result.parsed_text;
-          targetEl.querySelector(
-            "#output-url"
-          ).href = `http://${result.url_to_crawl}`;
-          targetEl.querySelector("#output-url").innerText =
-            result.crawled_content.subject;
+          targetEl.querySelector('#output-raw-html').value = result.raw;
+          targetEl.querySelector('#output-parsed-html').value = result.parsed_text;
+          targetEl.querySelector('#output-url').href = `http://${result.url_to_crawl}`;
+          targetEl.querySelector('#output-url').innerText = result.crawled_content.subject;
         } catch (err) {}
       }
     });
 
     const syncToDrive = _wrapWork(async function syncToDrive(targetEl) {
-      const inputId = targetEl.querySelector("#input-id-to-sync").value.trim();
-      const inputType = targetEl
-        .querySelector("#input-type-to-sync")
-        .value.trim();
+      const inputId = targetEl.querySelector('#input-id-to-sync').value.trim();
+      const inputType = targetEl.querySelector('#input-type-to-sync').value.trim();
       if (inputId.length >= 16 && inputId.length < 20) {
         try {
-          const result = await fetch(
-            `/api/message/sync/${inputType}/${inputId}`
-          ).then((res) => res.json());
+          const result = await fetch(`/api/message/sync/${inputType}/${inputId}`).then((res) => res.json());
           alert(JSON.stringify(result, null, 2));
         } catch (err) {}
       }
     });
 
     const fetchRawContent = _wrapWork(async function fetchRawContent(targetEl) {
-      const inputId = targetEl.querySelector("#input-id-to-fetch").value.trim();
-      targetEl.querySelector("#output-raw").value = "";
+      const inputId = targetEl.querySelector('#input-id-to-fetch').value.trim();
+      targetEl.querySelector('#output-raw').value = '';
       if (inputId.length >= 16 && inputId.length < 20) {
         try {
-          const result = await fetch(
-            `/api/message/fetch/threadId/${inputId}`
-          ).then((res) => res.json());
-          targetEl.querySelector("#output-raw").value = JSON.stringify(
-            result,
-            null,
-            2
-          );
+          const result = await fetch(`/api/message/fetch/threadId/${inputId}`).then((res) => res.json());
+          targetEl.querySelector('#output-raw').value = JSON.stringify(result, null, 2);
         } catch (err) {}
       }
     });
@@ -308,21 +239,17 @@
     const searchLogs = _wrapWork(async function searchLogs(targetEl) {
       clearInterval(intervalRefreshLog);
 
-      const searchKeyword = targetEl
-        .querySelector("#input-search")
-        .value.trim();
+      const searchKeyword = targetEl.querySelector('#input-search').value.trim();
 
-      const trace = targetEl.querySelector("#input-trace").value.trim();
+      const trace = targetEl.querySelector('#input-trace').value.trim();
 
-      const limit = targetEl.querySelector("#input-limit").value.trim();
+      const limit = targetEl.querySelector('#input-limit').value.trim();
 
-      const sortLogsAsc =
-        targetEl.querySelector("#input-logs-sort").value === "true";
+      const sortLogsAsc = targetEl.querySelector('#input-logs-sort').value === 'true';
 
-      const autoUpdateLogs = targetEl.querySelector("#input-logs-auto-update")
-        .value;
+      const autoUpdateLogs = targetEl.querySelector('#input-logs-auto-update').value;
 
-      targetEl.querySelector("#output-logs").innerText = "";
+      targetEl.querySelector('#output-logs').innerText = '';
       if (autoUpdateLogs > 0) {
         intervalRefreshLog = setInterval(_updateLogs, autoUpdateLogs);
         _updateLogs();
@@ -333,7 +260,7 @@
       async function _updateLogs() {
         try {
           const result = await fetch(`/api/logs`, {
-            method: "post",
+            method: 'post',
             body: JSON.stringify({
               search: searchKeyword,
               limit,
@@ -341,74 +268,53 @@
             }),
           }).then((res) => res.json());
 
-          let newContent = (result.msg || ">> Not found")
-            .split("\n")
-            .map((msg) => {
-              try {
-                msg = escape(msg)
-                  .replace(
-                    /\d\d\/\d\d \d\d:\d\d:\d\d[AP]M [A-Za-z]+/,
-                    function (m) {
-                      if (m.indexOf("DEBUG") >= 0) {
-                        return `<span class="blue">${m}</span>`;
-                      } else if (m.indexOf("E") >= 0) {
-                        return `<span class="red">${m}</span>`;
-                      }
-                      return `<span class="green">${m}</span>`;
-                    }
-                  )
-                  .replace(
-                    /[_a-zA-Z0-9./-]+.(com|org|edu|net)[_a-zA-Z0-9./-]+/gi,
-                    '<a href="http://$&" target="_blank">$&</a>'
-                  )
-                  .replace(/[a-zA-Z0-9]+=[a-zA-Z0-9_\-/.]+/g, function (m) {
-                    const colors = [
-                      "blue",
-                      "green",
-                      "gray",
-                      "purple",
-                      "tomato",
-                      "maroon",
-                      "olive",
-                      "teal",
-                      "fuchsia",
-                    ];
+          let newContent = (result.msg || '>> Not found').split('\n').map((msg) => {
+            try {
+              msg = escape(msg)
+                .replace(/\d\d\/\d\d \d\d:\d\d:\d\d[AP]M [A-Za-z]+/, function (m) {
+                  if (m.indexOf('DEBUG') >= 0) {
+                    return `<span class="blue">${m}</span>`;
+                  } else if (m.indexOf('E') >= 0) {
+                    return `<span class="red">${m}</span>`;
+                  }
+                  return `<span class="green">${m}</span>`;
+                })
+                .replace(
+                  /[_a-zA-Z0-9./-]+.(com|org|edu|net)[_a-zA-Z0-9./-]+/gi,
+                  '<a href="http://$&" target="_blank">$&</a>',
+                )
+                .replace(/[a-zA-Z0-9]+=[a-zA-Z0-9_\-/.]+/g, function (m) {
+                  const colors = ['blue', 'green', 'gray', 'purple', 'tomato', 'maroon', 'olive', 'teal', 'fuchsia'];
 
-                    const prefix = m.substr(0, m.indexOf("="));
-                    if (!colorMap[prefix]) {
-                      colorMap[prefix] = colors[++colorIdx % colors.length];
-                    }
-                    const colorToUse = colorMap[prefix];
-                    return `<b class="${colorToUse}">${m}</b>`;
-                  })
-                  .replace(/(error|failed|fail)/gi, function (m) {
-                    return `<b class="red">${m}</b>`;
-                  })
-                  .replace(
-                    /(success|succeed|done|finished|finish)/gi,
-                    function (m) {
-                      return `<b class="green">${m}</b>`;
-                    }
-                  )
-                  .replace(
-                    new RegExp(searchKeyword + " ", "gi"),
-                    '<b style="background:yellow"><u>$&</u></b>'
-                  )
-                  .trim();
-              } catch (e) {
-                console.log(e);
-              }
+                  const prefix = m.substr(0, m.indexOf('='));
+                  if (!colorMap[prefix]) {
+                    colorMap[prefix] = colors[++colorIdx % colors.length];
+                  }
+                  const colorToUse = colorMap[prefix];
+                  return `<b class="${colorToUse}">${m}</b>`;
+                })
+                .replace(/(error|failed|fail)/gi, function (m) {
+                  return `<b class="red">${m}</b>`;
+                })
+                .replace(/(success|succeed|done|finished|finish)/gi, function (m) {
+                  return `<b class="green">${m}</b>`;
+                })
+                .replace(new RegExp(searchKeyword + ' ', 'gi'), '<b style="background:yellow"><u>$&</u></b>')
+                .trim();
+            } catch (e) {
+              console.log(e);
+            }
 
-              return `<div>${msg}</div>`;
-            });
+            return `<div>${msg}</div>`;
+          });
 
           if (sortLogsAsc) {
             newContent = newContent.reverse();
           }
 
-          targetEl.querySelector("#output-logs").innerHTML = `<div>${
-            newContent.length
-          } Lines</div>${newContent.join("")}`;
+          targetEl.querySelector('#output-logs').innerHTML = `<div>${newContent.length} Lines</div>${newContent.join(
+            '',
+          )}`;
         } catch (err) {}
       }
     });
@@ -416,11 +322,11 @@
 
     function escape(s) {
       return s
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
 
     let colorIdx = 0;

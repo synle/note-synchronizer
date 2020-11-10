@@ -1,16 +1,16 @@
 // @ts-nocheck
-require("dotenv").config();
-const { exec } = require("child_process");
+require('dotenv').config();
+const { exec } = require('child_process');
 
-import path from "path";
-import restify from "restify";
-import initDatabase from "./src/models/modelsFactory";
-import { initGoogleApi } from "./src/crawler/googleApiUtils";
-import * as googleApiUtils from "./src/crawler/googleApiUtils";
-import * as DataUtils from "./src/crawler/dataUtils";
-import * as gmailCrawler from "./src/crawler/gmailCrawler";
-import * as gdriveCrawler from "./src/crawler/gdriveCrawler";
-import * as CommonUtils from "./src/crawler/commonUtils";
+import path from 'path';
+import restify from 'restify';
+import initDatabase from './src/models/modelsFactory';
+import { initGoogleApi } from './src/crawler/googleApiUtils';
+import * as googleApiUtils from './src/crawler/googleApiUtils';
+import * as DataUtils from './src/crawler/dataUtils';
+import * as gmailCrawler from './src/crawler/gmailCrawler';
+import * as gdriveCrawler from './src/crawler/gdriveCrawler';
+import * as CommonUtils from './src/crawler/commonUtils';
 
 initDatabase();
 initGoogleApi();
@@ -19,11 +19,7 @@ const server = restify.createServer();
 
 server.use(restify.plugins.bodyParser({ mapParams: false }));
 
-server.get("/api/message/parse/threadId/:threadId", async function (
-  req,
-  res,
-  next
-) {
+server.get('/api/message/parse/threadId/:threadId', async function (req, res, next) {
   const threadId = req.params.threadId;
 
   const emails = await DataUtils.getEmailsByThreadId(threadId);
@@ -58,16 +54,12 @@ server.get("/api/message/parse/threadId/:threadId", async function (
       }
     }
   } else {
-    res.send(404, { error: "Not found" });
+    res.send(404, { error: 'Not found' });
   }
   next();
 });
 
-server.get("/api/message/parse/messageId/:messageId", async function (
-  req,
-  res,
-  next
-) {
+server.get('/api/message/parse/messageId/:messageId', async function (req, res, next) {
   const messageId = req.params.messageId;
 
   const email = await DataUtils.getEmailByMessageId(messageId);
@@ -98,16 +90,12 @@ server.get("/api/message/parse/messageId/:messageId", async function (
       res.send({ error: error.stack || JSON.stringify(error) });
     }
   } else {
-    res.send(404, { error: "Not found" });
+    res.send(404, { error: 'Not found' });
   }
   next();
 });
 
-server.get("/api/message/sync/messageId/:messageId", async function (
-  req,
-  res,
-  next
-) {
+server.get('/api/message/sync/messageId/:messageId', async function (req, res, next) {
   const messageId = req.params.messageId;
 
   try {
@@ -130,11 +118,7 @@ server.get("/api/message/sync/messageId/:messageId", async function (
   next();
 });
 
-server.get("/api/message/sync/threadId/:threadId", async function (
-  req,
-  res,
-  next
-) {
+server.get('/api/message/sync/threadId/:threadId', async function (req, res, next) {
   const threadId = req.params.threadId;
 
   try {
@@ -158,11 +142,7 @@ server.get("/api/message/sync/threadId/:threadId", async function (
   next();
 });
 
-server.get("/api/message/fetch/threadId/:threadId", async function (
-  req,
-  res,
-  next
-) {
+server.get('/api/message/fetch/threadId/:threadId', async function (req, res, next) {
   const threadId = req.params.threadId;
 
   const { messages } = await googleApiUtils.getEmailContentByThreadId(threadId);
@@ -188,7 +168,7 @@ server.get("/api/message/fetch/threadId/:threadId", async function (
   next();
 });
 
-server.post("/api/logs", async function (req, res, next) {
+server.post('/api/logs', async function (req, res, next) {
   try {
     const { search, limit, trace } = JSON.parse(req.body);
     const cmd = `cat logs/log_combined.data | grep -i "${trace}" | grep -i "${search}" | tail -${limit}`;
@@ -208,18 +188,18 @@ server.post("/api/logs", async function (req, res, next) {
   next();
 });
 
-server.get("/", async function (req, res, next) {
-  res.redirect(301, "/public/index.html", next);
+server.get('/', async function (req, res, next) {
+  res.redirect(301, '/public/index.html', next);
 });
 
 server.listen(process.env.PORT || 8080, function () {
-  console.log("%s listening at %s", server.name, server.url);
+  console.log('%s listening at %s', server.name, server.url);
 });
 
 server.get(
-  "/public/*",
+  '/public/*',
   restify.plugins.serveStatic({
-    directory: path.join(process.cwd(), "src"),
-    default: "index.html",
-  })
+    directory: path.join(process.cwd(), 'src'),
+    default: 'index.html',
+  }),
 );

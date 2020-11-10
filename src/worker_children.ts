@@ -1,32 +1,32 @@
 // @ts-nocheck
-import { isMainThread } from "worker_threads";
-import { workerData } from "worker_threads";
-import { parentPort } from "worker_threads";
+import { isMainThread } from 'worker_threads';
+import { workerData } from 'worker_threads';
+import { parentPort } from 'worker_threads';
 
-import { logger, initLogger } from "./loggers";
+import { logger, initLogger } from './loggers';
 initLogger(`Child.${workerData.myThreadName}.${workerData.myThreadId}`);
-require("dotenv").config();
+require('dotenv').config();
 
-import initDatabase from "./models/modelsFactory";
+import initDatabase from './models/modelsFactory';
 
-import * as googleApiUtils from "./crawler/googleApiUtils";
-import * as gmailCrawler from "./crawler/gmailCrawler";
-import * as gdriveCrawler from "./crawler/gdriveCrawler";
+import * as googleApiUtils from './crawler/googleApiUtils';
+import * as gmailCrawler from './crawler/gmailCrawler';
+import * as gdriveCrawler from './crawler/gdriveCrawler';
 
-import { WORK_ACTION_ENUM } from "./crawler/appConstantsEnums";
-import { WorkActionRequest } from "./types";
+import { WORK_ACTION_ENUM } from './crawler/appConstantsEnums';
+import { WorkActionRequest } from './types';
 
 if (isMainThread) {
-  throw new Error("Its not a worker");
+  throw new Error('Its not a worker');
 }
 
 async function _init() {
   await initDatabase();
   await googleApiUtils.initGoogleApi();
 
-  parentPort.on("message", async (data: WorkActionRequest) => {
+  parentPort.on('message', async (data: WorkActionRequest) => {
     try {
-      let extra = "";
+      let extra = '';
       switch (data.action) {
         case WORK_ACTION_ENUM.FETCH_RAW_CONTENT:
           if (!data.id) {
@@ -79,7 +79,7 @@ async function _init() {
     }
   });
 
-  console.debug("Worker started", workerData);
+  console.debug('Worker started', workerData);
 }
 
 _init();

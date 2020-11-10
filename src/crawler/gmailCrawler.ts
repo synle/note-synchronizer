@@ -1,22 +1,17 @@
 // @ts-nocheck
-import fs from "fs";
-import { Base64 } from "js-base64";
-import { JSDOM } from "jsdom";
-import prettier from "prettier";
-import truncate from "lodash/truncate";
-import trim from "lodash/trim";
-import capitalize from "lodash/capitalize";
-import upperFirst from "lodash/upperFirst";
+import fs from 'fs';
+import { Base64 } from 'js-base64';
+import { JSDOM } from 'jsdom';
+import prettier from 'prettier';
+import truncate from 'lodash/truncate';
+import trim from 'lodash/trim';
+import capitalize from 'lodash/capitalize';
+import upperFirst from 'lodash/upperFirst';
 
-import {
-  Email,
-  Headers,
-  GmailAttachmentResponse,
-  GmailMessageResponse,
-} from "../types";
+import { Email, Headers, GmailAttachmentResponse, GmailMessageResponse } from '../types';
 
-import { logger } from "../loggers";
-import * as googleApiUtils from "./googleApiUtils";
+import { logger } from '../loggers';
+import * as googleApiUtils from './googleApiUtils';
 
 import {
   mySignatureTokens,
@@ -26,10 +21,10 @@ import {
   MAX_TIME_PER_THREAD,
   interestedEmails,
   ignoredSubjectTokens,
-} from "./appConstantsEnums";
+} from './appConstantsEnums';
 
-import * as CommonUtils from "./commonUtils";
-import * as DataUtils from "./dataUtils";
+import * as CommonUtils from './commonUtils';
+import * as DataUtils from './dataUtils';
 
 // google crawler
 /**
@@ -55,7 +50,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
       }
 
       logger.error(
-        `Aborted working on thread due to Timeout issues: threadId=${targetThreadId} totalMessages=${threadMessages.length}`
+        `Aborted working on thread due to Timeout issues: threadId=${targetThreadId} totalMessages=${threadMessages.length}`,
       );
 
       // update the process time and status to error timeout
@@ -67,7 +62,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
         status: THREAD_JOB_STATUS_ENUM.ERROR_TIMEOUT,
       });
 
-      reject("Timeout for task");
+      reject('Timeout for task');
     }, MAX_TIME_PER_THREAD);
 
     let threadMessages: GmailMessageResponse[] = [];
@@ -78,13 +73,9 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
     try {
       // attempting at getting the emails from rawcontent in the database
       if (threadMessages.length === 0) {
-        const messagesFromDatabase: GmailMessageResponse[] = await DataUtils.getRawContentsByThreadId(
-          targetThreadId
-        );
+        const messagesFromDatabase: GmailMessageResponse[] = await DataUtils.getRawContentsByThreadId(targetThreadId);
 
-        logger.debug(
-          `Raw Content Result from DB threadId=${targetThreadId}: ${messagesFromDatabase.length}`
-        );
+        logger.debug(`Raw Content Result from DB threadId=${targetThreadId}: ${messagesFromDatabase.length}`);
 
         if (messagesFromDatabase && messagesFromDatabase.length > 0) {
           threadMessages = messagesFromDatabase;
@@ -92,17 +83,11 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
         }
       }
     } catch (err) {
-      logger.error(
-        `Cannot fetch Raw Content threadId=${targetThreadId} error=${JSON.stringify(
-          err.stack || err
-        )}`
-      );
+      logger.error(`Cannot fetch Raw Content threadId=${targetThreadId} error=${JSON.stringify(err.stack || err)}`);
     }
 
     if (threadMessages.length === 0) {
-      logger.error(
-        `Aborted working on thread No messages found with this threadId: threadId=${targetThreadId}`
-      );
+      logger.error(`Aborted working on thread No messages found with this threadId: threadId=${targetThreadId}`);
 
       ignoreTimerForTimeout = true; // clear the timeout timer
 
@@ -117,98 +102,81 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
       return resolve(threadMessages.length);
     }
 
-    logger.debug(
-      `Found and start processing threadId=${targetThreadId} totalMessages=${threadMessages.length}`
-    );
+    logger.debug(`Found and start processing threadId=${targetThreadId} totalMessages=${threadMessages.length}`);
 
     // start processing
     for (let message of threadMessages) {
-      const {
-        id,
-        threadId,
-        from,
-        labelIds,
-        snippet,
-        isChat,
-        isEmail,
-        rawSubject,
-      } = message;
+      const { id, threadId, from, labelIds, snippet, isChat, isEmail, rawSubject } = message;
 
       try {
-        let rawBodyPlain = "";
-        let rawBodyHtml = "";
-        let rawBodyFormatted = "";
+        let rawBodyPlain = '';
+        let rawBodyHtml = '';
+        let rawBodyFormatted = '';
         const parts = googleApiUtils.flattenGmailPayloadParts(message.payload);
         if (parts && parts.length > 0) {
           for (let part of parts) {
             let { mimeType, partId } = part;
             const { size, attachmentId, data } = part.body;
             const partHeaders = _getHeaders(part.headers || []);
-            const fileName =
-              part.filename || `parts.${threadId}.${id}.${partId || ""}`;
-            const partHeaderContentId = partHeaders["content-id"];
+            const fileName = part.filename || `parts.${threadId}.${id}.${partId || ''}`;
+            const partHeaderContentId = partHeaders['content-id'];
             const oldMimeTime = mimeType;
 
             const lowerCaseFileName = fileName.toLowerCase();
             if (
               // lowerCaseFileName.endsWith(".java") ||
-              lowerCaseFileName.endsWith(".log") ||
+              lowerCaseFileName.endsWith('.log') ||
               // lowerCaseFileName.endsWith(".cpp") ||
-              lowerCaseFileName.endsWith(".cs") ||
-              lowerCaseFileName.endsWith(".js") ||
-              lowerCaseFileName.endsWith(".json") ||
-              lowerCaseFileName.endsWith(".xml") ||
-              lowerCaseFileName.endsWith(".yml") ||
-              lowerCaseFileName.endsWith(".yaml") ||
+              lowerCaseFileName.endsWith('.cs') ||
+              lowerCaseFileName.endsWith('.js') ||
+              lowerCaseFileName.endsWith('.json') ||
+              lowerCaseFileName.endsWith('.xml') ||
+              lowerCaseFileName.endsWith('.yml') ||
+              lowerCaseFileName.endsWith('.yaml') ||
               false
             ) {
               mimeType = MIME_TYPE_ENUM.TEXT_PLAIN;
-            } else if (lowerCaseFileName.endsWith(".doc")) {
+            } else if (lowerCaseFileName.endsWith('.doc')) {
               mimeType = MIME_TYPE_ENUM.APP_MS_DOC;
-            } else if (lowerCaseFileName.endsWith(".docx")) {
+            } else if (lowerCaseFileName.endsWith('.docx')) {
               mimeType = MIME_TYPE_ENUM.APP_MS_DOCX;
-            } else if (lowerCaseFileName.endsWith(".csv")) {
+            } else if (lowerCaseFileName.endsWith('.csv')) {
               mimeType = MIME_TYPE_ENUM.TEXT_CSV;
-            } else if (lowerCaseFileName.endsWith(".xls")) {
+            } else if (lowerCaseFileName.endsWith('.xls')) {
               mimeType = MIME_TYPE_ENUM.APP_MS_XLS;
-            } else if (lowerCaseFileName.endsWith(".xlsx")) {
+            } else if (lowerCaseFileName.endsWith('.xlsx')) {
               mimeType = MIME_TYPE_ENUM.APP_MS_XLSX;
-            } else if (lowerCaseFileName.endsWith(".pdf")) {
+            } else if (lowerCaseFileName.endsWith('.pdf')) {
               mimeType = MIME_TYPE_ENUM.APP_PDF;
-            } else if (lowerCaseFileName.includes(".gif")) {
+            } else if (lowerCaseFileName.includes('.gif')) {
               mimeType = MIME_TYPE_ENUM.IMAGE_GIF;
-            } else if (lowerCaseFileName.includes(".png")) {
+            } else if (lowerCaseFileName.includes('.png')) {
               mimeType = MIME_TYPE_ENUM.IMAGE_PNG;
-            } else if (lowerCaseFileName.includes(".ics")) {
+            } else if (lowerCaseFileName.includes('.ics')) {
               mimeType = MIME_TYPE_ENUM.APP_ICS;
-            } else if (
-              lowerCaseFileName.includes(".jpg") ||
-              lowerCaseFileName.includes(".jpeg")
-            ) {
+            } else if (lowerCaseFileName.includes('.jpg') || lowerCaseFileName.includes('.jpeg')) {
               mimeType = MIME_TYPE_ENUM.IMAGE_JPG;
             }
 
             if (mimeType === MIME_TYPE_ENUM.APP_OCTLET_STREAM) {
               if (partHeaderContentId) {
-                if (
-                  partHeaderContentId.toLowerCase().includes("uniqueimageid")
-                ) {
+                if (partHeaderContentId.toLowerCase().includes('uniqueimageid')) {
                   mimeType = MIME_TYPE_ENUM.IMAGE_JPEG;
                 }
               }
             }
 
             logger.debug(
-              `Remapped Oclet Stream threadId=${threadId} id=${id} partId=${partId} oldMimeTime=${oldMimeTime} newMimeType=${mimeType} size=${size}`
+              `Remapped Oclet Stream threadId=${threadId} id=${id} partId=${partId} oldMimeTime=${oldMimeTime} newMimeType=${mimeType} size=${size}`,
             );
 
             logger.debug(
-              `Parsing Part of Message: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType} size=${size}`
+              `Parsing Part of Message: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType} size=${size}`,
             );
 
             if (attachmentId) {
               logger.debug(
-                `Download Message Attachment Async: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType} attachmentId=${attachmentId}`
+                `Download Message Attachment Async: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType} attachmentId=${attachmentId}`,
               );
 
               // is attachment, then download it
@@ -236,21 +204,21 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                   })
                   .catch((err) => {
                     logger.error(
-                      `Download Message Attachment Async Failed: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType} attachmentId=${attachmentId} ${err}`
+                      `Download Message Attachment Async Failed: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType} attachmentId=${attachmentId} ${err}`,
                     );
-                  })
+                  }),
               );
             } else {
               // regular file
               logger.debug(
-                `Parsing Message as Raw Content: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`
+                `Parsing Message as Raw Content: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`,
               );
 
               switch (mimeType) {
                 case MIME_TYPE_ENUM.MULTIPART_ALTERNATIVE:
                 case MIME_TYPE_ENUM.MULTIPART_RELATED:
                   logger.debug(
-                    `Unsupported mimetype threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`
+                    `Unsupported mimetype threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`,
                   );
                   break;
 
@@ -261,7 +229,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                 case MIME_TYPE_ENUM.IMAGE_JPEG:
                   // this is inline attachment, no need to download it
                   logger.debug(
-                    `Storing Inline Attachment: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`
+                    `Storing Inline Attachment: threadId=${threadId} id=${id} partId=${partId} mimeType=${mimeType}`,
                   );
 
                   const newFilePath = `${GMAIL_ATTACHMENT_PATH}/${fileName}`;
@@ -282,18 +250,14 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                   break;
 
                 case MIME_TYPE_ENUM.TEXT_PLAIN:
-                  logger.debug(
-                    `Found rawBodyPlain for id=${id} partId=${partId} `
-                  );
+                  logger.debug(`Found rawBodyPlain for id=${id} partId=${partId} `);
                   rawBodyPlain = data;
                   break;
 
                 case MIME_TYPE_ENUM.TEXT_X_AMP_HTML:
                 case MIME_TYPE_ENUM.TEXT_HTML:
                   rawBodyHtml = data;
-                  logger.debug(
-                    `Found rawBodyHtml for id=${id} partId=${partId} `
-                  );
+                  logger.debug(`Found rawBodyHtml for id=${id} partId=${partId} `);
                   break;
               }
             }
@@ -307,8 +271,7 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
         // stripped down body (remove signatures and clean up the dom)
         if (rawBodyPlain) {
           logger.debug(`Use rawBodyPlain for Body id=${id}`);
-          rawBodyFormatted =
-            tryParseBody(rawBodyPlain, MIME_TYPE_ENUM.TEXT_PLAIN) || snippet;
+          rawBodyFormatted = tryParseBody(rawBodyPlain, MIME_TYPE_ENUM.TEXT_PLAIN) || snippet;
         } else {
           logger.debug(`Use rawBodyHtml for Body id=${id}`);
           rawBodyFormatted =
@@ -325,14 +288,10 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
             urlToCrawl = CommonUtils.extractUrlFromString(subject);
 
             try {
-              logger.debug(
-                `Crawl subject with url: id=${id} url=${urlToCrawl}`
-              );
+              logger.debug(`Crawl subject with url: id=${id} url=${urlToCrawl}`);
               const websiteRes = await CommonUtils.crawlUrl(urlToCrawl);
 
-              logger.debug(
-                `Done CrawlUrl threadId=${threadId} id=${id} url=${urlToCrawl} res=${websiteRes.subject}`
-              );
+              logger.debug(`Done CrawlUrl threadId=${threadId} id=${id} url=${urlToCrawl} res=${websiteRes.subject}`);
 
               subject = `${rawSubject} ${websiteRes.subject}`;
               body = `
@@ -342,13 +301,11 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
                   ${websiteRes.subject}
                   ${urlToCrawl}
                 `
-                .split("\n")
+                .split('\n')
                 .map((r) => r.trim())
-                .join("\n");
+                .join('\n');
             } catch (err) {
-              logger.debug(
-                `Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`
-              );
+              logger.debug(`Failed CrawlUrl for threadId=${threadId} id=${id} url=${urlToCrawl} err=${err}`);
               body = rawBodyFormatted;
             }
           }
@@ -359,11 +316,11 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           threadId,
           status: THREAD_JOB_STATUS_ENUM.PENDING_SYNC_TO_GDRIVE,
           body,
-          rawBody: rawBodyHtml || rawBodyPlain || snippet || "",
+          rawBody: rawBodyHtml || rawBodyPlain || snippet || '',
           subject: upperFirst(
             truncate(subject, {
               length: 250,
-            })
+            }),
           ),
           // rawSubject: truncate(rawSubject, {
           //   length: 250,
@@ -376,22 +333,14 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
           // headers: JSON.stringify(headers),
         };
 
-        logger.debug(
-          `Pushing message to buffer: threadId=${threadId} id=${id} subject=${subject}`
-        );
+        logger.debug(`Pushing message to buffer: threadId=${threadId} id=${id} subject=${subject}`);
 
         // save messages
-        logger.debug(
-          `Saving message: threadId=${targetThreadId} id=${messageToSave.id}`
-        );
+        logger.debug(`Saving message: threadId=${targetThreadId} id=${messageToSave.id}`);
         // await
         await DataUtils.bulkUpsertEmails(messageToSave);
       } catch (err) {
-        logger.error(
-          `Failed to process threadId=${targetThreadId} error=${JSON.stringify(
-            err.stack || err
-          )}`
-        );
+        logger.error(`Failed to process threadId=${targetThreadId} error=${JSON.stringify(err.stack || err)}`);
         await DataUtils.bulkUpsertThreadJobStatuses({
           threadId: threadId,
           status: THREAD_JOB_STATUS_ENUM.ERROR_CRAWL,
@@ -412,15 +361,15 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
     ignoreTimerForTimeout = true; // clear the timeout timer
 
     logger.debug(
-      `Saving attachments: threadId=${targetThreadId} totalAttachments=${attachmentsToSave.length} totalDownloadJobs=${attachmentDownloadsPromises.length}`
+      `Saving attachments: threadId=${targetThreadId} totalAttachments=${attachmentsToSave.length} totalDownloadJobs=${attachmentDownloadsPromises.length}`,
     );
 
     // no need to wait for this attachments
     await DataUtils.bulkUpsertAttachments(attachmentsToSave).catch((err) => {
       logger.error(
         `Bulk create attachment failed, trying to do update instead threadId=${targetThreadId} error=${JSON.stringify(
-          err.stack || err
-        )}`
+          err.stack || err,
+        )}`,
       );
     });
 
@@ -443,25 +392,21 @@ export function processMessagesByThreadId(targetThreadId): Promise<Email[]> {
  * @param emailAddressesAsString
  */
 function _parseEmailAddressList(emailAddressesAsString) {
-  emailAddressesAsString = (emailAddressesAsString || "").toLowerCase();
+  emailAddressesAsString = (emailAddressesAsString || '').toLowerCase();
   return emailAddressesAsString
     .split(/[ ]/g)
     .filter((email) => !!email)
     .map((emailAddress) => {
-      if (emailAddress.includes("@")) {
+      if (emailAddress.includes('@')) {
         try {
           return _parseEmailAddress(emailAddress);
         } catch (err) {
-          logger.error(
-            `Cannot parse email address list: ${emailAddress} error=${JSON.stringify(
-              err.stack || err
-            )}`
-          );
+          logger.error(`Cannot parse email address list: ${emailAddress} error=${JSON.stringify(err.stack || err)}`);
           return emailAddress;
         }
       }
     })
-    .filter((email) => !!email && email.includes("@"));
+    .filter((email) => !!email && email.includes('@'));
 }
 
 /**
@@ -472,31 +417,25 @@ function _parseEmailAddress(emailAddress) {
   try {
     return emailAddress
       .match(/<?[a-zA-Z0-9-_\.]+@[a-zA-Z0-9-_\.]+>?/)[0]
-      .replace(/[<>]/g, "")
+      .replace(/[<>]/g, '')
       .toLowerCase()
       .trim();
   } catch (err) {
-    logger.error(
-      `Cannot parse email: ${emailAddress} error=${JSON.stringify(
-        err.stack || err
-      )}`
-    );
+    logger.error(`Cannot parse email: ${emailAddress} error=${JSON.stringify(err.stack || err)}`);
     return null;
   }
 }
 
-async function _pollNewEmailThreads(q = "") {
+async function _pollNewEmailThreads(q = '') {
   const startTime = Date.now();
 
   let countPageProcessed = 0;
-  let pageToken = "";
+  let pageToken = '';
   let threadIds = [];
 
   let countTotalPagesToCrawl = process.env.GMAIL_PAGES_TO_CRAWL || 1;
 
-  logger.debug(
-    `Crawl list of email threads: q=${q} maxPages=${countTotalPagesToCrawl} lastToken=${pageToken}`
-  );
+  logger.debug(`Crawl list of email threads: q=${q} maxPages=${countTotalPagesToCrawl} lastToken=${pageToken}`);
 
   let countThreadsSoFar = 0;
   const promises = [];
@@ -505,10 +444,7 @@ async function _pollNewEmailThreads(q = "") {
     countPageProcessed++;
 
     try {
-      const { threads, nextPageToken } = await googleApiUtils.getThreadsByQuery(
-        q,
-        pageToken
-      );
+      const { threads, nextPageToken } = await googleApiUtils.getThreadsByQuery(q, pageToken);
       threadIds = [...(threads || [])];
       pageToken = nextPageToken;
 
@@ -523,8 +459,8 @@ async function _pollNewEmailThreads(q = "") {
               duration: null,
               totalMessages: null,
               status: THREAD_JOB_STATUS_ENUM.PENDING_CRAWL,
-            }))
-          )
+            })),
+          ),
         );
       }
 
@@ -532,21 +468,21 @@ async function _pollNewEmailThreads(q = "") {
 
       if (!nextPageToken) {
         logger.debug(
-          `Stopped crawl due to q=${q} totalPages=${countPageProcessed}/${countTotalPagesToCrawl} nextPageToken=${nextPageToken}`
+          `Stopped crawl due to q=${q} totalPages=${countPageProcessed}/${countTotalPagesToCrawl} nextPageToken=${nextPageToken}`,
         );
         break;
       }
 
       if (countPageProcessed % 5 === 0 && countPageProcessed > 0) {
         logger.debug(
-          `So far crawled q=${q} totalPages=${countPageProcessed}/${countTotalPagesToCrawl} totalThreads=${countThreadsSoFar}`
+          `So far crawled q=${q} totalPages=${countPageProcessed}/${countTotalPagesToCrawl} totalThreads=${countThreadsSoFar}`,
         );
       }
     } catch (err) {
       logger.error(
         `Failed to get thread list q=${q} totalPages=${countPageProcessed}/${countTotalPagesToCrawl} pageToken=${pageToken} error=${JSON.stringify(
-          err.stack || err
-        )}`
+          err.stack || err,
+        )}`,
       );
       break;
     }
@@ -557,7 +493,7 @@ async function _pollNewEmailThreads(q = "") {
   logger.debug(
     `Done Crawl list of email threads q=${q} totalPages=${countPageProcessed}/${countTotalPagesToCrawl} totalThreads=${countThreadsSoFar}  duration=${
       Date.now() - startTime
-    }`
+    }`,
   );
 }
 
@@ -567,20 +503,17 @@ async function _pollNewEmailThreads(q = "") {
  */
 export function _cleanHtml(string) {
   return string
-    .replace(/<\/[ ]*div>/gi, "</div><br />")
-    .replace(/<\/[ ]*section>/gi, "</section><br />")
-    .replace(/<\/[ ]*header>/gi, "</header><br />")
-    .replace(/<br[ /]*>/gi, "\n")
-    .replace(
-      /<style( type="[a-zA-Z/+]+")?>[a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/ŤŮ>?&~+µ]+<\/style>/gi,
-      ""
-    )
-    .replace(/style=["'][\w\s#-:;@()!%"']+["']/gi, "");
+    .replace(/<\/[ ]*div>/gi, '</div><br />')
+    .replace(/<\/[ ]*section>/gi, '</section><br />')
+    .replace(/<\/[ ]*header>/gi, '</header><br />')
+    .replace(/<br[ /]*>/gi, '\n')
+    .replace(/<style( type="[a-zA-Z/+]+")?>[a-zA-Z0-9-_!*{:;}#.%,[^=\]@() \n\t\r"'/ŤŮ>?&~+µ]+<\/style>/gi, '')
+    .replace(/style=["'][\w\s#-:;@()!%"']+["']/gi, '');
 }
 
 function _prettifyHtml(bodyHtml) {
   try {
-    return prettier.format(bodyHtml, { parser: "html", tabWidth: 2 });
+    return prettier.format(bodyHtml, { parser: 'html', tabWidth: 2 });
   } catch (e) {}
 
   return bodyHtml;
@@ -591,13 +524,13 @@ function _prettifyHtml(bodyHtml) {
  * @param bodyData
  */
 export function parseGmailMessage(bodyData) {
-  return Base64.decode((bodyData || "").replace(/-/g, "+").replace(/_/g, "/"))
+  return Base64.decode((bodyData || '').replace(/-/g, '+').replace(/_/g, '/'))
     .trim()
-    .replace(/[\r\n]/g, "\n");
+    .replace(/[\r\n]/g, '\n');
 }
 
 export function _parseBodyWithText(html) {
-  let body = html || "";
+  let body = html || '';
   try {
     return body.trim();
   } catch (e) {
@@ -611,18 +544,16 @@ export function _parseBodyWithHtml(html) {
     logger.debug(`_parseBodyWithHtml content=${html.substr(0, 10).trim()}...`);
 
     // replace anchors href with links
-    const anchors = dom.window.document.querySelectorAll("a");
+    const anchors = dom.window.document.querySelectorAll('a');
     for (const anchor of anchors) {
-      const url = anchor.getAttribute("href");
-      if (url && url.includes("http")) {
+      const url = anchor.getAttribute('href');
+      if (url && url.includes('http')) {
         anchor.innerText = url;
       }
     }
 
     // replace all the script tags
-    const itemsToRemove = dom.window.document.querySelectorAll(
-      "script,img,style"
-    );
+    const itemsToRemove = dom.window.document.querySelectorAll('script,img,style');
     for (const item of itemsToRemove) {
       item.remove();
     }
@@ -641,28 +572,24 @@ export function _parseBodyWithHtml(html) {
     const textContent = trim(dom.window.document.body.textContent);
 
     logger.debug(
-      `_parseBodyWithHtml Done content=${html
+      `_parseBodyWithHtml Done content=${html.substr(0, 10).trim().replace('\n', ' ')}... result=${textContent
         .substr(0, 10)
         .trim()
-        .replace("\n", " ")}... result=${textContent
-        .substr(0, 10)
-        .trim()
-        .replace("\n", " ")}...`
+        .replace('\n', ' ')}...`,
     );
 
     return textContent;
   } catch (err) {
     logger.debug(
-      `_parseBodyWithHtml failed content=${html
-        .substr(0, 10)
-        .trim()
-        .replace("\n", " ")}... error=${err.stack || JSON.stringify(err)}`
+      `_parseBodyWithHtml failed content=${html.substr(0, 10).trim().replace('\n', ' ')}... error=${
+        err.stack || JSON.stringify(err)
+      }`,
     );
   }
 }
 
 export function tryParseBody(rawBody, mimeType = MIME_TYPE_ENUM.TEXT_HTML) {
-  rawBody = (rawBody || "").trim();
+  rawBody = (rawBody || '').trim();
 
   let result;
   if ((mimeType = MIME_TYPE_ENUM.TEXT_HTML)) {
@@ -673,26 +600,21 @@ export function tryParseBody(rawBody, mimeType = MIME_TYPE_ENUM.TEXT_HTML) {
   }
 
   result = result
-    .split("\n")
+    .split('\n')
     .map((r) => r.trim())
-    .map((r) =>
-      r.replace(
-        /^[-_=\*][-_=\*][-_=\*][-_=\*][-_=\*]*$/gi,
-        "\n================================\n"
-      )
-    )
+    .map((r) => r.replace(/^[-_=\*][-_=\*][-_=\*][-_=\*][-_=\*]*$/gi, '\n================================\n'))
     .filter((r) => !!r)
-    .join("\n");
+    .join('\n');
 
   // attempted to format it as js
   try {
-    result = prettier.format(result, { parser: "babel", tabWidth: 2 });
+    result = prettier.format(result, { parser: 'babel', tabWidth: 2 });
   } catch (err) {}
 
   // remove signatures
   for (let signature of mySignatureTokens) {
     try {
-      result = result.replace(new RegExp(signature, "gi"), "");
+      result = result.replace(new RegExp(signature, 'gi'), '');
     } catch (err) {}
   }
 
@@ -706,10 +628,7 @@ export function parsePageTitle(html) {
   } catch (e) {}
 }
 
-export async function _parseGmailAttachment(
-  messageId,
-  attachment: GmailAttachmentResponse
-) {
+export async function _parseGmailAttachment(messageId, attachment: GmailAttachmentResponse) {
   const newFilePath = `${GMAIL_ATTACHMENT_PATH}/${messageId}.${attachment.fileName}`;
 
   // check if the attachment already been downloaded
@@ -724,10 +643,7 @@ export async function _parseGmailAttachment(
     logger.debug(`Download Gmail attachment from API: ${newFilePath}`);
 
     // if not, then download from upstream
-    const attachmentResponse = await googleApiUtils.getEmailAttachment(
-      messageId,
-      attachment.attachmentId
-    );
+    const attachmentResponse = await googleApiUtils.getEmailAttachment(messageId, attachment.attachmentId);
 
     _saveBase64DataToFile(newFilePath, attachmentResponse);
 
@@ -740,14 +656,9 @@ export async function _parseGmailAttachment(
 
 function _saveBase64DataToFile(newFilePath, base64Data) {
   try {
-    fs.writeFileSync(
-      newFilePath,
-      (base64Data || "").replace(/-/g, "+").replace(/_/g, "/"),
-      "base64",
-      function (err) {
-        logger.info(`Failed _saveBase64DataToFile ${newFilePath} ${err}`);
-      }
-    );
+    fs.writeFileSync(newFilePath, (base64Data || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64', function (err) {
+      logger.info(`Failed _saveBase64DataToFile ${newFilePath} ${err}`);
+    });
   } catch (e) {
     logger.error(`Error cannot save binary: ${newFilePath}`);
   }
@@ -770,10 +681,10 @@ export async function fetchRawContentsByThreadId(threadIds) {
     try {
       let threadMessages = await DataUtils.getRawContentsByThreadId(threadId);
 
-      if (process.env.FORCE_REFETCH_THREADS !== "true") {
+      if (process.env.FORCE_REFETCH_THREADS !== 'true') {
         if (threadMessages && threadMessages.length > 0) {
           logger.debug(
-            `Skipped Fetching raw content for threadId=${threadId} forcedRefetch=${process.env.FORCE_REFETCH_THREADS}`
+            `Skipped Fetching raw content for threadId=${threadId} forcedRefetch=${process.env.FORCE_REFETCH_THREADS}`,
           );
           continue;
         }
@@ -781,12 +692,10 @@ export async function fetchRawContentsByThreadId(threadIds) {
 
       // if not found from db, then fetch its raw content
       logger.debug(
-        `Start Fetching raw content for threadId=${threadId} forcedRefetch=${process.env.FORCE_REFETCH_THREADS}`
+        `Start Fetching raw content for threadId=${threadId} forcedRefetch=${process.env.FORCE_REFETCH_THREADS}`,
       );
 
-      const { messages } = await googleApiUtils.getEmailContentByThreadId(
-        threadId
-      );
+      const { messages } = await googleApiUtils.getEmailContentByThreadId(threadId);
 
       totalMessages += messages.length;
 
@@ -808,14 +717,14 @@ export async function fetchRawContentsByThreadId(threadIds) {
         }
 
         const headers: Headers = _getHeaders(message.payload.headers || []);
-        const from = headers.from.includes("profiles.google.com")
-          ? headers.from.substr(0, headers.from.indexOf("<")).trim()
+        const from = headers.from.includes('profiles.google.com')
+          ? headers.from.substr(0, headers.from.indexOf('<')).trim()
           : _parseEmailAddress(headers.from) || headers.from;
 
         let to;
         to = _parseEmailAddressList(headers.to);
         if (to.length === 0) {
-          to = _parseEmailAddressList(headers["delivered-to"]);
+          to = _parseEmailAddressList(headers['delivered-to']);
         }
 
         const bcc = _parseEmailAddressList(headers.bcc);
@@ -823,24 +732,22 @@ export async function fetchRawContentsByThreadId(threadIds) {
         let isChat = false;
         let isEmail = true;
         const labelIds = message.labelIds || [];
-        if (labelIds.some((labelId) => labelId.includes("CHAT"))) {
+        if (labelIds.some((labelId) => labelId.includes('CHAT'))) {
           isChat = true;
           isEmail = false;
         }
 
-        const starred = labelIds.some((labelId) => labelId.includes("STARRED"));
+        const starred = labelIds.some((labelId) => labelId.includes('STARRED'));
 
-        const isEmailSentByMe = interestedEmails.some(
-          (myEmail) => from.toLowerCase() === myEmail.toLowerCase()
-        );
+        const isEmailSentByMe = interestedEmails.some((myEmail) => from.toLowerCase() === myEmail.toLowerCase());
 
         let rawSubject = capitalize(headers.subject);
         if (!rawSubject) {
           if (isChat) {
             rawSubject = `Chat with ${from.toUpperCase()} ${id}`;
           } else if (isEmail) {
-            if (labelIds.some((labelId) => labelId.includes("DRAFT"))) {
-              rawSubject = `Email Draft to ${to || ""} ${id}`;
+            if (labelIds.some((labelId) => labelId.includes('DRAFT'))) {
+              rawSubject = `Email Draft to ${to || ''} ${id}`;
             } else {
               rawSubject = `Email from ${from} ${id}`;
             }
@@ -848,20 +755,20 @@ export async function fetchRawContentsByThreadId(threadIds) {
         }
         // remove subject words token
         for (let subjectToken of ignoredSubjectTokens) {
-          rawSubject = rawSubject.replace(new RegExp(subjectToken, "gi"), "");
+          rawSubject = rawSubject.replace(new RegExp(subjectToken, 'gi'), '');
         }
-        rawSubject = upperFirst(trim(rawSubject, ".").trim());
+        rawSubject = upperFirst(trim(rawSubject, '.').trim());
 
         const emailMessageToSave = {
           id: id,
           threadId: threadId,
-          labelIds: labelIds.join(","),
+          labelIds: labelIds.join(','),
           rawSubject: truncate(rawSubject, {
             length: 250,
           }),
           from,
-          to: to.join(",") || null,
-          bcc: bcc.join(",") || null,
+          to: to.join(',') || null,
+          bcc: bcc.join(',') || null,
           rawApiResponse: JSON.stringify({
             ...message,
           }),
@@ -878,18 +785,14 @@ export async function fetchRawContentsByThreadId(threadIds) {
         promisesSaveParentFolders.push(
           DataUtils.bulkUpsertFolders({
             folderName: parentFolderName,
-          })
+          }),
         );
 
-        logger.debug(
-          `Saving raw content for threadId=${threadId} subject=${rawSubject}`
-        );
+        logger.debug(`Saving raw content for threadId=${threadId} subject=${rawSubject}`);
 
         return DataUtils.bulkUpsertEmails(emailMessageToSave).catch((err) => {
           logger.error(
-            `Insert raw content failed threadId=${threadId} id=${id} error=${JSON.stringify(
-              err.stack || err
-            )}`
+            `Insert raw content failed threadId=${threadId} id=${id} error=${JSON.stringify(err.stack || err)}`,
           );
           throw err;
         });
@@ -904,11 +807,7 @@ export async function fetchRawContentsByThreadId(threadIds) {
         status: THREAD_JOB_STATUS_ENUM.PENDING_PARSE_EMAIL,
       });
     } catch (err) {
-      logger.error(
-        `Fetch raw content failed threadId=${threadId} error=${JSON.stringify(
-          err.stack || err
-        )}`
-      );
+      logger.error(`Fetch raw content failed threadId=${threadId} error=${JSON.stringify(err.stack || err)}`);
       await DataUtils.bulkUpsertThreadJobStatuses({
         threadId: threadId,
         status: THREAD_JOB_STATUS_ENUM.ERROR_CRAWL,
@@ -924,7 +823,7 @@ export async function fetchRawContentsByThreadId(threadIds) {
 /**
  * This is simply to get a list of all email threadIds
  */
-export async function pollForNewThreadList(afterThisDate = "") {
+export async function pollForNewThreadList(afterThisDate = '') {
   logger.debug(`pollForNewThreadList after=${afterThisDate}`);
   if (afterThisDate) {
     afterThisDate = `after:${afterThisDate}`;

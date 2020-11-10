@@ -1,4 +1,4 @@
-import { WORK_ACTION_ENUM } from "./crawler/appConstantsEnums";
+import { WORK_ACTION_ENUM } from './crawler/appConstantsEnums';
 
 export interface Headers {
   date: string;
@@ -7,21 +7,21 @@ export interface Headers {
   to: string;
   bcc: string;
   received: string;
-  "message-id": string;
-  "content-type": string;
-  "delivered-to": string;
-  "x-received": string;
-  "arc-seal": string;
-  "arc-message-signature": string;
-  "arc-authentication-results": string;
-  "return-path": string;
-  "received-spf": string;
-  "authentication-results": string;
-  "dkim-signature": string;
-  "x-google-dkim-signature": string;
-  "x-gm-message-state": string;
-  "x-google-smtp-source": string;
-  "mime-version": string;
+  'message-id': string;
+  'content-type': string;
+  'delivered-to': string;
+  'x-received': string;
+  'arc-seal': string;
+  'arc-message-signature': string;
+  'arc-authentication-results': string;
+  'return-path': string;
+  'received-spf': string;
+  'authentication-results': string;
+  'dkim-signature': string;
+  'x-google-dkim-signature': string;
+  'x-gm-message-state': string;
+  'x-google-smtp-source': string;
+  'mime-version': string;
   [propName: string]: any;
 }
 
