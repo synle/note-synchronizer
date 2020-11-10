@@ -1,27 +1,24 @@
 // @ts-nocheck
-import crypto from "crypto";
-import axios from "axios";
-import trim from "lodash/trim";
-import { logger } from "../loggers";
-import { parsePageTitle } from "./gmailCrawler";
-import { WebContent } from "../types";
-import { REGEX_URL, ignoredUrlTokens, myEmails } from "./appConstantsEnums";
+import crypto from 'crypto';
+import axios from 'axios';
+import trim from 'lodash/trim';
+import { logger } from '../loggers';
+import { parsePageTitle } from './gmailCrawler';
+import { WebContent } from '../types';
+import { REGEX_URL, ignoredUrlTokens, myEmails } from './appConstantsEnums';
 
 // default timeout for axios
 axios.defaults.timeout = 4000;
 
 export function isStringUrl(string) {
   try {
-    string = string || "";
+    string = string || '';
     if (isEmail(string)) {
       return false;
     }
     return (
       (string.match(REGEX_URL) || []).length > 0 &&
-      ignoredUrlTokens.every(
-        (ignoreUrlToken) =>
-          !string.toLowerCase().includes(ignoreUrlToken.toLowerCase())
-      )
+      ignoredUrlTokens.every((ignoreUrlToken) => !string.toLowerCase().includes(ignoreUrlToken.toLowerCase()))
     );
   } catch (err) {
     logger.error(`isStringUrl failed with err=${err} ${string}`);
@@ -41,9 +38,7 @@ export function extractUrlFromString(string) {
   try {
     const urlMatches = string.match(REGEX_URL);
 
-    logger.debug(
-      `extractUrlFromString tokens for urlMatches=${JSON.stringify(urlMatches)}`
-    );
+    logger.debug(`extractUrlFromString tokens for urlMatches=${JSON.stringify(urlMatches)}`);
 
     if (urlMatches && urlMatches.length > 0) {
       const matchedUrl = urlMatches[0];
@@ -51,11 +46,9 @@ export function extractUrlFromString(string) {
       if (matchedUrl.length > 15) return matchedUrl;
     }
   } catch (err) {
-    logger.debug(
-      `extractUrlFromString failed err=${err}. Fall back to empty string for URL`
-    );
+    logger.debug(`extractUrlFromString failed err=${err}. Fall back to empty string for URL`);
   }
-  return "";
+  return '';
 }
 
 export async function crawlUrl(url): Promise<WebContent> {
@@ -63,8 +56,8 @@ export async function crawlUrl(url): Promise<WebContent> {
     throw `${url} url is is not valid`;
   }
 
-  if (url.indexOf("http") === -1) {
-    url = "http://" + url;
+  if (url.indexOf('http') === -1) {
+    url = 'http://' + url;
   }
 
   logger.debug(`crawlUrl fetching url=${url}`);
@@ -78,7 +71,7 @@ export async function crawlUrl(url): Promise<WebContent> {
     const rawHtmlBody = response.data;
 
     return {
-      subject: parsePageTitle(rawHtmlBody) || "",
+      subject: parsePageTitle(rawHtmlBody) || '',
       body: rawHtmlBody,
     };
   } catch (err) {
@@ -87,12 +80,12 @@ export async function crawlUrl(url): Promise<WebContent> {
 }
 
 export function get256Hash(string) {
-  return crypto.createHash("sha256").update(string).digest("base64");
+  return crypto.createHash('sha256').update(string).digest('base64');
 }
 
 export function getMd5Hash(string) {
-  string = (string || "") + "";
-  return crypto.createHash("md5").update(string).digest("hex");
+  string = (string || '') + '';
+  return crypto.createHash('md5').update(string).digest('hex');
 }
 
 // this get the domain out of the email
@@ -106,20 +99,20 @@ export function generateFolderName(string) {
 
   if (
     [
-      "gmail",
-      "yahoo.com",
-      "ymail",
-      "hotmail",
-      "aol.com",
-      "pacbell.net",
-      "comcast.net",
-      "msn.com",
-      "live.com",
-      "outlook.com",
-      "icloud.com",
-      ".edu",
-      ".gov",
-      ".org",
+      'gmail',
+      'yahoo.com',
+      'ymail',
+      'hotmail',
+      'aol.com',
+      'pacbell.net',
+      'comcast.net',
+      'msn.com',
+      'live.com',
+      'outlook.com',
+      'icloud.com',
+      '.edu',
+      '.gov',
+      '.org',
     ].some((popularEmail) => string.includes(popularEmail.toLowerCase()))
   ) {
     // common email domain, then should use their full name
@@ -129,12 +122,9 @@ export function generateFolderName(string) {
   // break up things after @ and before the last dot
   let domainParts = string.split(/[@.]/g);
 
-  const resParts = [
-    domainParts[domainParts.length - 2],
-    domainParts[domainParts.length - 1],
-  ];
+  const resParts = [domainParts[domainParts.length - 2], domainParts[domainParts.length - 1]];
 
-  const res = trim(resParts.join("."), '-.+()"');
+  const res = trim(resParts.join('.'), '-.+()"');
   if (res.length === 0) {
     return string;
   }

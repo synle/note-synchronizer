@@ -1,13 +1,13 @@
 // @ts-nocheck
-import fs from "fs";
-import readline from "readline";
-import { google } from "googleapis";
-import moment from "moment";
-import { generateFolderName } from "./commonUtils";
-import { MIME_TYPE_ENUM, myEmails } from "./appConstantsEnums";
-import * as commonUtils from "./commonUtils";
-import * as DataUtils from "./dataUtils";
-import { logger } from "../loggers";
+import fs from 'fs';
+import readline from 'readline';
+import { google } from 'googleapis';
+import moment from 'moment';
+import { generateFolderName } from './commonUtils';
+import { MIME_TYPE_ENUM, myEmails } from './appConstantsEnums';
+import * as commonUtils from './commonUtils';
+import * as DataUtils from './dataUtils';
+import { logger } from '../loggers';
 
 let gmailApiInstance;
 let driveApiInstance;
@@ -17,40 +17,36 @@ let noteDestinationFolderId = process.env.NOTE_DESTINATION_FOLDER_ID;
 // google auth apis
 // If modifying these scopes, delete token.json.
 const GOOGLE_OAUTH_SCOPES = [
-  "https://www.googleapis.com/auth/gmail.labels",
-  "https://www.googleapis.com/auth/gmail.readonly",
-  "https://www.googleapis.com/auth/gmail.compose",
-  "https://www.googleapis.com/auth/gmail.send",
-  "https://www.googleapis.com/auth/drive",
+  'https://www.googleapis.com/auth/gmail.labels',
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.compose',
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/drive',
 ];
 
 // The file token.json stores the user's access and refresh tokens, and is
 // created automatically when the authorization flow completes for the first
 // time.
-const GOOGLE_OAUTH_TOKEN_PATH = "token.json";
+const GOOGLE_OAUTH_TOKEN_PATH = 'token.json';
 
 function _logAndWrapApiError(err, res, ...extra) {
-  logger.error(
-    `Gmail API Failed: \nError=${JSON.stringify(err)} \nRes=${JSON.stringify(
-      res
-    )}`
-  );
+  logger.error(`Gmail API Failed: \nError=${JSON.stringify(err)} \nRes=${JSON.stringify(res)}`);
 
   console.error(
     `Gmail API Failed:`,
     extra
       .map((s) => {
         if (s === null) {
-          return "NULL";
+          return 'NULL';
         }
         if (s === undefined) {
-          return "UNDEFINED";
+          return 'UNDEFINED';
         }
         return JSON.stringify(s);
       })
-      .join(", "),
+      .join(', '),
     JSON.stringify(err.stack || err),
-    res
+    res,
   );
 
   return err;
@@ -60,7 +56,7 @@ export async function getNoteDestinationFolderId() {
   if (!noteDestinationFolderId) {
     // not there, then create it
     logger.debug(
-      `getNoteDestinationFolderId attempted at create the folder noteDestinationFolderId=${noteDestinationFolderId}`
+      `getNoteDestinationFolderId attempted at create the folder noteDestinationFolderId=${noteDestinationFolderId}`,
     );
     noteDestinationFolderId = await createNoteDestinationFolder();
   }
@@ -75,9 +71,9 @@ export async function createNoteDestinationFolder() {
     name: noteFolderName,
     description: noteFolderName,
     starred: true,
-    folderColorRgb: "#FFFF00",
+    folderColorRgb: '#FFFF00',
     appProperties: {
-      EmailNoteFolder: "1",
+      EmailNoteFolder: '1',
     },
   });
 
@@ -85,37 +81,35 @@ export async function createNoteDestinationFolder() {
     name: `_Pocket`,
     description: `_Pocket`,
     starred: true,
-    folderColorRgb: "#FFFF00",
+    folderColorRgb: '#FFFF00',
     appProperties: {
-      PocketNoteFolder: "1",
+      PocketNoteFolder: '1',
     },
   });
 
   // create the attachment folder
   const attachmentDestFolderId = await createDriveFolder({
-    name: "_attachments",
-    description: "Attachments",
+    name: '_attachments',
+    description: 'Attachments',
     parentFolderId: noteDestFolderId,
     starred: true,
-    folderColorRgb: "#FFFF00",
+    folderColorRgb: '#FFFF00',
     appProperties: {
-      AttachmentFolder: "1",
+      AttachmentFolder: '1',
     },
   });
 
   logger.warn(
-    `createNoteDestinationFolder NOTE_DESTINATION_FOLDER_ID=${noteDestFolderId} ATTACHMENT_DESTINATION_FOLDER_ID=${attachmentDestFolderId} POCKET_DESTINATION_FOLDER_ID=${pocketDestFolderId}`
+    `createNoteDestinationFolder NOTE_DESTINATION_FOLDER_ID=${noteDestFolderId} ATTACHMENT_DESTINATION_FOLDER_ID=${attachmentDestFolderId} POCKET_DESTINATION_FOLDER_ID=${pocketDestFolderId}`,
   );
 
   // generate the bucket for all of my emails
   let promises = [];
   const folderNames = await DataUtils.getAllParentFolders();
 
-  logger.warn(
-    `createNoteDestinationFolder create child folders totalChildFolders=${folderNames.length}`
-  );
+  logger.warn(`createNoteDestinationFolder create child folders totalChildFolders=${folderNames.length}`);
   for (const parentFolderName of folderNames) {
-    const starred = parentFolderName.indexOf("_") === 0;
+    const starred = parentFolderName.indexOf('_') === 0;
 
     promises.push(
       createDriveFolder({
@@ -123,11 +117,11 @@ export async function createNoteDestinationFolder() {
         description: `Chats & Emails from ${parentFolderName}`,
         parentFolderId: noteDestFolderId,
         starred,
-        folderColorRgb: starred ? "#FF0000" : "#0000FF",
+        folderColorRgb: starred ? '#FF0000' : '#0000FF',
         appProperties: {
           fromDomain: parentFolderName,
         },
-      })
+      }),
     );
 
     if (promises.length === 10) {
@@ -150,19 +144,19 @@ export function initGoogleApi(onAfterInitFunc = () => {}) {
     // Load client secrets from a local file.
     // Authorize a client with credentials, then call the Gmail API.
     const oAuthSettings = {
-      auth_uri: "https://accounts.google.com/o/oauth2/auth",
-      token_uri: "https://oauth2.googleapis.com/token",
-      auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-      redirect_uris: ["urn:ietf:wg:oauth:2.0:oob", "http://localhost"].concat(
-        (process.env.GOOGLE_OAUTH_REDIRECT_URLS || "").split(",")
+      auth_uri: 'https://accounts.google.com/o/oauth2/auth',
+      token_uri: 'https://oauth2.googleapis.com/token',
+      auth_provider_x509_cert_url: 'https://www.googleapis.com/oauth2/v1/certs',
+      redirect_uris: ['urn:ietf:wg:oauth:2.0:oob', 'http://localhost'].concat(
+        (process.env.GOOGLE_OAUTH_REDIRECT_URLS || '').split(','),
       ),
       project_id: process.env.GOOGLE_OAUTH_PROJECT_ID,
       client_id: process.env.GOOGLE_OAUTH_CLIENT_ID,
       client_secret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
     };
     authorizeGoogle(oAuthSettings, async function (auth) {
-      gmailApiInstance = google.gmail({ version: "v1", auth });
-      driveApiInstance = google.drive({ version: "v3", auth });
+      gmailApiInstance = google.gmail({ version: 'v1', auth });
+      driveApiInstance = google.drive({ version: 'v3', auth });
       onAfterInitFunc(gmailApiInstance, driveApiInstance);
       resolve();
     });
@@ -177,11 +171,7 @@ export function initGoogleApi(onAfterInitFunc = () => {}) {
  */
 function authorizeGoogle(credentials, callback) {
   const { client_secret, client_id, redirect_uris } = credentials;
-  const oAuth2Client = new google.auth.OAuth2(
-    client_id,
-    client_secret,
-    redirect_uris[0]
-  );
+  const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
 
   // Check if we have previously stored a token.
   fs.readFile(GOOGLE_OAUTH_TOKEN_PATH, (err, token) => {
@@ -199,7 +189,7 @@ function authorizeGoogle(credentials, callback) {
  */
 function getNewGoogleToken(oAuth2Client, callback) {
   const authUrl = oAuth2Client.generateAuthUrl({
-    access_type: "offline",
+    access_type: 'offline',
     scope: GOOGLE_OAUTH_SCOPES,
   });
   logger.info(`Authorize this app by visiting this url: ${authUrl}`);
@@ -207,15 +197,15 @@ function getNewGoogleToken(oAuth2Client, callback) {
     input: process.stdin,
     output: process.stdout,
   });
-  rl.question("Enter the code from that page here: ", (code) => {
+  rl.question('Enter the code from that page here: ', (code) => {
     rl.close();
     oAuth2Client.getToken(code, (err, token) => {
-      if (err) return console.error("Error retrieving access token", err);
+      if (err) return console.error('Error retrieving access token', err);
       oAuth2Client.setCredentials(token);
       // Store the token to disk for later program executions
       fs.writeFile(GOOGLE_OAUTH_TOKEN_PATH, JSON.stringify(token), (err) => {
         if (err) return console.error(err);
-        console.info("Token stored to", GOOGLE_OAUTH_TOKEN_PATH);
+        console.info('Token stored to', GOOGLE_OAUTH_TOKEN_PATH);
       });
       callback(oAuth2Client);
     });
@@ -231,14 +221,14 @@ function getGmailLabels() {
   return new Promise((resolve, reject) => {
     gmailApiInstance.users.labels.list(
       {
-        userId: "me",
+        userId: 'me',
       },
       (err, res) => {
         if (err) {
-          return reject(_logAndWrapApiError(err, res, "getGmailLabels"));
+          return reject(_logAndWrapApiError(err, res, 'getGmailLabels'));
         }
         resolve(res.data.labels);
-      }
+      },
     );
   });
 }
@@ -252,19 +242,17 @@ export function getThreadsByQuery(q, pageToken) {
   return new Promise((resolve, reject) => {
     gmailApiInstance.users.threads.list(
       {
-        userId: "me",
+        userId: 'me',
         pageToken,
         q,
         maxResults: process.env.GMAIL_MAX_THREAD_RESULT || 500, // so far the max is 500
       },
       (err, res) => {
         if (err) {
-          return reject(
-            _logAndWrapApiError(err, res, "getThreadsByQuery", q, pageToken)
-          );
+          return reject(_logAndWrapApiError(err, res, 'getThreadsByQuery', q, pageToken));
         }
         resolve(res.data);
-      }
+      },
     );
   });
 }
@@ -277,22 +265,15 @@ function _getThreadEmailsByThreadId(targetThreadId) {
   return new Promise((resolve, reject) => {
     gmailApiInstance.users.threads.get(
       {
-        userId: "me",
+        userId: 'me',
         id: targetThreadId,
       },
       (err, res) => {
         if (err) {
-          return reject(
-            _logAndWrapApiError(
-              err,
-              res,
-              "getThreadEmailsByThreadId",
-              targetThreadId
-            )
-          );
+          return reject(_logAndWrapApiError(err, res, 'getThreadEmailsByThreadId', targetThreadId));
         }
         resolve(res.data);
-      }
+      },
     );
   });
 }
@@ -301,17 +282,15 @@ function _getDraftsByThreadId(targetThreadId) {
   return new Promise((resolve, reject) => {
     gmailApiInstance.users.drafts.get(
       {
-        userId: "me",
+        userId: 'me',
         id: targetThreadId,
       },
       (err, res) => {
         if (err) {
-          return reject(
-            _logAndWrapApiError(err, res, "getDraftsByThreadId", targetThreadId)
-          );
+          return reject(_logAndWrapApiError(err, res, 'getDraftsByThreadId', targetThreadId));
         }
         resolve(res.data);
-      }
+      },
     );
   });
 }
@@ -326,9 +305,7 @@ export function getEmailContentByThreadId(targetThreadId) {
   } catch (err) {}
 
   // if not found at all
-  logger.error(
-    `Cannot find content in message for draft GMAIL API for threadId=${targetThreadId}`
-  );
+  logger.error(`Cannot find content in message for draft GMAIL API for threadId=${targetThreadId}`);
   return Promise.reject(`Cannot find content for threadId${targetThreadId}`);
 }
 
@@ -338,19 +315,11 @@ export function getEmailAttachment(messageId, attachmentId) {
       .get({
         id: attachmentId,
         messageId,
-        userId: "me",
+        userId: 'me',
       })
       .then((res, err) => {
         if (err) {
-          return reject(
-            _logAndWrapApiError(
-              err,
-              res,
-              "getEmailAttachment",
-              messageId,
-              attachmentId
-            )
-          );
+          return reject(_logAndWrapApiError(err, res, 'getEmailAttachment', messageId, attachmentId));
         }
         resolve(res.data.data);
       });
@@ -361,62 +330,44 @@ export function sendEmail(to, subject, message, from) {
   return new Promise((resolve, reject) => {
     gmailApiInstance.users.messages.send(
       {
-        userId: "me",
+        userId: 'me',
         resource: {
           raw: _makeMessageBody(to, subject, message, from),
         },
       },
       function (err, res) {
         if (err) {
-          return reject(
-            _logAndWrapApiError(
-              err,
-              res,
-              "sendEmail",
-              to,
-              subject,
-              message,
-              from
-            )
-          );
+          return reject(_logAndWrapApiError(err, res, 'sendEmail', to, subject, message, from));
         }
         resolve(res.data);
-      }
+      },
     );
   });
 }
 
-function _makeMessageBody(
-  to,
-  subject,
-  message,
-  from = process.env.MY_MAIN_EMAIL
-) {
+function _makeMessageBody(to, subject, message, from = process.env.MY_MAIN_EMAIL) {
   var str = [
     'Content-Type: text/plain; charset="UTF-8"\n',
-    "MIME-Version: 1.0\n",
-    "Content-Transfer-Encoding: 7bit\n",
-    "to: ",
+    'MIME-Version: 1.0\n',
+    'Content-Transfer-Encoding: 7bit\n',
+    'to: ',
     to,
-    "\n",
-    "from: ",
+    '\n',
+    'from: ',
     from,
-    "\n",
-    "subject: ",
+    '\n',
+    'subject: ',
     subject,
-    "\n\n",
+    '\n\n',
     message,
-  ].join("");
+  ].join('');
 
-  var encodedMail = Buffer.from(str)
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_");
+  var encodedMail = Buffer.from(str).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
   return encodedMail;
 }
 
 function _sanatizeGoogleQuery(string) {
-  return (string || "").replace(/'/g, "\\'");
+  return (string || '').replace(/'/g, "\\'");
 }
 
 export function flattenGmailPayloadParts(initialParts) {
@@ -444,16 +395,14 @@ export function createFileInDrive(resource, media) {
       {
         resource,
         media,
-        fields: "id",
+        fields: 'id',
       },
       function (err, res) {
         if (err) {
-          return reject(
-            _logAndWrapApiError(err, res, "createFileInDrive", resource)
-          );
+          return reject(_logAndWrapApiError(err, res, 'createFileInDrive', resource));
         }
         resolve(res.data.id);
-      }
+      },
     );
   });
 }
@@ -463,9 +412,9 @@ export function updateFileInDrive(fileId, resource, media) {
     driveApiInstance.files.update(
       {
         fileId,
-        fields: "id",
+        fields: 'id',
         media,
-        addParents: resource.parents.join(","),
+        addParents: resource.parents.join(','),
         requestBody: {
           name: resource.name,
           description: resource.description,
@@ -478,18 +427,10 @@ export function updateFileInDrive(fileId, resource, media) {
       },
       function (err, res) {
         if (err) {
-          return reject(
-            _logAndWrapApiError(
-              err,
-              res,
-              "updateFileInDrive",
-              fileId,
-              resource
-            )
-          );
+          return reject(_logAndWrapApiError(err, res, 'updateFileInDrive', fileId, resource));
         }
         resolve(res.data.id);
-      }
+      },
     );
   });
 }
@@ -499,24 +440,19 @@ export function createFolderInDrive(resource) {
     driveApiInstance.files.create(
       {
         resource,
-        fields: "id",
+        fields: 'id',
       },
       function (err, res) {
         if (err) {
-          return reject(
-            _logAndWrapApiError(err, res, "createFolderInDrive", resource)
-          );
+          return reject(_logAndWrapApiError(err, res, 'createFolderInDrive', resource));
         }
         resolve(res.data.id);
-      }
+      },
     );
   });
 }
 
-export function searchDrive(
-  { name, mimeType, parentFolderId, appProperties },
-  skippedPaging = true
-) {
+export function searchDrive({ name, mimeType, parentFolderId, appProperties }, skippedPaging = true) {
   const queries = [];
 
   queries.push(`trashed=false`);
@@ -538,14 +474,12 @@ export function searchDrive(
     for (const propKey of propKeys) {
       const propValue = appProperties[propKey];
       queries.push(
-        `appProperties has { key='${_sanatizeGoogleQuery(
-          propKey
-        )}' and value='${_sanatizeGoogleQuery(propValue)}'}`
+        `appProperties has { key='${_sanatizeGoogleQuery(propKey)}' and value='${_sanatizeGoogleQuery(propValue)}'}`,
       );
     }
   }
 
-  const q = queries.join(" AND ");
+  const q = queries.join(' AND ');
 
   logger.debug(`searchDrive q=${q}`);
 
@@ -570,8 +504,8 @@ export function searchDrive(
 
 function searchFilesByQuery(q, nextPageToken) {
   const query = {
-    fields: "nextPageToken, files(id, name)",
-    spaces: "drive",
+    fields: 'nextPageToken, files(id, name)',
+    spaces: 'drive',
     pageSize: 1000,
   };
   if (nextPageToken) {
@@ -580,9 +514,7 @@ function searchFilesByQuery(q, nextPageToken) {
     query[q] = q;
   }
 
-  logger.debug(
-    `searchFilesByQuery q=${JSON.stringify(q)} nextPageToken=${nextPageToken}`
-  );
+  logger.debug(`searchFilesByQuery q=${JSON.stringify(q)} nextPageToken=${nextPageToken}`);
 
   return new Promise((resolve, reject) => {
     driveApiInstance.files.list(
@@ -591,18 +523,10 @@ function searchFilesByQuery(q, nextPageToken) {
       },
       function (err, res) {
         if (err) {
-          return reject(
-            _logAndWrapApiError(
-              err,
-              res,
-              "searchFilesByQuery",
-              q,
-              nextPageToken
-            )
-          );
+          return reject(_logAndWrapApiError(err, res, 'searchFilesByQuery', q, nextPageToken));
         }
         resolve(res.data);
-      }
+      },
     );
   });
 }
@@ -618,7 +542,7 @@ export function getFileByFileId(fileId) {
           return null;
         }
         res.data ? resolve(res.data) : null;
-      }
+      },
     );
   });
 }
@@ -628,7 +552,7 @@ export async function createDriveFolder({
   description,
   parentFolderId,
   starred = false,
-  folderColorRgb = "FFFF00",
+  folderColorRgb = 'FFFF00',
   appProperties = {},
 }) {
   let folderId;
@@ -639,7 +563,7 @@ export async function createDriveFolder({
     const resFolderFromDB = await DataUtils.getFolderByName(name);
     if (resFolderFromDB && resFolderFromDB.driveFileId) {
       logger.debug(
-        `Skipped Create Google Found mapping for folder in database name=${name} folderId=${resFolderFromDB.driveFileId}`
+        `Skipped Create Google Found mapping for folder in database name=${name} folderId=${resFolderFromDB.driveFileId}`,
       );
       return resFolderFromDB.driveFileId;
     }
@@ -668,18 +592,14 @@ export async function createDriveFolder({
       folderId = await createFolderInDrive(fileGDriveMetadata);
 
       // create the folder itself
-      logger.debug(
-        `Create Google Drive Folder name=${name} folderId=${folderId}`
-      );
+      logger.debug(`Create Google Drive Folder name=${name} folderId=${folderId}`);
     } else {
       folderId = matchedResults[0].id;
 
-      logger.debug(
-        `Skipped Create Google Drive Folder due to duplicate name=${name} folderId=${folderId}`
-      );
+      logger.debug(`Skipped Create Google Drive Folder due to duplicate name=${name} folderId=${folderId}`);
     }
   } catch (err) {
-    _logAndWrapApiError(err, null, "createDriveFolder");
+    _logAndWrapApiError(err, null, 'createDriveFolder');
     return null;
   }
 
@@ -702,15 +622,9 @@ export async function uploadFile({
   parentFolderId,
   appProperties = {},
 }) {
-  let mimeTypeToUse = (mimeType || "").toLowerCase();
+  let mimeTypeToUse = (mimeType || '').toLowerCase();
   let keepRevisionForever = false;
-  if (
-    [
-      MIME_TYPE_ENUM.TEXT_CSV,
-      MIME_TYPE_ENUM.APP_MS_XLS,
-      MIME_TYPE_ENUM.APP_MS_XLSX,
-    ].includes(mimeType)
-  ) {
+  if ([MIME_TYPE_ENUM.TEXT_CSV, MIME_TYPE_ENUM.APP_MS_XLS, MIME_TYPE_ENUM.APP_MS_XLSX].includes(mimeType)) {
     mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_SPREADSHEET;
     keepRevisionForever = true;
   } else if (
@@ -733,23 +647,19 @@ export async function uploadFile({
   ) {
     mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_DOCUMENT;
     keepRevisionForever = true;
-  } else if (
-    [MIME_TYPE_ENUM.APP_MS_PPT, MIME_TYPE_ENUM.APP_MS_PPTX].includes(mimeType)
-  ) {
+  } else if ([MIME_TYPE_ENUM.APP_MS_PPT, MIME_TYPE_ENUM.APP_MS_PPTX].includes(mimeType)) {
     mimeTypeToUse = MIME_TYPE_ENUM.APP_GOOGLE_PRESENTATION;
     keepRevisionForever = true;
   }
 
-  const createdTime = moment.utc(dateEpochTime).format("YYYY-MM-DDTHH:mm:ssZ");
-  const modifiedTime = moment.utc(dateEpochTime).format("YYYY-MM-DDTHH:mm:ssZ");
+  const createdTime = moment.utc(dateEpochTime).format('YYYY-MM-DDTHH:mm:ssZ');
+  const modifiedTime = moment.utc(dateEpochTime).format('YYYY-MM-DDTHH:mm:ssZ');
 
   // refer to this link for more metadata
   // https://developers.google.com/drive/api/v3/reference/files/create
   const fileGDriveMetadata = {
     name,
-    parents: []
-      .concat(parentFolderId || [])
-      .filter((p) => !!p & (p.length > 0)),
+    parents: [].concat(parentFolderId || []).filter((p) => !!p & (p.length > 0)),
     mimeType: mimeTypeToUse,
     modifiedTime,
     createdTime,
@@ -780,9 +690,7 @@ export async function uploadFile({
       parentFolderId: firtParentFolderId,
     });
 
-    logger.debug(
-      `Search GDrive results for file name=${fileGDriveMetadata.name} total=${matchedResults.length}`
-    );
+    logger.debug(`Search GDrive results for file name=${fileGDriveMetadata.name} total=${matchedResults.length}`);
 
     if (matchedResults && matchedResults.length > 0) {
       foundFileId = matchedResults[0].id;
@@ -792,21 +700,17 @@ export async function uploadFile({
   let operationUsed;
 
   if (foundFileId) {
-    operationUsed = "UPDATE";
-    foundFileId = await updateFileInDrive(
-      foundFileId,
-      fileGDriveMetadata,
-      media
-    );
+    operationUsed = 'UPDATE';
+    foundFileId = await updateFileInDrive(foundFileId, fileGDriveMetadata, media);
   } else {
-    operationUsed = "CREATE";
+    operationUsed = 'CREATE';
     foundFileId = await createFileInDrive(fileGDriveMetadata, media);
   }
 
   console.debug(
     `Upload file done operation=${operationUsed} fileId=${foundFileId} parent=${firtParentFolderId} fileName=${name} fileGDriveMetadata=${JSON.stringify(
-      fileGDriveMetadata
-    )}`
+      fileGDriveMetadata,
+    )}`,
   );
 
   return foundFileId;

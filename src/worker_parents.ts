@@ -1,24 +1,20 @@
 // @ts-nocheck
-const action = process.argv[2] || "";
+const action = process.argv[2] || '';
 process.title = `Note Sync ${action}`;
 
-import { logger, initLogger } from "./loggers";
+import { logger, initLogger } from './loggers';
 initLogger(`Parents.${action}`);
-require("dotenv").config();
-import path from "path";
-import { Worker } from "worker_threads";
-import initDatabase from "./models/modelsFactory";
-import * as googleApiUtils from "./crawler/googleApiUtils";
-import * as gmailCrawler from "./crawler/gmailCrawler";
-import * as DataUtils from "./crawler/dataUtils";
-import moment from "moment";
+require('dotenv').config();
+import path from 'path';
+import { Worker } from 'worker_threads';
+import initDatabase from './models/modelsFactory';
+import * as googleApiUtils from './crawler/googleApiUtils';
+import * as gmailCrawler from './crawler/gmailCrawler';
+import * as DataUtils from './crawler/dataUtils';
+import moment from 'moment';
 
-import {
-  WORKER_REFRESH_INTERVAL,
-  WORKER_STATUS_ENUM,
-  WORK_ACTION_ENUM,
-} from "./crawler/appConstantsEnums";
-import { WorkActionRequest, WorkActionResponse } from "./types";
+import { WORKER_REFRESH_INTERVAL, WORKER_STATUS_ENUM, WORK_ACTION_ENUM } from './crawler/appConstantsEnums';
+import { WorkActionRequest, WorkActionResponse } from './types';
 
 // workers
 const workers = [];
@@ -32,52 +28,39 @@ let getNewWorkFunc = () => {};
 process.title = `Node Note-Sync ${action}`;
 
 function _newWorker(myThreadId, myThreadName, workerGroup) {
-  const worker = new Worker(path.join(__dirname, "worker_children.js"), {
+  const worker = new Worker(path.join(__dirname, 'worker_children.js'), {
     workerData: {
       myThreadId,
       myThreadName,
     },
   });
-  worker.on("message", (data: WorkActionResponse) => {
+  worker.on('message', (data: WorkActionResponse) => {
     if (data.success) {
       if (data.extra) {
-        logger.debug(
-          `Worker Thread Done action=${data.action} extra=${data.extra} id=${data.id}`
-        );
+        logger.debug(`Worker Thread Done action=${data.action} extra=${data.extra} id=${data.id}`);
       } else {
         logger.debug(`Worker Thread Done action=${data.action} id=${data.id}`);
       }
     } else {
       logger.error(
-        `Worker Thread Failed action=${data.action} error=${
-          data.error.stack || data.error
-        } data=${JSON.stringify(data)}`
+        `Worker Thread Failed action=${data.action} error=${data.error.stack || data.error} data=${JSON.stringify(
+          data,
+        )}`,
       );
     }
 
     workerGroup[myThreadId].status = WORKER_STATUS_ENUM.FREE;
   });
-  worker.on("error", (...err) => {
-    console.debug(
-      `Worker Died with error. Respawn myThreadName=${myThreadName} myThreadId=${myThreadId}`,
-      error
-    );
+  worker.on('error', (...err) => {
+    console.debug(`Worker Died with error. Respawn myThreadName=${myThreadName} myThreadId=${myThreadId}`, error);
     setTimeout(() => {
-      workerGroup[myThreadId] = _newWorker(
-        myThreadId,
-        myThreadName,
-        workerGroup
-      );
+      workerGroup[myThreadId] = _newWorker(myThreadId, myThreadName, workerGroup);
     }, 2000);
   });
-  worker.on("exit", (...code) => {
+  worker.on('exit', (...code) => {
     // console.error("Worker Exit with code", myThreadId, code);
     setTimeout(() => {
-      workerGroup[myThreadId] = _newWorker(
-        myThreadId,
-        myThreadName,
-        workerGroup
-      );
+      workerGroup[myThreadId] = _newWorker(myThreadId, myThreadName, workerGroup);
     }, 2000);
   });
 
@@ -92,9 +75,7 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
 function _setupWorkers(inputThreadToSpawn) {
   numThreadsToSpawn = Math.min(inputThreadToSpawn, 200);
 
-  logger.debug(
-    `Starting work action=${action} maxWorkers=${numThreadsToSpawn}`
-  );
+  logger.debug(`Starting work action=${action} maxWorkers=${numThreadsToSpawn}`);
 
   while (numThreadsToSpawn > 0) {
     numThreadsToSpawn--;
@@ -126,11 +107,9 @@ async function _init() {
       setInterval(
         () =>
           gmailCrawler.pollForNewThreadList(
-            moment()
-              .subtract(parseInt(process.env.POLL_DAYS_DELTA), "days")
-              .format("YYYY/MM/DD")
+            moment().subtract(parseInt(process.env.POLL_DAYS_DELTA), 'days').format('YYYY/MM/DD'),
           ),
-        12 * 60 * 60 * 1000
+        12 * 60 * 60 * 1000,
       );
       break;
 
@@ -151,9 +130,7 @@ async function _init() {
 
     // job4
     case WORK_ACTION_ENUM.UPLOAD_EMAILS_BY_MESSAGE_ID:
-      await _setupWorkers(
-        process.env.MAX_THREADS_UPLOAD_EMAILS_BY_MESSAGE_ID || 6
-      );
+      await _setupWorkers(process.env.MAX_THREADS_UPLOAD_EMAILS_BY_MESSAGE_ID || 6);
       getNewWorkFunc = DataUtils.getAllMessageIdsToSyncWithGoogleDrive;
       await _enqueueWorkWithRemainingInputs();
       break;
@@ -187,14 +164,9 @@ async function _enqueueWorkWithRemainingInputs() {
     remainingWorkInputs = await getNewWorkFunc();
     lastWorkIdx = 0;
     if (remainingWorkInputs.length > 0) {
-      logger.debug(
-        `Found New works action=${action} totalWorks=${remainingWorkInputs.length}`
-      );
+      logger.debug(`Found New works action=${action} totalWorks=${remainingWorkInputs.length}`);
     }
-  } else if (
-    lastWorkIdx < remainingWorkInputs.length &&
-    remainingWorkInputs.length > 0
-  ) {
+  } else if (lastWorkIdx < remainingWorkInputs.length && remainingWorkInputs.length > 0) {
     // logger.debug(
     //   `Distribute works action=${action} workers=${workers.length}`
     // );
@@ -210,7 +182,7 @@ async function _enqueueWorkWithRemainingInputs() {
         worker.status = WORKER_STATUS_ENUM.BUSY;
 
         logger.debug(
-          `Distribute work for action=${action} worker=${worker.id} lastWorkIdx=${lastWorkIdx} totalWorks=${remainingWorkInputs.length} id=${id}`
+          `Distribute work for action=${action} worker=${worker.id} lastWorkIdx=${lastWorkIdx} totalWorks=${remainingWorkInputs.length} id=${id}`,
         );
 
         worker.work.postMessage(workActionRequest);
@@ -220,7 +192,7 @@ async function _enqueueWorkWithRemainingInputs() {
       if (lastWorkIdx >= remainingWorkInputs.length) {
         // refresh task list and do again
         logger.debug(
-          `Done work: action=${action} workers=${numThreadsToSpawn} totalWork=${remainingWorkInputs.length}. Restarting with new work`
+          `Done work: action=${action} workers=${numThreadsToSpawn} totalWork=${remainingWorkInputs.length}. Restarting with new work`,
         );
 
         remainingWorkInputs = []; // note that this will trigger fetching new work
@@ -231,10 +203,7 @@ async function _enqueueWorkWithRemainingInputs() {
   }
 
   // restart ping
-  timerWorkSchedule = setTimeout(
-    _enqueueWorkWithRemainingInputs,
-    WORKER_REFRESH_INTERVAL
-  );
+  timerWorkSchedule = setTimeout(_enqueueWorkWithRemainingInputs, WORKER_REFRESH_INTERVAL);
 }
 
 _init();

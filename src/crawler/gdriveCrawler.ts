@@ -1,72 +1,64 @@
 // @ts-nocheck
-require("dotenv").config();
+require('dotenv').config();
 
-import fs from "fs";
-import moment from "moment";
-import upperFirst from "lodash/upperFirst";
-import startCase from "lodash/startCase";
-import trim from "lodash/trim";
-import trimEnd from "lodash/trimEnd";
-import getImageSize from "image-size";
-import officegen from "officegen";
-import prettier from "prettier";
-
-import { Email, Attachment } from "../types";
-import * as googleApiUtils from "./googleApiUtils";
-import { logger } from "../loggers";
+import fs from 'fs';
+import getImageSize from 'image-size';
+import trim from 'lodash/trim';
+import trimEnd from 'lodash/trimEnd';
+import upperFirst from 'lodash/upperFirst';
+import moment from 'moment';
+import officegen from 'officegen';
+import prettier from 'prettier';
+import { logger } from '../loggers';
+import { Attachment, Email } from '../types';
 import {
-  THREAD_JOB_STATUS_ENUM,
-  MIME_TYPE_ENUM,
-  PROCESSED_EMAIL_PREFIX_PATH,
   FORMAT_DATE_TIME1,
   FORMAT_DATE_TIME2,
-  interestedEmails,
   ignoredWordTokens,
-} from "./appConstantsEnums";
-import * as commonUtils from "./commonUtils";
-import * as DataUtils from "./dataUtils";
+  interestedEmails,
+  MIME_TYPE_ENUM,
+  PROCESSED_EMAIL_PREFIX_PATH,
+  THREAD_JOB_STATUS_ENUM,
+} from './appConstantsEnums';
+import * as commonUtils from './commonUtils';
+import * as DataUtils from './dataUtils';
+import * as googleApiUtils from './googleApiUtils';
 
 let noteDestinationFolderId;
 
 const MIN_SUBJECT_LENGTH = 5;
 const IMAGE_MAX_WIDTH = 750;
 
-function _sanitizeSubject(
-  subject,
-  to,
-  friendlyDateTimeString2,
-  isChat,
-  isEmail
-) {
-  subject = (subject || "").trim();
+function _sanitizeSubject(subject, to, friendlyDateTimeString2, isChat, isEmail) {
+  subject = (subject || '').trim();
   if (subject.length <= MIN_SUBJECT_LENGTH) {
     // if subject is too short, let's add the from
-    subject = `${subject} ${(to || "").toUpperCase()}`;
+    subject = `${subject} ${(to || '').toUpperCase()}`;
   }
   subject = `${friendlyDateTimeString2} ${subject}`;
 
   if (isChat) {
-    if (!subject.toLowerCase().includes("chat")) {
+    if (!subject.toLowerCase().includes('chat')) {
       subject = `${subject} Chat`;
     }
   }
 
-  return trimEnd(_sanitizeFileName(subject), ". \n");
+  return trimEnd(_sanitizeFileName(subject), '. \n');
 }
 
 function _sanitizeFileName(string) {
   return upperFirst(
     string
-      .replace("|", " ")
-      .replace("_", " ")
-      .replace("-", " ")
-      .replace(/re:/gi, "")
-      .replace(/fwd:?/gi, "")
-      .replace(/fw:?/gi, "")
-      .split(" ")
+      .replace('|', ' ')
+      .replace('_', ' ')
+      .replace('-', ' ')
+      .replace(/re:/gi, '')
+      .replace(/fwd:?/gi, '')
+      .replace(/fw:?/gi, '')
+      .split(' ')
       .filter((r) => r && r.length > 0)
-      .join(" ")
-      .trim()
+      .join(' ')
+      .trim(),
   );
 }
 
@@ -76,11 +68,11 @@ export async function generateDocFileForEmail(
   bodySections,
   inlineAttachmentSections,
   attachmentLinks,
-  newFileName
+  newFileName,
 ) {
   // Create an empty Word object:
   let docx = officegen({
-    type: "docx",
+    type: 'docx',
     pageMargins: {
       top: 400,
       right: 340,
@@ -113,15 +105,15 @@ export async function generateDocFileForEmail(
       if (attachment.link) {
         docx.createP().addText(attachment.fileName, {
           link: attachment.link,
-          color: "0000FF",
-          font_face: "Courier News",
+          color: '0000FF',
+          font_face: 'Courier News',
           font_size: 10,
         });
       } else {
         docx.createP().addText(attachment.fileName, {
           hyperlink: attachment.hyperlink,
-          color: "0000FF",
-          font_face: "Courier News",
+          color: '0000FF',
+          font_face: 'Courier News',
           font_size: 10,
         });
       }
@@ -140,10 +132,10 @@ export async function generateDocFileForEmail(
     _renderDivider();
     const sectionBlock = docx.createP();
     sectionBlock.startBookmark(section.fileName);
-    sectionBlock.addText(upperFirst(section.fileName), {
-      font_face: "Courier News",
+    sectionBlock.addText(section.fileName, {
+      font_face: 'Courier News',
       font_size: 10,
-      color: "000000",
+      color: '000000',
       bold: true,
     });
     _renderSection(section, true);
@@ -153,8 +145,8 @@ export async function generateDocFileForEmail(
   function _renderDivider() {
     pObj = docx.createP();
     pObj.addText(`================================`, {
-      color: "cccccc",
-      font_face: "Courier News",
+      color: 'cccccc',
+      font_face: 'Courier News',
       font_size: 10,
     });
     return pObj;
@@ -165,23 +157,23 @@ export async function generateDocFileForEmail(
     let images = section.images || [];
 
     body = body
-      .replace("\r", "\n")
-      .replace("\t", " ")
-      .split("\n")
-      .map((r) => trimEnd(r || "", ". \n\t\r"))
+      .replace('\r', '\n')
+      .replace('\t', ' ')
+      .split('\n')
+      .map((r) => trimEnd(r || '', '. \n\t\r'))
       .filter((r) => !!r);
 
     for (let content of body) {
-      if (content.includes("================================")) {
+      if (content.includes('================================')) {
         _renderDivider();
         continue;
       }
 
       // console.log(`content ${content.length} : ${content}`)
-      if (content[0] === "*" && content[content.length - 1] === "*") {
+      if (content[0] === '*' && content[content.length - 1] === '*') {
         content = content.substr(1, content.length - 2);
       } else {
-        content = trim(content, "*");
+        content = trim(content, '*');
       }
 
       let contentAdded = false;
@@ -189,20 +181,18 @@ export async function generateDocFileForEmail(
         const link = content.match(/^http[s]?:\/\/[\w./\-#@]+/)[0];
         docx
           .createP()
-          .addText(
-            link
-              .replace("http://", "")
-              .replace("https://", "")
-              .replace("www.", ""),
-            { font_face: "Courier News", link, color: "0000FF", font_size: 10 }
-          );
+          .addText(link.replace('http://', '').replace('https://', '').replace('www.', ''), {
+            font_face: 'Courier News',
+            link,
+            color: '0000FF',
+            font_size: 10,
+          });
         contentAdded = true;
       } catch (err) {}
 
       if (!contentAdded) {
         try {
-          const isForwardedSection =
-            content.match(/^>[>\w\s\d]*/gi).length >= 1;
+          const isForwardedSection = content.match(/^>[>\w\s\d]*/gi).length >= 1;
           if (isForwardedSection) {
             // ignore the forwarded section
             // docx.createP().addText("  " + upperFirst(content), {
@@ -219,15 +209,15 @@ export async function generateDocFileForEmail(
         // not a url. then just add as raw text
         if (isInlineAttachment) {
           docx.createP().addText(content, {
-            font_face: "Courier News",
+            font_face: 'Courier News',
             font_size: 9,
-            color: "0000FF",
+            color: '0000FF',
           });
         } else {
           docx.createP().addText(upperFirst(content), {
-            font_face: "Courier News",
+            font_face: 'Courier News',
             font_size: 10,
-            color: "000000",
+            color: '000000',
           });
         }
       }
@@ -251,7 +241,7 @@ export async function generateDocFileForEmail(
 
         pObj = docx.createP();
         pObj.addText(attachment.fileName, {
-          font_face: "Courier News",
+          font_face: 'Courier News',
           font_size: 10,
         });
 
@@ -272,19 +262,19 @@ export async function generateDocFileForEmail(
     let out = fs.createWriteStream(newFileName);
 
     // This one catch only the officegen errors:
-    docx.on("error", function (err) {
-      console.log("Failed to generate Doc", newFileName, err);
+    docx.on('error', function (err) {
+      console.log('Failed to generate Doc', newFileName, err);
       reject(err);
     });
 
     // Catch fs errors:
-    out.on("error", function (err) {
-      console.log("Failed to create Doc", newFileName, err);
+    out.on('error', function (err) {
+      console.log('Failed to create Doc', newFileName, err);
       reject(err);
     });
 
     // End event after creating the PowerPoint file:
-    out.on("close", function () {
+    out.on('close', function () {
       resolve(newFileName);
     });
 
@@ -293,21 +283,17 @@ export async function generateDocFileForEmail(
   });
 }
 
-export async function generateDocFileFromFile(
-  subject,
-  oldFileName,
-  newFileName
-) {
-  let body = "";
+export async function generateDocFileFromFile(subject, oldFileName, newFileName) {
+  let body = '';
   try {
-    body = fs.readFileSync(oldFileName, "UTF-8") || "";
+    body = fs.readFileSync(oldFileName, 'UTF-8') || '';
   } catch (err) {
-    body = "<File is Empty>";
+    body = '<File is Empty>';
   }
 
   // Create an empty Word object:
   let docx = officegen({
-    type: "docx",
+    type: 'docx',
     pageMargins: {
       top: 400,
       right: 340,
@@ -325,10 +311,10 @@ export async function generateDocFileFromFile(
 
   function _renderBody(body) {
     body = body
-      .replace("\r", "\n")
-      .replace("\t", " ")
-      .split("\n")
-      .map((r) => trimEnd(r || "", ". \n\t\r"))
+      .replace('\r', '\n')
+      .replace('\t', ' ')
+      .split('\n')
+      .map((r) => trimEnd(r || '', '. \n\t\r'))
       .filter((r) => !!r);
 
     for (let content of body) {
@@ -336,13 +322,12 @@ export async function generateDocFileFromFile(
       try {
         const link = content.match(/^http[s]?:\/\/[\w./\-#@]+/)[0];
         pObj = docx.createP();
-        pObj.addText(
-          link
-            .replace("http://", "")
-            .replace("https://", "")
-            .replace("www.", ""),
-          { font_face: "Courier News", link, color: "0000FF", font_size: 10 }
-        );
+        pObj.addText(link.replace('http://', '').replace('https://', '').replace('www.', ''), {
+          font_face: 'Courier News',
+          link,
+          color: '0000FF',
+          font_size: 10,
+        });
         contentAdded = true;
       } catch (err) {}
 
@@ -350,7 +335,7 @@ export async function generateDocFileFromFile(
         // not a url. then just add as raw text
         pObj = docx.createP();
         pObj.addText(content, {
-          font_face: "Courier News",
+          font_face: 'Courier News',
           font_size: 10,
         });
       }
@@ -361,19 +346,19 @@ export async function generateDocFileFromFile(
     let out = fs.createWriteStream(newFileName);
 
     // This one catch only the officegen errors:
-    docx.on("error", function (err) {
-      console.log("Failed to generate Doc", newFileName, err);
+    docx.on('error', function (err) {
+      console.log('Failed to generate Doc', newFileName, err);
       reject(err);
     });
 
     // Catch fs errors:
-    out.on("error", function (err) {
-      console.log("Failed to create Doc", newFileName, err);
+    out.on('error', function (err) {
+      console.log('Failed to create Doc', newFileName, err);
       reject(err);
     });
 
     // End event after creating the PowerPoint file:
-    out.on("close", function () {
+    out.on('close', function () {
       resolve(newFileName);
     });
 
@@ -383,25 +368,19 @@ export async function generateDocFileFromFile(
 }
 export function _getImageAttachments(attachments: Attachment[]): Attachment[] {
   return attachments.filter((attachment) => {
-    return attachment.mimeType.includes("image");
+    return attachment.mimeType.includes('image');
   });
 }
 
 export function _getPdfAttachments(attachments: Attachment[]): Attachment[] {
   return attachments.filter((attachment) => {
-    return attachment.mimeType.includes("pdf");
+    return attachment.mimeType.includes('pdf');
   });
 }
 
-export function _getNonImagesAttachments(
-  attachments: Attachment[]
-): Attachment[] {
+export function _getNonImagesAttachments(attachments: Attachment[]): Attachment[] {
   return attachments.filter((attachment) => {
-    return (
-      !attachment.mimeType.includes("image") &&
-      !attachment.mimeType.includes("ics") &&
-      attachment.size > 0
-    );
+    return !attachment.mimeType.includes('image') && !attachment.mimeType.includes('ics') && attachment.size > 0;
   });
 }
 
@@ -421,37 +400,31 @@ export async function uploadEmailMsgToGoogleDrive(messageId) {
 
     // make sure that we only process if this is the last email message
     if (email.id === emails[emails.length - 1].id) {
-      if (process.env.FORCE_RESYNC_GDRIVE_THREADS !== "true") {
+      if (process.env.FORCE_RESYNC_GDRIVE_THREADS !== 'true') {
         // check if we have the data with this id
         if (email.driveFileId) {
           // search against google for this id, if there is a matching file, then skip this processing.
-          const fileFromGdrive = await googleApiUtils.getFileByFileId(
-            email.driveFileId
-          );
+          const fileFromGdrive = await googleApiUtils.getFileByFileId(email.driveFileId);
 
           if (fileFromGdrive) {
             logger.debug(
-              `Skipped uploadEmailMsgToGoogleDrive because found the file in GDrive threadId=${threadId} id=${messageId}`
+              `Skipped uploadEmailMsgToGoogleDrive because found the file in GDrive threadId=${threadId} id=${messageId}`,
             );
 
             return `docs.google.com/document/d/${email.driveFileId}`;
           }
         }
       }
-      logger.debug(
-        `Start uploadEmailMsgToGoogleDrive threadId=${threadId} id=${messageId}`
-      );
+      logger.debug(`Start uploadEmailMsgToGoogleDrive threadId=${threadId} id=${messageId}`);
       return uploadEmailThreadToGoogleDrive(threadId);
     } else {
       logger.debug(
-        `Skipped uploadEmailMsgToGoogleDrive due to it not being the last messageId threadId=${threadId} id=${messageId}`
+        `Skipped uploadEmailMsgToGoogleDrive due to it not being the last messageId threadId=${threadId} id=${messageId}`,
       );
       return 'SKIPPED_NOT_LAST_MESSAGE_ID';
     }
   } else {
-    logger.error(
-      `Error with uploadEmailMsgToGoogleDrive Cannot find message with messageId=${messageId}`
-    );
+    logger.error(`Error with uploadEmailMsgToGoogleDrive Cannot find message with messageId=${messageId}`);
     return 'ERROR_MESSAGE_ID_NOT_FOUND';
   }
 }
@@ -481,14 +454,11 @@ async function _processThreads(threadId, emails: Email[]) {
 
   // all attachments
   const attachments = await DataUtils.getAttachmentsByThreadId(threadId);
-  const allNonImageAttachments: Attachment[] = _getNonImagesAttachments(
-    attachments
-  );
+  const allNonImageAttachments: Attachment[] = _getNonImagesAttachments(attachments);
   let allImageAttachments: Attachment[] = _getImageAttachments(attachments);
   const hasSomeAttachments =
     allNonImageAttachments.length > 0 ||
-    allImageAttachments.filter((attachment) => attachment.size >= 25000)
-      .length > 0;
+    allImageAttachments.filter((attachment) => attachment.size >= 25000).length > 0;
   const pdfAttachments = _getPdfAttachments(attachments);
   const usedImageAttachments = new Set();
 
@@ -498,27 +468,24 @@ async function _processThreads(threadId, emails: Email[]) {
 
   for (let email of emails) {
     emailAddresses = emailAddresses
-      .concat((email.from || "").split(","))
-      .concat((email.bcc || "").split(","))
-      .concat((email.to || "").split(","))
+      .concat((email.from || '').split(','))
+      .concat((email.bcc || '').split(','))
+      .concat((email.to || '').split(','))
       .map((r) => r.trim())
       .filter((r) => !!r);
 
     const toEmailList = []
-      .concat((email.bcc || "").split(","))
-      .concat((email.to || "").split(","))
+      .concat((email.bcc || '').split(','))
+      .concat((email.to || '').split(','))
       .map((r) => r.trim())
       .filter((r) => !!r);
-    const toEmailAddresses = toEmailList.join(", ");
+    const toEmailAddresses = toEmailList.join(', ');
 
     isEmailSentByMe = isEmailSentByMe || email.isEmailSentByMe;
 
     isEmailSentByMeToMe =
       isEmailSentByMeToMe ||
-      (isEmailSentByMe &&
-        interestedEmails.some((myEmail) =>
-          toEmailList.some((toEmail) => toEmail.includes(myEmail))
-        ));
+      (isEmailSentByMe && interestedEmails.some((myEmail) => toEmailList.some((toEmail) => toEmail.includes(myEmail))));
 
     const attachments = await DataUtils.getAttachmentsByMessageId(email.id);
     const images: Attachment[] = _getImageAttachments(attachments);
@@ -527,13 +494,9 @@ async function _processThreads(threadId, emails: Email[]) {
       usedImageAttachments.add(image.path);
     }
 
-    const friendlyDateTimeString1 = moment(parseInt(email.date) * 1000).format(
-      FORMAT_DATE_TIME1
-    );
+    const friendlyDateTimeString1 = moment(parseInt(email.date) * 1000).format(FORMAT_DATE_TIME1);
 
-    const friendlyDateTimeString2 = moment(parseInt(email.date) * 1000).format(
-      FORMAT_DATE_TIME2
-    );
+    const friendlyDateTimeString2 = moment(parseInt(email.date) * 1000).format(FORMAT_DATE_TIME2);
 
     if (!dateStart) {
       dateStart = friendlyDateTimeString1;
@@ -543,7 +506,7 @@ async function _processThreads(threadId, emails: Email[]) {
     const isChat = email.isChat;
     const isEmail = email.isEmail;
 
-    const labelIds = (email.labelIds || "").split(",") || [];
+    const labelIds = (email.labelIds || '').split(',') || [];
     for (let labelId of labelIds) labelIdsSet.add(labelId);
 
     let subject = email.subject;
@@ -558,13 +521,9 @@ async function _processThreads(threadId, emails: Email[]) {
     date = email.date;
 
     if (
+      ignoredWordTokens.some((ignoredToken) => email.rawBody.toLowerCase().includes(ignoredToken.toLowerCase())) ||
       ignoredWordTokens.some((ignoredToken) =>
-        email.rawBody.toLowerCase().includes(ignoredToken.toLowerCase())
-      ) ||
-      ignoredWordTokens.some((ignoredToken) =>
-        `${email.subject}|||${email.from}`
-          .toLowerCase()
-          .includes(ignoredToken.toLowerCase())
+        `${email.subject}|||${email.from}`.toLowerCase().includes(ignoredToken.toLowerCase()),
       )
     ) {
       hasIgnoredWordTokens = hasIgnoredWordTokens || true;
@@ -572,32 +531,18 @@ async function _processThreads(threadId, emails: Email[]) {
 
     if (!folderName) {
       // create the parent folder
-      folderName = isChat
-        ? "_chats"
-        : commonUtils.generateFolderName(email.from);
+      folderName = isChat ? '_chats' : commonUtils.generateFolderName(email.from);
     }
 
     // concatenate body
     if (isChat) {
       if (!docFileName) {
-        docFileName = _sanitizeSubject(
-          subject,
-          from,
-          friendlyDateTimeString2,
-          isChat,
-          isEmail
-        );
+        docFileName = _sanitizeSubject(subject, from, friendlyDateTimeString2, isChat, isEmail);
         docSubject = email.subject;
       }
 
       if (!email.isEmailSentByMe) {
-        docFileName = _sanitizeSubject(
-          subject,
-          from,
-          dateStart,
-          isChat,
-          isEmail
-        );
+        docFileName = _sanitizeSubject(subject, from, dateStart, isChat, isEmail);
 
         docSubject = email.subject;
       }
@@ -605,36 +550,26 @@ async function _processThreads(threadId, emails: Email[]) {
       docContentSections.push({
         body: `
           ================================
-          ${
-            email.isEmailSentByMe ? "ME" : email.from
-          } ${friendlyDateTimeString1} (${email.id}):
+          ${email.isEmailSentByMe ? 'ME' : email.from} ${friendlyDateTimeString1} (${email.id}):
           ${email.body}
         `
-          .split("\n")
+          .split('\n')
           .map((r) => r.trim())
-          .join("\n"),
+          .join('\n'),
         images,
       });
     } else {
       if (!docFileName) {
-        docFileName = _sanitizeSubject(
-          subject,
-          to,
-          friendlyDateTimeString2,
-          isChat,
-          isEmail
-        );
+        docFileName = _sanitizeSubject(subject, to, friendlyDateTimeString2, isChat, isEmail);
       }
 
       if (!docSubject) {
         docSubject = email.subject;
       }
 
-      isPocketLink = isPocketLink || email.from.includes("getpocket");
+      isPocketLink = isPocketLink || email.from.includes('getpocket');
 
-      const gmailLink = isPocketLink
-        ? ""
-        : `https://mail.google.com/mail/#all/${email.id}`;
+      const gmailLink = isPocketLink ? '' : `https://mail.google.com/mail/#all/${email.id}`;
 
       docContentSections.push({
         body: `
@@ -645,9 +580,9 @@ async function _processThreads(threadId, emails: Email[]) {
           ${gmailLink}
           ================================
         `
-          .split("\n")
+          .split('\n')
           .map((r) => r.trim())
-          .join("\n"),
+          .join('\n'),
       });
 
       docContentSections.push({
@@ -657,43 +592,34 @@ async function _processThreads(threadId, emails: Email[]) {
     }
   }
 
-  const zippedAttachmentCount = allNonImageAttachments.filter(
-    (r) => r.mimeType === MIME_TYPE_ENUM.APP_ZIP
-  ).length;
+  const zippedAttachmentCount = allNonImageAttachments.filter((r) => r.mimeType === MIME_TYPE_ENUM.APP_ZIP).length;
 
   logger.debug(
-    `Checking to sync to google drive threadId=${threadId} isEmailSentByMe=${isEmailSentByMe} isEmailSentByMeToMe=${isEmailSentByMeToMe} hasSomeAttachments=${hasSomeAttachments} nonImagesAttachments=${allNonImageAttachments.length} allImageAttachments=${allImageAttachments.length} zippedAttachment=${zippedAttachmentCount} starred=${starred} isPocketLink=${isPocketLink} hasIgnoredWordTokens=${hasIgnoredWordTokens}`
+    `Checking to sync to google drive threadId=${threadId} isEmailSentByMe=${isEmailSentByMe} isEmailSentByMeToMe=${isEmailSentByMeToMe} hasSomeAttachments=${hasSomeAttachments} nonImagesAttachments=${allNonImageAttachments.length} allImageAttachments=${allImageAttachments.length} zippedAttachment=${zippedAttachmentCount} starred=${starred} isPocketLink=${isPocketLink} hasIgnoredWordTokens=${hasIgnoredWordTokens}`,
   );
 
   let shouldUpload = false;
   if (hasIgnoredWordTokens && !isEmailSentByMeToMe && !starred) {
     shouldUpload = false;
-  } else if (
-    isEmailSentByMe ||
-    isEmailSentByMeToMe ||
-    hasSomeAttachments ||
-    starred
-  ) {
+  } else if (isEmailSentByMe || isEmailSentByMeToMe || hasSomeAttachments || starred) {
     shouldUpload = true;
   } else if (isPocketLink) {
     shouldUpload = true;
   }
 
-  logger.debug(
-    `Should upload this thread threadId=${threadId} shouldUpload=${shouldUpload}`
-  );
+  logger.debug(`Should upload this thread threadId=${threadId} shouldUpload=${shouldUpload}`);
 
   if (shouldUpload) {
     logger.debug(`Doing Sync to Google Drive threadId=${threadId}`);
 
     // create the parent folder
-    const isSpecialFolder = folderName.indexOf("_") === 0;
+    const isSpecialFolder = folderName.indexOf('_') === 0;
     folderId = await googleApiUtils.createDriveFolder({
       name: folderName,
       description: `Chats & Emails from ${folderName}`,
       parentFolderId: noteDestinationFolderId,
       starred: isSpecialFolder,
-      folderColorRgb: isSpecialFolder ? "#FF0000" : "#0000FF",
+      folderColorRgb: isSpecialFolder ? '#FF0000' : '#0000FF',
       appProperties: {
         fromDomain: folderName,
       },
@@ -712,13 +638,11 @@ async function _processThreads(threadId, emails: Email[]) {
     let attachmentLinks = [];
 
     for (let attachment of allNonImageAttachments) {
-      let attachmentName = _sanitizeFileName(
-        `${docFileName} File#${attachmentIdx} ${attachment.fileName}`
-      );
+      let attachmentName = _sanitizeFileName(`${docFileName} File#${attachmentIdx} ${attachment.fileName}`);
       attachmentIdx++;
 
       logger.debug(
-        `Upload Attachment threadId=${threadId} attachmentName=${attachmentName} mimeType=${attachment.mimeType}`
+        `Upload Attachment threadId=${threadId} attachmentName=${attachmentName} mimeType=${attachment.mimeType}`,
       );
 
       try {
@@ -739,20 +663,19 @@ async function _processThreads(threadId, emails: Email[]) {
           case MIME_TYPE_ENUM.APP_PHP:
           case MIME_TYPE_ENUM.TEXT_CSS:
           case MIME_TYPE_ENUM.TEXT_MARKDOWN:
-            let attachmentContent =
-              fs.readFileSync(attachment.path, "UTF-8") || "";
+            let attachmentContent = fs.readFileSync(attachment.path, 'UTF-8') || '';
 
             if (attachment.mimeType === MIME_TYPE_ENUM.APP_JS) {
               try {
                 attachmentContent = prettier.format(attachmentContent, {
-                  parser: "babel",
+                  parser: 'babel',
                   tabWidth: 2,
                 });
               } catch (e) {}
             } else if (attachment.mimeType === MIME_TYPE_ENUM.TEXT_CSS) {
               try {
                 attachmentContent = prettier.format(attachmentContent, {
-                  parser: "css",
+                  parser: 'css',
                   tabWidth: 2,
                 });
               } catch (e) {}
@@ -764,7 +687,7 @@ async function _processThreads(threadId, emails: Email[]) {
             });
 
             console.debug(
-              `Will convert this into a Google Doc file threadId=${threadId} attachmentName=${attachmentName} mimeType=${attachment.mimeType} attachmentPathToUse=${attachmentPathToUse}`
+              `Will convert this into a Google Doc file threadId=${threadId} attachmentName=${attachmentName} mimeType=${attachment.mimeType} attachmentPathToUse=${attachmentPathToUse}`,
             );
 
             attachmentLinks.push({
@@ -800,15 +723,12 @@ async function _processThreads(threadId, emails: Email[]) {
         AttachmentId:
         ${attachment.id.substr(0, 25)}
         `
-            .split("\n")
+            .split('\n')
             .map((r) => r.trim())
-            .join("\n"),
+            .join('\n'),
           date,
           starred,
-          parentFolderId: [
-            folderId,
-            process.env.ATTACHMENT_DESTINATION_FOLDER_ID,
-          ],
+          parentFolderId: [folderId, process.env.ATTACHMENT_DESTINATION_FOLDER_ID],
           appProperties: {
             sha: attachmentSha,
             ...googleFileAppProperties,
@@ -829,7 +749,7 @@ async function _processThreads(threadId, emails: Email[]) {
         }
 
         logger.debug(
-          `Link to Attachment threadId=${threadId} attachmentName=${attachmentName} attachmentPathToUse=${attachmentPathToUse} mimeType=${attachment.mimeType} attachmentLink=drive.google.com/file/d/${attachmentDriveFileId}`
+          `Link to Attachment threadId=${threadId} attachmentName=${attachmentName} attachmentPathToUse=${attachmentPathToUse} mimeType=${attachment.mimeType} attachmentLink=drive.google.com/file/d/${attachmentDriveFileId}`,
         );
 
         if (attachment.unzippedContent !== true) {
@@ -842,7 +762,7 @@ async function _processThreads(threadId, emails: Email[]) {
         logger.error(
           `Error - Failed upload attachment - threadId=${threadId} attachmentName=${attachmentName} ${
             attachment.mimeType
-          } path=${attachment.path} error=${JSON.stringify(err.stack || err)}`
+          } path=${attachment.path} error=${JSON.stringify(err.stack || err)}`,
         );
       }
     }
@@ -857,29 +777,25 @@ async function _processThreads(threadId, emails: Email[]) {
       body: `
         ================================
         ThreadId: ${threadId}
-        Date: ${
-          dateStart === dateEnd ? dateStart : dateStart + " to " + dateEnd
-        }
+        Date: ${dateStart === dateEnd ? dateStart : dateStart + ' to ' + dateEnd}
         Uploaded: ${moment().format(FORMAT_DATE_TIME1)}
         Total Messages: ${emails.length}
         Labels: ${Array.from(labelIdsSet)
           .map((r) => r.trim())
           .filter((r) => !!r)
-          .join(", ")}
+          .join(', ')}
         ${gmailFullThreadLink}
       `
-        .split("\n")
+        .split('\n')
         .map((r) => r.trim())
-        .join("\n"),
+        .join('\n'),
     });
 
     // only show the list of images that are not shown earlier already
-    allImageAttachments = allImageAttachments.filter(
-      (image) => !usedImageAttachments.has(image.path)
-    );
+    allImageAttachments = allImageAttachments.filter((image) => !usedImageAttachments.has(image.path));
     if (allImageAttachments.length > 0) {
       docContentSections.push({
-        body: "",
+        body: '',
         images: allImageAttachments,
       });
     }
@@ -890,7 +806,7 @@ async function _processThreads(threadId, emails: Email[]) {
       docContentSections,
       docInlineAttachmentSections,
       attachmentLinks,
-      docLocalPath
+      docLocalPath,
     );
     const docSha = commonUtils.get256Hash(`${threadId}.mainEmail`);
     docDriveFileId = await googleApiUtils.uploadFile({
@@ -914,14 +830,12 @@ async function _processThreads(threadId, emails: Email[]) {
     ThreadId:
     ${threadId}
     `
-        .split("\n")
+        .split('\n')
         .map((r) => r.trim())
-        .join("\n"),
+        .join('\n'),
       date,
       starred,
-      parentFolderId: isPocketLink
-        ? [folderId, process.env.POCKET_DESTINATION_FOLDER_ID]
-        : folderId,
+      parentFolderId: isPocketLink ? [folderId, process.env.POCKET_DESTINATION_FOLDER_ID] : folderId,
       appProperties: {
         sha: docSha,
         ...googleFileAppProperties,
@@ -931,7 +845,7 @@ async function _processThreads(threadId, emails: Email[]) {
     docLink = `docs.google.com/document/d/${docDriveFileId}`;
 
     logger.debug(
-      `Link to Google Doc Main Content threadId=${threadId} docLink=${docLink} parentFolderLink=drive.google.com/drive/folders/${folderId} folderName=${folderName} attachmentLinks=${attachmentLinks.length} nonImagesAttachments=${allNonImageAttachments.length} allImageAttachments=${allImageAttachments.length} zippedAttachment=${zippedAttachmentCount} pdfAttachments=${pdfAttachments.length} subject=${docFileName}`
+      `Link to Google Doc Main Content threadId=${threadId} docLink=${docLink} parentFolderLink=drive.google.com/drive/folders/${folderId} folderName=${folderName} attachmentLinks=${attachmentLinks.length} nonImagesAttachments=${allNonImageAttachments.length} allImageAttachments=${allImageAttachments.length} zippedAttachment=${zippedAttachmentCount} pdfAttachments=${pdfAttachments.length} subject=${docFileName}`,
     );
 
     await DataUtils.bulkUpsertEmails(
@@ -941,7 +855,7 @@ async function _processThreads(threadId, emails: Email[]) {
           status: THREAD_JOB_STATUS_ENUM.SUCCESS,
           driveFileId: docDriveFileId,
         };
-      })
+      }),
     );
 
     return docLink;
@@ -955,10 +869,10 @@ async function _processThreads(threadId, emails: Email[]) {
           status: THREAD_JOB_STATUS_ENUM.SKIPPED,
           driveFileId: null,
         };
-      })
+      }),
     );
 
-    return 'SKIPPED_SYNC'
+    return 'SKIPPED_SYNC';
   }
 }
 
@@ -969,32 +883,32 @@ export async function uploadEmailThreadToGoogleDrive(threadId) {
     return _processThreads(threadId, emails);
   } else {
     logger.error(`Cannot find message with threadId=${threadId}`);
-    return "ERROR_THREAD_ID_NOT_FOUND";
+    return 'ERROR_THREAD_ID_NOT_FOUND';
   }
 }
 
 export async function uploadLogsToDrive() {
   await _init();
 
-  logger.debug("uploadLogsToDrive");
+  logger.debug('uploadLogsToDrive');
 
   googleApiUtils.uploadFile(
-    "...Note_Sync_Log.info",
-    "text/plain",
-    "./logs/log_warn.data",
+    '...Note_Sync_Log.info',
+    'text/plain',
+    './logs/log_warn.data',
     `Note Synchronizer Log`,
     Date.now(),
     false, // not starred
-    noteDestinationFolderId
+    noteDestinationFolderId,
   );
 
   googleApiUtils.uploadFile(
-    "...Note_Sync_Log.verbose",
-    "text/plain",
-    "./logs/log_combined.data",
+    '...Note_Sync_Log.verbose',
+    'text/plain',
+    './logs/log_combined.data',
     `Note Synchronizer Log`,
     Date.now(),
     false, // not starred
-    noteDestinationFolderId
+    noteDestinationFolderId,
   );
 }

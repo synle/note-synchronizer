@@ -1,9 +1,9 @@
 // @ts-nocheck
-import { table, attribute, index } from "sequelize-typescript-decorators";
+import { table, attribute, index } from 'sequelize-typescript-decorators';
 
-import { DataTypes, Model } from "sequelize";
+import { DataTypes, Model } from 'sequelize';
 
-@table("folders", {
+@table('folders', {
   timestamps: true,
 })
 export class Folder extends Model {
@@ -21,7 +21,7 @@ export class Folder extends Model {
 /**
  * threads
  */
-@table("threads", {
+@table('threads', {
   timestamps: true,
 })
 export class Thread extends Model {
@@ -52,29 +52,29 @@ export class Thread extends Model {
 /**
  * this is the email details
  */
-@table("emails", {
+@table('emails', {
   timestamps: true,
 })
 @index([
   {
     unique: false,
-    fields: ["threadId"],
+    fields: ['threadId'],
   },
   {
     unique: false,
-    fields: ["from"],
+    fields: ['from'],
   },
   {
     unique: false,
-    fields: ["subject"],
+    fields: ['subject'],
   },
   {
     unique: false,
-    fields: ["labelIds"],
+    fields: ['labelIds'],
   },
   {
     unique: false,
-    fields: ["driveFileId"],
+    fields: ['driveFileId'],
   },
 ])
 export class Email extends Model {
@@ -107,10 +107,10 @@ export class Email extends Model {
   @attribute(Email)
   rawSubject!: string;
 
-  @attribute(Email, { type: "MEDIUMTEXT" })
+  @attribute(Email, { type: 'MEDIUMTEXT' })
   body!: string;
 
-  @attribute(Email, { type: "MEDIUMTEXT" })
+  @attribute(Email, { type: 'MEDIUMTEXT' })
   rawBody!: string;
 
   @attribute(Email, { type: DataTypes.BIGINT })
@@ -119,7 +119,7 @@ export class Email extends Model {
   @attribute(Email, { type: DataTypes.STRING(700) })
   labelIds!: string;
 
-  @attribute(Email, { type: "MEDIUMTEXT", allowNull: false })
+  @attribute(Email, { type: 'MEDIUMTEXT', allowNull: false })
   rawApiResponse!: string;
 
   @attribute(Email, {
@@ -165,37 +165,37 @@ export class Email extends Model {
 /**
  * this is where we store all the email attachments
  */
-@table("attachments", {
+@table('attachments', {
   timestamps: true,
 })
 @index([
   {
     unique: false,
-    fields: ["messageId"],
+    fields: ['messageId'],
   },
   {
     unique: false,
-    fields: ["threadId"],
+    fields: ['threadId'],
   },
   {
     unique: false,
-    fields: ["fileName"],
+    fields: ['fileName'],
   },
   {
     unique: true,
-    fields: ["path"],
+    fields: ['path'],
   },
   {
     unique: false,
-    fields: ["inline"],
+    fields: ['inline'],
   },
   {
     unique: false,
-    fields: ["size"],
+    fields: ['size'],
   },
   {
     unique: false,
-    fields: ["driveFileId"],
+    fields: ['driveFileId'],
   },
 ])
 export class Attachment extends Model {
