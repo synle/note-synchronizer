@@ -20,6 +20,6 @@
     "sourceMap": true,
     "baseUrl": "./"
   },
-  "exclude": ["node_modules"],
+  "exclude": ["node_modules", "build"],
   "include": ["src/**/*", "*.ts"]
 }
