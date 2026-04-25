@@ -43,3 +43,32 @@ logs
 *.jpg
 *.rdb
 
+
+# Standard junk files
+*.swp
+*.swo
+*.pyc
+*.pyo
+*.class
+*.o
+*.obj
+Thumbs.db
+desktop.ini
+*.log
+.terraform
+.ipynb_checkpoints
+.history
+bin
+obj
+_build
+log
+tmp
+temp
+.serverless
+.expo
+.expo-shared
+.docusaurus
+.angular
+.svelte-kit
+Pods
+DerivedData
