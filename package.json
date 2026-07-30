@@ -15,10 +15,11 @@
     "job5": "node build/src/worker_parents.js UPLOAD_LOGS",
     "start": "ts-node server.ts",
     "test": "ts-node test.ts",
-    "format": "npm run format:js",
-    "format:js": "prettier --config ./.prettierrc --write src/**/**/**/*.{js,ts,html} *.{ts,js,md,json} && prettier --parser json --write *.json",
+    "format": "oxfmt --write .",
+    "format:js": "oxfmt --config ./.prettierrc --write src/**/**/**/*.{js,ts,html} *.{ts,js,md,json} && oxfmt --parser json --write *.json",
     "build": "tsc",
-    "dev": "find . -name '*.ts' | xargs tsc -w"
+    "dev": "find . -name '*.ts' | xargs tsc -w",
+    "format:check": "oxfmt --check ."
   },
   "repository": {
     "type": "git",
@@ -54,7 +55,7 @@
     "@types/node": "^14.0.27",
     "chokidar-cli": "^2.1.0",
     "husky": "^4.2.5",
-    "prettier": "^2.0.5",
+    "oxfmt": "^0.61.0",
     "ts-node": "^8.10.2",
     "typescript": "^3.9.7",
     "winston": "^3.3.3"

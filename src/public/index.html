@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
@@ -117,7 +117,14 @@
       <option value="Distribute Work" />
       <option value="Worker Thread Done action=" />
     </datalist>
-    <form class="form" id="form-search-logs" onsubmit="searchLogs(event); return false">
+    <form
+      class="form"
+      id="form-search-logs"
+      onsubmit="
+        searchLogs(event);
+        return false;
+      "
+    >
       <flex-row>
         <select id="input-logs-sort" value="true">
           <option value="true">Search logs (TIME DESC)</option>
@@ -145,7 +152,14 @@
       </flex-row>
       <div id="output-logs" class="output-logs" placeholder="Logs"></div>
     </form>
-    <form class="form" id="form-parse-body" onsubmit="parseBody(event); return false">
+    <form
+      class="form"
+      id="form-parse-body"
+      onsubmit="
+        parseBody(event);
+        return false;
+      "
+    >
       <label>Parse Body</label>
       <select id="input-type-to-parse" value="messageId">
         <option value="messageId">messageId</option>
@@ -158,12 +172,26 @@
       <textarea id="output-raw-html" class="output-logs" placeholder="Raw HTML"></textarea>
       <textarea id="output-parsed-html" class="output-logs" placeholder="Parsed HTML"></textarea>
     </form>
-    <form class="form" id="form-fetch-body" onsubmit="fetchRawContent(event); return false">
+    <form
+      class="form"
+      id="form-fetch-body"
+      onsubmit="
+        fetchRawContent(event);
+        return false;
+      "
+    >
       <label>Fetch Raw Content</label>
       <input id="input-id-to-fetch" placeholder="Message 14c808b65179c814" value="14c808b65179c814" />
       <textarea id="output-raw" class="output-logs" placeholder="Raw HTML"></textarea>
     </form>
-    <form class="form" id="form-sync-to-drive" onsubmit="syncToDrive(event); return false">
+    <form
+      class="form"
+      id="form-sync-to-drive"
+      onsubmit="
+        syncToDrive(event);
+        return false;
+      "
+    >
       <label>Sync To Google Drive</label>
       <select id="input-type-to-sync" value="messageId">
         <option value="messageId">messageId</option>

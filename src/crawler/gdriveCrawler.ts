@@ -179,14 +179,12 @@ export async function generateDocFileForEmail(
       let contentAdded = false;
       try {
         const link = content.match(/^http[s]?:\/\/[\w./\-#@]+/)[0];
-        docx
-          .createP()
-          .addText(link.replace('http://', '').replace('https://', '').replace('www.', ''), {
-            font_face: 'Courier News',
-            link,
-            color: '0000FF',
-            font_size: 10,
-          });
+        docx.createP().addText(link.replace('http://', '').replace('https://', '').replace('www.', ''), {
+          font_face: 'Courier News',
+          link,
+          color: '0000FF',
+          font_size: 10,
+        });
         contentAdded = true;
       } catch (err) {}
 
