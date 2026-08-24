@@ -127,4 +127,4 @@ export enum REDIS_KEY {
   QUEUE_SUCCESS_UPLOAD_THREAD_ID = 'QUEUE_SUCCESS_UPLOAD_THREAD_ID',
 }
 
-export const REGEX_URL = /[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/i;
+export const REGEX_URL = /[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)/i;

@@ -480,7 +480,7 @@ export async function getAllThreadIdsToParseEmails() {
 }
 
 // step 3 sync / upload to gdrive
-export async function getAllMessageIdsToSyncWithGoogleDrive(): String[] {
+export async function getAllMessageIdsToSyncWithGoogleDrive(): string[] {
   // use redis
   const ids = await redisInstance.smembers(REDIS_KEY.QUEUE_UPLOAD_EMAILS_MESSAGE_ID);
   const pipeline = redisInstance.pipeline();

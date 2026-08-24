@@ -1,0 +1,12 @@
+{
+  "rules": {
+    "eslint(no-unused-vars)": "off",
+    "eslint(no-constant-binary-expression)": "off",
+    "eslint(no-async-promise-executor)": "off",
+    "eslint(no-extra-boolean-cast)": "off",
+    "eslint(no-duplicate-case)": "off",
+    "eslint(no-unreachable)": "off",
+    "eslint(no-dupe-keys)": "off",
+    "eslint(no-unused-expressions)": "off"
+  }
+}

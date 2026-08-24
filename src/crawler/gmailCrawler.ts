@@ -416,7 +416,7 @@ function _parseEmailAddressList(emailAddressesAsString) {
 function _parseEmailAddress(emailAddress) {
   try {
     return emailAddress
-      .match(/<?[a-zA-Z0-9-_\.]+@[a-zA-Z0-9-_\.]+>?/)[0]
+      .match(/<?[a-zA-Z0-9-_.]+@[a-zA-Z0-9-_.]+>?/)[0]
       .replace(/[<>]/g, '')
       .toLowerCase()
       .trim();
@@ -602,7 +602,7 @@ export function tryParseBody(rawBody, mimeType = MIME_TYPE_ENUM.TEXT_HTML) {
   result = result
     .split('\n')
     .map((r) => r.trim())
-    .map((r) => r.replace(/^[-_=\*][-_=\*][-_=\*][-_=\*][-_=\*]*$/gi, '\n================================\n'))
+    .map((r) => r.replace(/^[-_=*][-_=*][-_=*][-_=*][-_=*]*$/gi, '\n================================\n'))
     .filter((r) => !!r)
     .join('\n');
 
