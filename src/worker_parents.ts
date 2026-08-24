@@ -58,7 +58,6 @@ function _newWorker(myThreadId, myThreadName, workerGroup) {
     }, 2000);
   });
   worker.on('exit', (...code) => {
-    // console.error("Worker Exit with code", myThreadId, code);
     setTimeout(() => {
       workerGroup[myThreadId] = _newWorker(myThreadId, myThreadName, workerGroup);
     }, 2000);
@@ -167,10 +166,6 @@ async function _enqueueWorkWithRemainingInputs() {
       logger.debug(`Found New works action=${action} totalWorks=${remainingWorkInputs.length}`);
     }
   } else if (lastWorkIdx < remainingWorkInputs.length && remainingWorkInputs.length > 0) {
-    // logger.debug(
-    //   `Distribute works action=${action} workers=${workers.length}`
-    // );
-
     for (let worker of workers) {
       if (worker.status === WORKER_STATUS_ENUM.FREE) {
         // distribute new tasks

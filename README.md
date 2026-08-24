@@ -24,7 +24,7 @@ Crawled Gmail Notes and push them to Google Drive
 - `FETCH_THREADS`: First pull in all the threadIds from Gmail (for me it was dated back all the way to 2005).
 - `FETCH_RAW_CONTENT`: Fetch the raw content of the emails associated with the above threadIds
 - `PARSE_EMAIL`: Parse the email accordingly, strip out unwanted tags. If the emails have simply links to a post, then curl that URL for the content of the link
-- `UPLOAD_EMAIL` For each of the emails, run a rule condition. If passed will send the emails and associated attachments to Google Drive for storage. At the moment, the buckets are grouped by the sender email address. Note that the original email will be converted to docx before uploading to Google Drive.
+- `UPLOAD_EMAILS_BY_MESSAGE_ID`: For each of the emails, run a rule condition. If passed will send the emails and associated attachments to Google Drive for storage. At the moment, the buckets are grouped by the sender email address. Note that the original email will be converted to docx before uploading to Google Drive.
 
 ## How to run
 
@@ -50,7 +50,7 @@ With multi processes of about 8 concurrent workers, the process takes about 6 ho
 
 - Initially I started using SQLITE for its dependencies free setup. It works well for single processes use case. But problems of file locking with SQLITE quickly arises when I introduce concurrent workers. So then I switched to MySQL as the database engine. This choice seems to help with the concurrent loads.
 
-- Almost all of Google API's use base64 encoded content for data including Gmail messages, Gmail Attachments and Google Drive API's. Details of how to deal with Google API nuances should be described in this doc, refer to the description of Gmail APIs
+- Almost all of Google API's use base64 encoded content for data including Gmail messages, Gmail Attachments and Google Drive API's. See the `Gmail APIs` section below for details
 
 ## Gmail APIs
 
