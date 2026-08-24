@@ -1,12 +1,12 @@
 {
   "rules": {
-    "eslint(no-unused-vars)": "off",
-    "eslint(no-constant-binary-expression)": "off",
-    "eslint(no-async-promise-executor)": "off",
-    "eslint(no-extra-boolean-cast)": "off",
-    "eslint(no-duplicate-case)": "off",
-    "eslint(no-unreachable)": "off",
-    "eslint(no-dupe-keys)": "off",
-    "eslint(no-unused-expressions)": "off"
+    "no-unused-vars": "off",
+    "no-constant-binary-expression": "off",
+    "no-async-promise-executor": "off",
+    "no-extra-boolean-cast": "off",
+    "no-duplicate-case": "off",
+    "no-unreachable": "off",
+    "no-dupe-keys": "off",
+    "no-unused-expressions": "off"
   }
 }
