@@ -16,7 +16,6 @@
     "start": "ts-node server.ts",
     "test": "ts-node test.ts",
     "format": "oxfmt --write .",
-    "format:js": "oxfmt --config ./.prettierrc --write src/**/**/**/*.{js,ts,html} *.{ts,js,md,json} && oxfmt --parser json --write *.json",
     "build": "tsc",
     "dev": "find . -name '*.ts' | xargs tsc -w",
     "format:check": "oxfmt --check ."
